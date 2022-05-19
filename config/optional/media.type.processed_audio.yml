@@ -1,0 +1,15 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - media
+id: processed_audio
+label: Processed Audio
+description: A audio that has been / will be processed on AWS.
+source: audio_file
+queue_thumbnail_downloads: false
+new_revision: true
+source_configuration:
+  source_field: field_processed_audio
+field_map:
+  name: name
