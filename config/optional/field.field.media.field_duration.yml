@@ -1,0 +1,22 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.media.field_duration
+    - media.type.processed_audio
+id: media.processed_audio.field_duration
+field_name: field_duration
+entity_type: media
+bundle: processed_audio
+label: 'Audio Duration'
+description: ''
+required: true
+translatable: true
+default_value: { 0 }
+default_value_callback: ''
+settings:
+  min: 0
+  max: null
+  prefix: ''
+  suffix: ''
+field_type: float
