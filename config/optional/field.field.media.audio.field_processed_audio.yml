@@ -21,5 +21,6 @@ settings:
   handler_settings: {}
   file_extensions: 'm4a'
   max_filesize: ''
+  file_directory: 'processed-audio'
   description_field: false
 field_type: file

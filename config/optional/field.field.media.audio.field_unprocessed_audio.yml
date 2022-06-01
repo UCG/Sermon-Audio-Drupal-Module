@@ -20,6 +20,7 @@ settings:
   handler: 'default:file'
   handler_settings: {}
   file_extensions: 'mp3 mp4 m4a wav aac ogg'
-  max_filesize: ''
+  max_filesize: '1 GB'
+  file_directory: 'audio-uploads'
   description_field: false
 field_type: file

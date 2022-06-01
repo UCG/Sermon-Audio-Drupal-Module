@@ -12,7 +12,7 @@ settings:
   target_type: file
   display_field: false
   display_default: false
-  uri_scheme: public
+  uri_scheme: s3
 module: processed_audio_entity
 locked: false
 cardinality: 1
