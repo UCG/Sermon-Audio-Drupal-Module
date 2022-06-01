@@ -1,0 +1,14 @@
+{
+  "name": "ucg/processed_audio_entity",
+  "description": "Provides a media type for audio that should be processed in a certain way.",
+  "type": "drupal-custom-module",
+  "authors": [
+    {
+      "name": "Duncan McClenagan",
+      "email": "duncan_mcclenagan@ucg.org"
+    }
+  ],
+  "require": {
+    "php": ">=8.1"
+  }
+}
