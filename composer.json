@@ -9,6 +9,7 @@
     }
   ],
   "require": {
+    "aws/aws-sdk-php": "^3.2",
     "php": ">=8.1"
   }
 }
