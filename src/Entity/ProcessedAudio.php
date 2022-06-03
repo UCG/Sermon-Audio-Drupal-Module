@@ -211,6 +211,7 @@ class ProcessedAudio extends Media {
           // The job has not completed. Just move on...
           continue;
         }
+
         if (!isset($items['output-sub-key']['S'])) {
           throw new \RuntimeException('Jobs DB item found does not contain valid "output-sub-key" attribute.');
         }
@@ -218,9 +219,22 @@ class ProcessedAudio extends Media {
         if ($outputSubKey === '') {
           throw new \RuntimeException('The output sub-key found seemed to be empty.');
         }
+
+        if (!isset($items['audio-duration']['N'])) {
+          throw new \RuntimeException('Jobs DB items found does not contain valid "audio-duration" attribute.');
+        }
+        $audioDuration = (float) $items['audio-duration']['N'];
+        if (!is_finite($audioDuration) || $audioDuration < 0) {
+          throw new \RuntimeException('The audio duration was not finite or was negative.');
+        }
       }
       // Otherwise, there is no job with the given input sub-key. Move on...
       else continue;
+
+      assert(isset($audioDuration));
+      assert(isset($outputSubKey));
+      assert($outputSubKey != "");
+      assert(is_finite($audioDuration) && $audioDuration >= 0);
 
       // Assemble the full URI and create a corresponding file entity.
       if (!isset($outputPrefix)) {
@@ -240,7 +254,7 @@ class ProcessedAudio extends Media {
       $file->save();
 
       // Link the new file to this media entity.
-      $processedAudioField = $entity->get('processed_audio');
+      $processedAudioField = $entity->get('field_processed_audio');
       // Get the first item, or create it if necessary.
       if ($processedAudioField->count() === 0) {
         $processedAudioField->appendItem([]);
@@ -250,8 +264,14 @@ class ProcessedAudio extends Media {
       assert($processedAudioItem instanceof EntityReferenceItem);
       // Reset the item to its default value.
       $processedAudioItem->applyDefaultValue();
-      // Set the target ID and save -- we're done!
+      // Finally, set the target entity ID.
       $processedAudioItem->set('target_id', $file->id());
+
+      // Set the audio duration.
+      $durationField = $entity->get('field_duration');
+      if ($durationField->count() === 0) $durationField->appendItem($audioDuration);
+      else $durationField->get(0)->setValue($audioDuration);
+
       $entity->save();
     }
   }
