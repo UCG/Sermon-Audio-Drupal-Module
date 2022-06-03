@@ -5,6 +5,9 @@ processed_audio_entity.settings:
     jobs_db_aws_region:
       type: string
       label: 'AWS region wherein resides DynamoDB audio processing jobs table'
+    jobs_table_name:
+      type: string
+      label: 'Name of DynamoDB audio processing jobs table'
     unprocessed_audio_uri_prefix:
       type: string
       label: 'Prefix, including schema, for unprocessed audio file URIs'
