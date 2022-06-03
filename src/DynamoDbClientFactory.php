@@ -35,7 +35,7 @@ class DynamoDbClientFactory {
   public function __construct(ConfigFactoryInterface $configFactory, ?Credentials $credentials = NULL) {
     $region = (string) $configFactory->get('processed_audio_entity.settings')->get('jobs_db_aws_region');
     if ($region === '') {
-      throw new ModuleConfigurationException('The jobs_db_aws_region settings is missing or empty.');
+      throw new ModuleConfigurationException('The jobs_db_aws_region setting is missing or empty.');
     }
 
     if ($credentials === NULL) {

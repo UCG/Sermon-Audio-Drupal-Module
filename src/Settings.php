@@ -7,7 +7,7 @@ namespace Drupal\processed_audio_entity;
 use Drupal\Core\Config\ImmutableConfig;
 
 /**
- * Allows read-access to this module's settings.
+ * Allows read-only access to this module's settings.
  *
  * Rather than using this static class, it is preferable to use dependency
  * injection if available.
@@ -19,7 +19,7 @@ final class Settings {
   /**
    * Module settings.
    */
-  private ImmutableConfig $settings;
+  private static ImmutableConfig $settings;
 
   /**
    * Empty private constructor to ensure no one instantiates this class.

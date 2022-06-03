@@ -11,6 +11,7 @@ use Drupal\Core\Field\Plugin\Field\FieldType\EntityReferenceItem;
 use Drupal\media\Entity\Media;
 use Drupal\processed_audio_entity\Exception\EntityValidationException;
 use Drupal\processed_audio_entity\Exception\InvalidInputAudioFileException;
+use Drupal\processed_audio_entity\Exception\ModuleConfigurationException;
 use Drupal\processed_audio_entity\Settings;
 use Ranine\Exception\InvalidOperationException;
 use Ranine\Helper\ThrowHelpers;
@@ -62,7 +63,7 @@ class ProcessedAudio extends Media {
    *   user who downloads the audio file will see).
    *
    * @throws \Aws\DynamoDb\Exception\DynamoDbException
-   *   Thrown if an error occurs when attempting to access the AWS audio
+   *   Thrown if an error occurs when attempting to interface with the AWS audio
    *   processing jobs database.
    * @throws \Drupal\Core\Entity\EntityStorageException
    *   Thrown if an error occurs when attempting to save the current entity.
@@ -71,6 +72,8 @@ class ProcessedAudio extends Media {
    * @throws \Drupal\processed_audio_entity\Exception\InvalidInputAudioFileException
    *   Thrown if the input audio file URI does not have the correct prefix (as
    *   defined in the module settings) or is otherwise invalid.
+   * @throws \Drupal\processed_audio_entity\Exception\ModuleConfigurationException
+   *   Thrown if the jobs table name module setting is empty.
    * @throws \InvalidArgumentException
    *   Thrown if $sermonName, $sermonSpeaker, $sermonYear, or
    *   $outputAudioDisplayFilename is empty.
@@ -90,13 +93,12 @@ class ProcessedAudio extends Media {
     $inputSubKey = static::getUnprocessedAudioSubKeyFromFid($unprocessedAudioFid);
 
     // Create an ouput sub-key from 1) this media entity's ID, 2) a random
-    // suffix to ensure uniqueness, and 3) the 'm4a' extension.
+    // hex sequence to ensure uniqueness, and 3) the 'm4a' extension.
     $outputSubKey = $this->id() . '-' . bin2hex(random_bytes(8)) . '.m4a';
 
     // Clear the "audio duration" and "processed audio" fields if necessary.
     $didChangeEntity = FALSE;
     $durationField = $this->get('field_duration');
-    if ($durationField->get(0))
     if ($durationField->get(0)?->getValue() !== NULL) {
       $durationField->removeItem(0);
       $didChangeEntity = TRUE;
@@ -122,15 +124,15 @@ class ProcessedAudio extends Media {
     $dynamoDb = static::getDynamoDbClient();
     $currentTime = \Drupal::time()->getCurrentTime();
     // Lambda jobs time out after 15 minutes; make it 20 to be safe.
-    $thresholdRequeueTime = $currentTime - (20 * 60);
+    $thresholdRestartTime = $currentTime - (20 * 60);
     try {
       $dynamoDb->putItem([
         'ConditionExpression'
-          => 'NOT attribute_exists(#isk) OR #js = :completed OR #js = :notStarted OR #js = :failed OR (#js = :inProgress AND #qt < :thresholdTime)',
+          => 'NOT attribute_exists(#isk) OR #js = :completed OR #js = :notStarted OR #js = :failed OR (#js = :inProgress AND #st < :thresholdTime)',
         'ExpressionAttributeNames' => [
           '#isk' => 'input-sub-key',
           '#js' => 'job-status',
-          '#qt' => 'queue-time',
+          '#st' => 'start-time',
         ],
         'ExpressionAttributeValues' => [
           // The "completed" job status.
@@ -141,7 +143,7 @@ class ProcessedAudio extends Media {
           ':failed' => ['N' => '-1'],
           // The "in progress" job status.
           ':inProgress' => ['N' => '1'],
-          ':thresholdTime' => ['N' => (string) $thresholdRequeueTime],
+          ':thresholdTime' => ['N' => (string) $thresholdRestartTime],
         ],
         'Item' => [
           'input-sub-key' => ['S' => $inputSubKey],
@@ -151,8 +153,9 @@ class ProcessedAudio extends Media {
           'sermon-name' => ['S' => $sermonName],
           'sermon-speaker' => ['S' => $sermonSpeaker],
           'sermon-year' => ['S' => $sermonYear],
+          'output-display-filename' => ['S' => $outputAudioDisplayFilename],
         ],
-        'TableName' => Settings::getJobsTableName(),
+        'TableName' => static::getJobsTableName(),
       ]);
     }
     catch (DynamoDbException $e) {
@@ -185,7 +188,7 @@ class ProcessedAudio extends Media {
         $dynamoDb = static::getDynamoDbClient();
       }
       if (!isset($jobsTableName)) {
-        $jobsTableName = Settings::getJobsTableName();
+        $jobsTableName = static::getJobsTableName();
       }
       $dbResponse = $dynamoDb->getItem([
         'Key' => [
@@ -199,15 +202,15 @@ class ProcessedAudio extends Media {
         'ProjectionExpression' => '#js,#osk,#d',
         'TableName' => $jobsTableName,
       ]);
-      if (isset($dbResponse['Items'])) {
-        $items = $dbResponse['Items'];
-        if (!is_array($items)) {
-          throw new \RuntimeException('Jobs DB response "Items" property is of the wrong type.');
+      if (isset($dbResponse['Item'])) {
+        $item = $dbResponse['Item'];
+        if (!is_array($item)) {
+          throw new \RuntimeException('Jobs DB response "Item" property is of the wrong type.');
         }
         if (!isset($items['job-status']['N'])) {
           throw new \RuntimeException('Jobs DB item found does not contain valid "job-status" attribute.');
         }
-        if (((int)$items['job-status']['N']) !== 2) {
+        if (((int) $items['job-status']['N']) !== 2) {
           // The job has not completed. Just move on...
           continue;
         }
@@ -259,7 +262,6 @@ class ProcessedAudio extends Media {
       if ($processedAudioField->count() === 0) {
         $processedAudioField->appendItem([]);
       }
-      /** @var \Drupal\Core\Field\Plugin\Field\FieldType\EntityReferenceItem */
       $processedAudioItem = $processedAudioField->get(0);
       assert($processedAudioItem instanceof EntityReferenceItem);
       // Reset the item to its default value.
@@ -283,6 +285,23 @@ class ProcessedAudio extends Media {
     /** @var \Drupal\processed_audio_entity\DynamoDbClientFactory */
     $dynamoDbClientFactory = \Drupal::service('dynamo_db_client_factory');
     return $dynamoDbClientFactory->getClient();
+  }
+
+  /**
+   * Gets the audio processing jobs DynamoDB table name.
+   *
+   * @return string
+   *   Non-empty table name.
+   *
+   * @throws \Drupal\processed_audio_entity\Exception\ModuleConfigurationException
+   *   Thrown if the jobs table name module setting is empty.
+   */
+  private static function getJobsTableName() : string {
+    $tableName = Settings::getJobsTableName();
+    if ($tableName === '') {
+      throw new ModuleConfigurationException('The jobs table name module setting is empty.');
+    }
+    return $tableName;
   }
 
   /**
@@ -311,11 +330,9 @@ class ProcessedAudio extends Media {
     /** @var \Drupal\file\FileInterface */
     $inputFile = $fileStorage->load($fid)
       ?? throw new \RuntimeException('Could not locate unprocessed audio file entity.');
-    
+
     $inputUri = $inputFile->getFileUri();
-    // The file must be on S3, and must be within a certain "directory" in order
-    // to be processed correctly by AWS Lambda. Hence, we check the file prefix
-    // here.
+
     $prefix = Settings::getUnprocessedAudioUriPrefix();
     if (!str_starts_with($inputUri, $prefix)) {
       throw new InvalidInputAudioFileException('Input audio file prefix was incorrect.');
@@ -324,7 +341,7 @@ class ProcessedAudio extends Media {
     // Extract the sub-key from the input URI, if possible.
     $inputSubKey = substr($inputUri, strlen($prefix));
     if (!is_string($inputSubKey) || $inputSubKey === '') {
-      throw new InvalidInputAudioFileException('Input audio file URI has an empty sub-key.');
+      throw new InvalidInputAudioFileException('Input audio file URI has an empty or invalid sub-key.');
     }
 
     return $inputSubKey;

@@ -9,18 +9,15 @@ dependencies:
 id: media.processed_audio.field_processed_audio
 field_name: field.media.field_processed_audio
 entity_type: media
-bundle: audio
-label: 'Audio file'
-description: ''
+bundle: processed_audio
+label: 'Processed audio file'
 required: false
 translatable: true
 default_value: {}
 default_value_callback: ''
 settings:
   handler: 'default:file'
-  handler_settings: {}
   file_extensions: 'm4a'
-  max_filesize: ''
   file_directory: 'processed-audio'
   description_field: false
 field_type: file

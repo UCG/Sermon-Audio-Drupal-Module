@@ -8,8 +8,7 @@ id: media.processed_audio.field_duration
 field_name: field_duration
 entity_type: media
 bundle: processed_audio
-label: 'Audio Duration'
-description: ''
+label: 'Audio duration'
 required: false
 translatable: true
 default_value: {}
@@ -17,6 +16,4 @@ default_value_callback: ''
 settings:
   min: 0
   max: null
-  prefix: ''
-  suffix: ''
 field_type: float

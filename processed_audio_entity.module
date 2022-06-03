@@ -2,19 +2,19 @@
 
 declare (strict_types = 1);
 
-use Drupal\processed_audio_entity\Entity\ProcessedAudio;
-
 /**
  * @file
  * Contains hook implementations for the Processed Audio Entity module.
  */
 
+use Drupal\processed_audio_entity\Entity\ProcessedAudio;
+
 /**
  * Implements hook_entity_bundle_info_alter.
  */
-function processed_audio_entity_entity_bundle_info_alter(array &$bundles): void {
+function processed_audio_entity_entity_bundle_info_alter(array &$bundles) : void {
   if (!isset($bundles['media']) || !isset($bundles['node']['processed_audio'])) {
-    throw new \RuntimeException('The "processed audio" media entity bundle is not correctly installed.');
+    throw new \RuntimeException('The "processed_audio" media entity bundle is not correctly installed.');
   }
 
   $bundles['node']['processed_audio']['class'] = ProcessedAudio::class;

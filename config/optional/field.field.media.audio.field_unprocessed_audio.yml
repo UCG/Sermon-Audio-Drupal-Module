@@ -8,17 +8,14 @@ dependencies:
     - file
 id: media.processed_audio.field_unprocessed_audio
 field_name: field.media.field_unprocessed_audio
-entity_type: media
+entity_type: processed_audio
 bundle: audio
-label: 'Audio file'
-description: ''
+label: 'Unprocessed audio file'
 required: true
 translatable: true
 default_value: {}
-default_value_callback: ''
 settings:
   handler: 'default:file'
-  handler_settings: {}
   file_extensions: 'mp3 mp4 m4a wav aac ogg'
   max_filesize: '1 GB'
   file_directory: 'audio-uploads'
