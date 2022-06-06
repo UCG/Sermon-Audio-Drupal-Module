@@ -8,8 +8,8 @@ dependencies:
     - file
 id: media.processed_audio.field_unprocessed_audio
 field_name: field.media.field_unprocessed_audio
-entity_type: processed_audio
-bundle: audio
+entity_type: media
+bundle: processed_audio
 label: 'Unprocessed audio file'
 required: true
 translatable: true
