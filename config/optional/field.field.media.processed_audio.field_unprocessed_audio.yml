@@ -7,7 +7,7 @@ dependencies:
   module:
     - file
 id: media.processed_audio.field_unprocessed_audio
-field_name: field.media.field_unprocessed_audio
+field_name: field_unprocessed_audio
 entity_type: media
 bundle: processed_audio
 label: 'Unprocessed audio file'
