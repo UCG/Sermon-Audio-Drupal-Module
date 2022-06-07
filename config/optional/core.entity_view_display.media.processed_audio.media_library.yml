@@ -20,6 +20,7 @@ content:
       image_style: thumbnail
     weight: 0
     region: content
+    third_party_settings: {}
 hidden:
   created: true
   field_unprocessed_audio: true
