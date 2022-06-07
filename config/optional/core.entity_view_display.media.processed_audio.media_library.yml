@@ -4,6 +4,8 @@ dependencies:
   config:
     - core.entity_view_mode.media.media_library
     - field.field.media.processed_audio.field_unprocessed_audio
+    - field.field.media.processed_audio.field_processed_audio
+    - field.field.media.processed_audio.field_duration
     - image.style.thumbnail
     - media.type.processed_audio
   module:
@@ -24,5 +26,7 @@ content:
 hidden:
   created: true
   field_unprocessed_audio: true
+  field_processed_audio: true
+  field_duration: true
   name: true
   uid: true

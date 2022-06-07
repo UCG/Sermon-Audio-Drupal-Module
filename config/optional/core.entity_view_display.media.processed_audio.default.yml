@@ -2,7 +2,9 @@ langcode: en
 status: true
 dependencies:
   config:
+    - field.field.media.processed_audio.field_processed_audio
     - field.field.media.processed_audio.field_unprocessed_audio
+    - field.field.media.processed_audio.field_duration
     - media.type.processed_audio
   module:
     - file
@@ -11,7 +13,7 @@ targetEntityType: media
 bundle: processed_audio
 mode: default
 content:
-  field_unprocessed_audio:
+  field_processed_audio:
     type: file_audio
     label: visually_hidden
     settings:
@@ -27,3 +29,5 @@ hidden:
   name: true
   thumbnail: true
   uid: true
+  field_unprocessed_audio: true
+  field_duration: true

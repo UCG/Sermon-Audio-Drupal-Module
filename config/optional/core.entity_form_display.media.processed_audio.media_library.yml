@@ -4,6 +4,8 @@ dependencies:
   config:
     - core.entity_form_mode.media.media_library
     - field.field.media.processed_audio.field_unprocessed_audio
+    - field.field.media.processed_audio.field_processed_audio
+    - field.field.media.processed_audio.field_duration
     - media.type.processed_audio
   module:
     - field_layout
@@ -15,6 +17,8 @@ mode: media_library
 hidden:
   created: true
   field_unprocessed_audio: true
+  field_processed_audio: true
+  field_duration: true
   name: true
   path: true
   status: true
