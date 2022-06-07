@@ -1,0 +1,28 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.media.processed_audio.field_unprocessed_audio
+    - media.type.processed_audio
+  module:
+    - file
+id: media.processed_audio.default
+targetEntityType: media
+bundle: processed_audio
+mode: default
+content:
+  field_unprocessed_audio:
+    type: file_audio
+    label: visually_hidden
+    settings:
+      controls: true
+      autoplay: false
+      loop: false
+      multiple_file_display_type: tags
+    weight: 0
+    region: content
+hidden:
+  created: true
+  name: true
+  thumbnail: true
+  uid: true

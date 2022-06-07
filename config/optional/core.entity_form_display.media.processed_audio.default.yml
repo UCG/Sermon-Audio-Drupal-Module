@@ -1,0 +1,42 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.media.processed_audio.field_unprocessed_audio
+    - media.type.processed_audio
+  module:
+    - file
+    - path
+id: media.processed_audio.default
+targetEntityType: media
+bundle: processed_audio
+mode: default
+content:
+  created:
+    type: datetime_timestamp
+    weight: 10
+    region: content
+  field_unprocessed_audio:
+    type: file_generic
+    weight: 0
+    region: content
+    settings:
+      progress_indicator: throbber
+  path:
+    type: path
+    weight: 30
+    region: content
+  status:
+    type: boolean_checkbox
+    weight: 100
+    region: content
+    settings:
+      display_label: true
+  uid:
+    type: entity_reference_autocomplete
+    weight: 5
+    region: content
+    settings:
+      match_operator: CONTAINS
+      match_limit: 10
+      size: 60

@@ -1,0 +1,27 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - core.entity_view_mode.media.media_library
+    - field.field.media.processed_audio.field_unprocessed_audio
+    - image.style.thumbnail
+    - media.type.processed_audio
+  module:
+    - image
+id: media.processed_audio.media_library
+targetEntityType: media
+bundle: processed_audio
+mode: media_library
+content:
+  thumbnail:
+    type: image
+    label: hidden
+    settings:
+      image_style: thumbnail
+    weight: 0
+    region: content
+hidden:
+  created: true
+  field_unprocessed_audio: true
+  name: true
+  uid: true
