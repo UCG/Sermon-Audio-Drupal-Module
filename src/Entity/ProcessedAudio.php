@@ -283,7 +283,7 @@ class ProcessedAudio extends Media {
    */
   private static function getDynamoDbClient() : DynamoDbClient {
     /** @var \Drupal\processed_audio_entity\DynamoDbClientFactory */
-    $dynamoDbClientFactory = \Drupal::service('dynamo_db_client_factory');
+    $dynamoDbClientFactory = \Drupal::service('processed_audio_entity.dynamo_db_client_factory');
     return $dynamoDbClientFactory->getClient();
   }
 
