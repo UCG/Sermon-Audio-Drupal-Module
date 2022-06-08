@@ -75,7 +75,7 @@ class DynamoDbClientFactory {
    *   "jobs_db_aws_region" configuration setting is missing or empty.
    */
   private function createClient() : void {
-    $credentialsFilePath = trim((string) $this->configuration->get('processed_audio_entity.settings'));
+    $credentialsFilePath = trim((string) $this->configuration->get('aws_credentials_file_path'));
     if ($credentialsFilePath != '') {
       $credentialsJson = file_get_contents($credentialsFilePath);
       if (!is_string($credentialsJson)) {
