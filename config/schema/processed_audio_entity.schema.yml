@@ -2,6 +2,9 @@ processed_audio_entity.settings:
   type: config_object
   label: 'Processed Audio Entity Settings'
   mapping:
+    aws_credentials_file_path:
+      type: string
+      label: 'Full path to JSON file where AWS credentials are stored, if applicable (else leave empty)'
     jobs_db_aws_region:
       type: string
       label: 'AWS region wherein DynamoDB audio processing jobs table resides'
