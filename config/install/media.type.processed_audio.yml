@@ -5,7 +5,7 @@ dependencies:
     - media
 id: processed_audio
 label: Processed Audio
-description: A audio that has been / will be processed on AWS.
+description: An audio file that has been / will be processed on AWS.
 source: audio_file
 queue_thumbnail_downloads: false
 new_revision: true
