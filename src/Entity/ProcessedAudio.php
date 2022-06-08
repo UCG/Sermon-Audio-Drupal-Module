@@ -182,7 +182,7 @@ class ProcessedAudio extends Media {
       // audio duration field.
       if ($entity->getProcessedAudioFid() !== NULL) continue;
 
-      $inputSubKey = static::getUnprocessedAudioFieldException($entity->getUnprocessedAudioFid()
+      $inputSubKey = static::getUnprocessedAudioSubKeyFromFid($entity->getUnprocessedAudioFid()
         ?? throw static::getUnprocessedAudioFieldException());
       if (!isset($dynamoDb)) {
         $dynamoDb = static::getDynamoDbClient();
@@ -199,7 +199,7 @@ class ProcessedAudio extends Media {
           '#osk' => 'output-sub-key',
           '#d' => 'audio-duration',
         ],
-        'ProjectionExpression' => '#js,#osk,#d',
+        'ProjectionExpression' => '#js, #osk, #d',
         'TableName' => $jobsTableName,
       ]);
       if (isset($dbResponse['Item'])) {
