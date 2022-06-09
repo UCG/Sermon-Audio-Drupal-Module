@@ -58,6 +58,8 @@ class ProcessedAudio extends Media {
    *   Sermon speaker to attach to processed audio.
    * @param string $sermonYear
    *   Sermon year to attach to processed audio.
+   * @param string $sermonCongregation
+   *   Sermon congregation to attach to processed audio.
    * @param string $outputAudioDisplayFilename
    *   Display filename to use for processed audio (this is the filename that a
    *   user who downloads the audio file will see).
@@ -75,18 +77,19 @@ class ProcessedAudio extends Media {
    * @throws \Drupal\processed_audio_entity\Exception\ModuleConfigurationException
    *   Thrown if the jobs table name module setting is empty.
    * @throws \InvalidArgumentException
-   *   Thrown if $sermonName, $sermonSpeaker, $sermonYear, or
-   *   $outputAudioDisplayFilename is empty.
+   *   Thrown if $sermonName, $sermonSpeaker, $sermonYear, $sermonCongregation,
+   *   or $outputAudioDisplayFilename is empty.
    * @throws \Ranine\Exception\InvalidOperationException
    *   Thrown if the job cannot be queued because it conflicts with a job
    *   already in the audio processing jobs table.
    * @throws \RuntimeException
    *   Thrown if the unprocessed audio file entity could not be loaded.
    */
-  public function initiateAudioProcessing(string $sermonName, string $sermonSpeaker, string $sermonYear, string $outputAudioDisplayFilename) : void {
+  public function initiateAudioProcessing(string $sermonName, string $sermonSpeaker, string $sermonYear, string $sermonCongregation, string $outputAudioDisplayFilename) : void {
     ThrowHelpers::throwIfEmptyString($sermonName, 'sermonName');
     ThrowHelpers::throwIfEmptyString($sermonSpeaker, 'sermonSpeaker');
     ThrowHelpers::throwIfEmptyString($sermonYear, 'sermonYear');
+    ThrowHelpers::throwIfEmptyString($sermonCongregation, 'sermonCongregation');
     ThrowHelpers::throwIfEmptyString($outputAudioDisplayFilename, 'outputAudioDisplayFilename');
 
     $unprocessedAudioFid = $this->getUnprocessedAudioFid() ?? throw static::getUnprocessedAudioFieldException();
@@ -153,6 +156,7 @@ class ProcessedAudio extends Media {
           'sermon-name' => ['S' => $sermonName],
           'sermon-speaker' => ['S' => $sermonSpeaker],
           'sermon-year' => ['S' => $sermonYear],
+          'sermon-congregation' => ['S' => $sermonCongregation],
           'output-display-filename' => ['S' => $outputAudioDisplayFilename],
         ],
         'TableName' => static::getJobsTableName(),
