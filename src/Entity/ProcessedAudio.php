@@ -18,6 +18,18 @@ use Ranine\Helper\ThrowHelpers;
 
 /**
  * Represents a "processed audio" bundle of a media entity.
+ *
+ * Audio processing of the "unprocessed audio" field can be initiated with the
+ * intiateAudioProcessing() method. This method sets the flag described by
+ * field_audio_processing_initiated.
+ *
+ * After a "processed audio" entity is intially loaded (this does not occur on
+ * subsequent loads), a "post load" handler checks to see if
+ * field_audio_processing_intiated is set. If the field is set and the processed
+ * audio field is not set, a check is made to see if the AWS audio processing
+ * job has finished. If it has, the entity's "processed audio" field is updated
+ * with the processed audio file, and the entity is saved. This procedure can
+ * also be forced by calling refreshProcessedAudio().
  */
 class ProcessedAudio extends Media {
 
