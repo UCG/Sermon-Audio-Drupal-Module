@@ -211,26 +211,26 @@ class ProcessedAudio extends Media {
         if (!is_array($item)) {
           throw new \RuntimeException('Jobs DB response "Item" property is of the wrong type.');
         }
-        if (!isset($items['job-status']['N'])) {
+        if (!isset($item['job-status']['N'])) {
           throw new \RuntimeException('Jobs DB item found does not contain valid "job-status" attribute.');
         }
-        if (((int) $items['job-status']['N']) !== 2) {
+        if (((int) $item['job-status']['N']) !== 2) {
           // The job has not completed. Just move on...
           continue;
         }
 
-        if (!isset($items['output-sub-key']['S'])) {
+        if (!isset($item['output-sub-key']['S'])) {
           throw new \RuntimeException('Jobs DB item found does not contain valid "output-sub-key" attribute.');
         }
-        $outputSubKey = (string) $items['output-sub-key']['S'];
+        $outputSubKey = (string) $item['output-sub-key']['S'];
         if ($outputSubKey === '') {
           throw new \RuntimeException('The output sub-key found seemed to be empty.');
         }
 
-        if (!isset($items['audio-duration']['N'])) {
+        if (!isset($item['audio-duration']['N'])) {
           throw new \RuntimeException('Jobs DB items found does not contain valid "audio-duration" attribute.');
         }
-        $audioDuration = (float) $items['audio-duration']['N'];
+        $audioDuration = (float) $item['audio-duration']['N'];
         if (!is_finite($audioDuration) || $audioDuration < 0) {
           throw new \RuntimeException('The audio duration was not finite or was negative.');
         }
