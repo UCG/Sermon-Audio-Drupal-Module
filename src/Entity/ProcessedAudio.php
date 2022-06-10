@@ -8,6 +8,8 @@ use Aws\DynamoDb\DynamoDbClient;
 use Aws\DynamoDb\Exception\DynamoDbException;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Field\Plugin\Field\FieldType\EntityReferenceItem;
+use Drupal\file\FileInterface;
+use Drupal\file\FileStorageInterface;
 use Drupal\media\Entity\Media;
 use Drupal\processed_audio_entity\Exception\EntityValidationException;
 use Drupal\processed_audio_entity\Exception\InvalidInputAudioFileException;
@@ -52,12 +54,38 @@ class ProcessedAudio extends Media {
   }
 
   /**
+   * Loads/returns processed audio file entity, or NULL if the field isn't set.
+   *
+   * @throws \RuntimeException
+   *   Thrown if the file entity is not found.
+   */
+  public function getProcessedAudioFile() : ?FileInterface {
+    $fid = $this->getProcessedAudioFid();
+    if ($fid === NULL) return NULL;
+    return static::getFileStorage()->load($fid)
+      ?? throw new \RuntimeException('Could not locate processed audio file entity.');
+  }
+
+  /**
    * Gets the unprocessed audio FID, or NULL if it is not set.
    */
   public function getUnprocessedAudioFid() : ?int {
     $item = $this->get('field_unprocessed_audio')->get(0)?->getValue();
     if (empty($item) || $item['target_id'] === NULL) return NULL;
     return (int) $item['target_id'];
+  }
+
+  /**
+   * Loads/returns unprocessed audio file entity, or NULL if field isn't set.
+   *
+   * @throws \RuntimeException
+   *   Thrown if the file entity is not found.
+   */
+  public function getUnprocessedAudioFile() : ?FileInterface {
+    $fid = $this->getUnprocessedAudioFid();
+    if ($fid === NULL) return NULL;
+    return static::getFileStorage()->load($fid)
+      ?? throw new \RuntimeException('Could not locate unprocessed audio file entity.');
   }
 
   /**
@@ -107,8 +135,8 @@ class ProcessedAudio extends Media {
     ThrowHelpers::throwIfEmptyString($sermonCongregation, 'sermonCongregation');
     ThrowHelpers::throwIfEmptyString($outputAudioDisplayFilename, 'outputAudioDisplayFilename');
 
-    $unprocessedAudioFid = $this->getUnprocessedAudioFid() ?? throw static::getUnprocessedAudioFieldException();
-    $inputSubKey = static::getUnprocessedAudioSubKeyFromFid($unprocessedAudioFid);
+    $unprocessedAudioFile = $this->getUnprocessedAudioFile() ?? throw static::getUnprocessedAudioFieldException();
+    $inputSubKey = static::getUnprocessedAudioSubKey($unprocessedAudioFile);
 
     // Create an ouput sub-key from 1) this media entity's ID, 2) a random
     // hex sequence to ensure uniqueness, and 3) the 'm4a' extension.
@@ -208,114 +236,177 @@ class ProcessedAudio extends Media {
   }
 
   /**
+   * Attempts to set the processed audio field.
+   *
+   * The processed audio field is set to the value, indicated by the AWS
+   * DynamoDB database, that corresponds to the unprocessed audio field. Nothing
+   * is changed if the URI computed from the DynamoDB query response is the same
+   * as that currently associated with the processed audio field.
+   * 
+   * Note that this method still performs its function even if the current
+   * processed audio field value is non-NULL, and even if
+   * field_audio_processing_initiated is not TRUE.
+   *
+   * This entity is not saved after the processed audio field is set -- that is
+   * up to the caller.
+   *
+   * @return bool
+   *   TRUE if the processed audio field was updated, else FALSE.
+   *
+   * @throws \Aws\DynamoDb\Exception\DynamoDbException
+   *   Thrown if an error occurs when attempting to interface with the AWS audio
+   *   processing jobs database.
+   * @throws \Drupal\Core\Entity\EntityStorageException
+   *   Thrown if an error occurs when trying to save this or another entity.
+   * @throws \Drupal\processed_audio_entity\Exception\EntityValidationException
+   *   Thrown if the unprocessed audio file field is not set.
+   * @throws \Drupal\processed_audio_entity\Exception\InvalidInputAudioFileException
+   *   Thrown if the input audio file URI does not have the correct prefix (as
+   *   defined in the module settings) or is otherwise invalid.
+   * @throws \RuntimeException
+   *   Thrown if something is wrong with the DynamoDB record returned.
+   * @throws \RuntimeException
+   *   Thrown if a referenced file entity does not exist.
+   */
+  public function refreshProcessedAudio() : bool {
+    $unprocessedAudioFile = $this->getUnprocessedAudioFile() ?? throw static::getUnprocessedAudioFieldException();
+    $inputSubKey = static::getUnprocessedAudioSubKey($unprocessedAudioFile);
+
+    $dynamoDb = static::getDynamoDbClient();
+    $jobsTableName = static::getJobsTableName();
+    $dbResponse = $dynamoDb->getItem([
+      'Key' => [
+        'input-sub-key' => ['S' => $inputSubKey],
+      ],
+      'ExpressionAttributeNames' => [
+        '#js' => 'job-status',
+        '#osk' => 'output-sub-key',
+        '#d' => 'audio-duration',
+      ],
+      'ProjectionExpression' => '#js, #osk, #d',
+      'TableName' => $jobsTableName,
+    ]);
+    if (isset($dbResponse['Item'])) {
+      $item = $dbResponse['Item'];
+      if (!is_array($item)) {
+        throw new \RuntimeException('Jobs DB response "Item" property is of the wrong type.');
+      }
+      if (!isset($item['job-status']['N'])) {
+        throw new \RuntimeException('Jobs DB item found does not contain valid "job-status" attribute.');
+      }
+      if (((int) $item['job-status']['N']) !== 2) {
+        // The job has not completed.
+        return FALSE;
+      }
+
+      if (!isset($item['output-sub-key']['S'])) {
+        throw new \RuntimeException('Jobs DB item found does not contain valid "output-sub-key" attribute.');
+      }
+      $outputSubKey = (string) $item['output-sub-key']['S'];
+      if ($outputSubKey === '') {
+        throw new \RuntimeException('The output sub-key found seemed to be empty.');
+      }
+
+      if (!isset($item['audio-duration']['N'])) {
+        throw new \RuntimeException('Jobs DB items found does not contain valid "audio-duration" attribute.');
+      }
+      $audioDuration = (float) $item['audio-duration']['N'];
+      if (!is_finite($audioDuration) || $audioDuration < 0) {
+        throw new \RuntimeException('The audio duration was not finite or was negative.');
+      }
+    }
+    // Otherwise, there is no job with the given input sub-key.
+    else return FALSE;
+
+    assert(isset($audioDuration));
+    assert(isset($outputSubKey));
+    assert($outputSubKey != "");
+    assert(is_finite($audioDuration) && $audioDuration >= 0);
+
+    // Assemble the full URI and create a corresponding file entity, if
+    // necessary.
+    if (!isset($outputPrefix)) {
+      $outputPrefix = Settings::getProcessedAudioUriPrefix();
+    }
+    $processedAudioUri = $outputPrefix . $outputSubKey;
+    // Before creating the file entity, check to see if the current processed
+    // audio entity already has the correct URI.
+    $currentProcessedAudio = $this->getProcessedAudioFile();
+    if ($currentProcessedAudio?->get('field_processed_audio')->getValue() === $processedAudioUri) {
+      return FALSE;
+    }
+
+    // @todo See if owner and/or other metadata needs to be set here.
+    $newProcessedAudio = static::getFileStorage()->create([
+      'uri' => $processedAudioUri,
+      'filename' => basename($processedAudioUri),
+      'filemime' => 'audio/m4a',
+      'status' => TRUE,
+    ])->enforceIsNew();
+    $newProcessedAudio->save();
+
+    // Link the new file to this media entity.
+    $processedAudioField = $this->get('field_processed_audio');
+    // Get the first item, or create it if necessary.
+    if ($processedAudioField->count() === 0) {
+      $processedAudioField->appendItem([]);
+    }
+    $processedAudioItem = $processedAudioField->get(0);
+    assert($processedAudioItem instanceof EntityReferenceItem);
+    // Reset the item to its default value.
+    $processedAudioItem->applyDefaultValue();
+    // Finally, set the target entity ID.
+    $processedAudioItem->set('target_id', $newProcessedAudio->id());
+
+    // Set the audio duration.
+    $durationField = $this->get('field_duration');
+    if ($durationField->count() === 0) $durationField->appendItem($audioDuration);
+    else $durationField->get(0)->setValue($audioDuration);
+
+    return TRUE;
+  }
+
+  /**
    * {@inheritdoc}
    */
   public static function postLoad(EntityStorageInterface $storage, array &$entities) : void {
+    /** @var null[] */
+    static $finishedEntityIds = [];
     foreach ($entities as $entity) {
+      // If 1) postLoad() hasn't been run for $entity, 2) the processed audio
+      // field isn't already set, and 3) field_audio_processing_initiated is
+      // set, then we call refreshProcessedAudio() on the entity. Condition 1)
+      // avoids various problems with the static entity cache being cleared and
+      // refreshProcessedAudio() being called multiple times on the same entity
+      // in the same request cycle (such as when it is called again when the
+      // entity is saved).
+
+      $entityId = $entity->id();
+      // Condition 1:
+      if (array_key_exists($entity->id(), $finishedEntityIds)) continue;
+
       if (!($entity instanceof ProcessedAudio)) {
         throw new \InvalidArgumentException('Invalid entity type in $entities.');
       }
       /** @var \Drupal\processed_audio_entity\Entity\ProcessedAudio $entity */
 
-      // If the processed audio field isn't set, query the audio processing jobs
-      // DB to see if there is now a corresponding processed audio file. If so,
-      // create a corresponding file entity, link it to this entity, and set the
-      // audio duration field.
+      // Condition 2:
       if ($entity->getProcessedAudioFid() !== NULL) continue;
+      // Condition 3:
+      if (!$entity->get('field_audio_processing_initiated')->getValue()) continue;
 
-      $inputSubKey = static::getUnprocessedAudioSubKeyFromFid($entity->getUnprocessedAudioFid()
-        ?? throw static::getUnprocessedAudioFieldException());
-      if (!isset($dynamoDb)) {
-        $dynamoDb = static::getDynamoDbClient();
+      
+      if ($entity->refreshProcessedAudio()) {
+        $finishedEntityIds[$entityId] = NULL;
+        // We add the entity ID to the $finishedEntityIds set before saving.
+        // This is because the save process will invoke postLoad() again when
+        // loading the unchanged entity.
+        $finishedEntityIds[$entityId] = NULL;
+        $entity->save();
       }
-      if (!isset($jobsTableName)) {
-        $jobsTableName = static::getJobsTableName();
+      else {
+        $finishedEntityIds[$entityId] = NULL;
       }
-      $dbResponse = $dynamoDb->getItem([
-        'Key' => [
-          'input-sub-key' => ['S' => $inputSubKey],
-        ],
-        'ExpressionAttributeNames' => [
-          '#js' => 'job-status',
-          '#osk' => 'output-sub-key',
-          '#d' => 'audio-duration',
-        ],
-        'ProjectionExpression' => '#js, #osk, #d',
-        'TableName' => $jobsTableName,
-      ]);
-      if (isset($dbResponse['Item'])) {
-        $item = $dbResponse['Item'];
-        if (!is_array($item)) {
-          throw new \RuntimeException('Jobs DB response "Item" property is of the wrong type.');
-        }
-        if (!isset($item['job-status']['N'])) {
-          throw new \RuntimeException('Jobs DB item found does not contain valid "job-status" attribute.');
-        }
-        if (((int) $item['job-status']['N']) !== 2) {
-          // The job has not completed. Just move on...
-          continue;
-        }
-
-        if (!isset($item['output-sub-key']['S'])) {
-          throw new \RuntimeException('Jobs DB item found does not contain valid "output-sub-key" attribute.');
-        }
-        $outputSubKey = (string) $item['output-sub-key']['S'];
-        if ($outputSubKey === '') {
-          throw new \RuntimeException('The output sub-key found seemed to be empty.');
-        }
-
-        if (!isset($item['audio-duration']['N'])) {
-          throw new \RuntimeException('Jobs DB items found does not contain valid "audio-duration" attribute.');
-        }
-        $audioDuration = (float) $item['audio-duration']['N'];
-        if (!is_finite($audioDuration) || $audioDuration < 0) {
-          throw new \RuntimeException('The audio duration was not finite or was negative.');
-        }
-      }
-      // Otherwise, there is no job with the given input sub-key. Move on...
-      else continue;
-
-      assert(isset($audioDuration));
-      assert(isset($outputSubKey));
-      assert($outputSubKey != "");
-      assert(is_finite($audioDuration) && $audioDuration >= 0);
-
-      // Assemble the full URI and create a corresponding file entity.
-      if (!isset($outputPrefix)) {
-        $outputPrefix = Settings::getProcessedAudioUriPrefix();
-      }
-      $processedAudioUri = $outputPrefix . $outputSubKey;
-      if (!isset($fileStorage)) {
-        $fileStorage = \Drupal::entityTypeManager()->getStorage('file');
-      }
-      // @todo See if owner and/or other metadata needs to be set here.
-      $file = $fileStorage->create([
-        'uri' => $processedAudioUri,
-        'filename' => basename($processedAudioUri),
-        'filemime' => 'audio/m4a',
-        'status' => TRUE,
-      ])->enforceIsNew();
-      $file->save();
-
-      // Link the new file to this media entity.
-      $processedAudioField = $entity->get('field_processed_audio');
-      // Get the first item, or create it if necessary.
-      if ($processedAudioField->count() === 0) {
-        $processedAudioField->appendItem([]);
-      }
-      $processedAudioItem = $processedAudioField->get(0);
-      assert($processedAudioItem instanceof EntityReferenceItem);
-      // Reset the item to its default value.
-      $processedAudioItem->applyDefaultValue();
-      // Finally, set the target entity ID.
-      $processedAudioItem->set('target_id', $file->id());
-
-      // Set the audio duration.
-      $durationField = $entity->get('field_duration');
-      if ($durationField->count() === 0) $durationField->appendItem($audioDuration);
-      else $durationField->get(0)->setValue($audioDuration);
-
-      $entity->save();
     }
   }
 
@@ -326,6 +417,17 @@ class ProcessedAudio extends Media {
     /** @var \Drupal\processed_audio_entity\DynamoDbClientFactory */
     $dynamoDbClientFactory = \Drupal::service('processed_audio_entity.dynamo_db_client_factory');
     return $dynamoDbClientFactory->getClient();
+  }
+
+  /**
+   * Gets the file storage.
+   */
+  private static function getFileStorage() : FileStorageInterface {
+    static $fileStorage;
+    if (!isset($fileStorage)) {
+      $fileStorage = \Drupal::entityTypeManager()->getStorage('file');
+    }
+    return $fileStorage;
   }
 
   /**
@@ -353,34 +455,25 @@ class ProcessedAudio extends Media {
   }
 
   /**
-   * Gets the input sub-key from the file corresponding to the given FID.
+   * Gets the input sub-key from the URI of the given file entity.
    *
-   * @param int $fid
-   *   FID of unprocessed audio file entity for which to retrieve sub-key.
+   * @param \Drupal\file\FileInterface $file
+   *   Unprocessed audio file entity.
    *
    * @throws \Drupal\processed_audio_entity\Exception\InvalidInputAudioFileException
    *   Thrown if the input audio file URI does not have the correct prefix (as
    *   defined in the module settings) or is otherwise invalid.
-   * @throws \RuntimeException
-   *   Thrown if the file entity could not be loaded.
    */
-  private static function getUnprocessedAudioSubKeyFromFid(int $fid) : string {
-    // Load the file entity in order to get the URI.
-    /** @var \Drupal\file\FileStorageInterface */
-    $fileStorage = \Drupal::entityTypeManager()->getStorage('file');
-    /** @var \Drupal\file\FileInterface */
-    $inputFile = $fileStorage->load($fid)
-      ?? throw new \RuntimeException('Could not locate unprocessed audio file entity.');
-
-    $inputUri = $inputFile->getFileUri();
+  private static function getUnprocessedAudioSubKey(FileInterface $file) : string {
+    $uri = $file->getFileUri();
 
     $prefix = Settings::getUnprocessedAudioUriPrefix();
-    if (!str_starts_with($inputUri, $prefix)) {
+    if (!str_starts_with($uri, $prefix)) {
       throw new InvalidInputAudioFileException('Input audio file prefix was incorrect.');
     }
 
     // Extract the sub-key from the input URI, if possible.
-    $inputSubKey = substr($inputUri, strlen($prefix));
+    $inputSubKey = substr($uri, strlen($prefix));
     if (!is_string($inputSubKey) || $inputSubKey === '') {
       throw new InvalidInputAudioFileException('Input audio file URI has an empty or invalid sub-key.');
     }
