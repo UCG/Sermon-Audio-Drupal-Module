@@ -7,10 +7,11 @@ namespace Drupal\processed_audio_entity\Entity;
 use Aws\DynamoDb\DynamoDbClient;
 use Aws\DynamoDb\Exception\DynamoDbException;
 use Drupal\Core\Entity\EntityStorageInterface;
-use Drupal\Core\Field\Plugin\Field\FieldType\EntityReferenceItem;
+use Drupal\Core\Field\FieldItemBase;
 use Drupal\file\FileInterface;
 use Drupal\file\FileStorageInterface;
 use Drupal\media\Entity\Media;
+use Drupal\processed_audio_entity\DynamoDbClientFactory;
 use Drupal\processed_audio_entity\Exception\EntityValidationException;
 use Drupal\processed_audio_entity\Exception\InvalidInputAudioFileException;
 use Drupal\processed_audio_entity\Exception\ModuleConfigurationException;
@@ -31,8 +32,9 @@ use Ranine\Helper\ThrowHelpers;
  * field_audio_processing_intiated is set. If the field is set and the processed
  * audio field is not set, a check is made to see if the AWS audio processing
  * job has finished. If it has, the entity's "processed audio" field is updated
- * with the processed audio file, and the entity is saved. This procedure can
- * also be forced by calling refreshProcessedAudio().
+ * with the processed audio file, and the entity is saved. The AWS audio
+ * processing job check and subsequent processed audio field update can also be
+ * forced by calling refreshProcessedAudio().
  */
 class ProcessedAudio extends Media {
 
@@ -91,7 +93,9 @@ class ProcessedAudio extends Media {
   /**
    * Initiates an audio processing job corresponding to unprocessed audio file.
    *
-   * Clears the "processed audio" and "duration" fields if they are set.
+   * Clears the "processed audio" and "duration" fields if they are set, and
+   * sets field_audio_processing_intiated. If changes were made, this entity is
+   * saved.
    *
    * @param string $sermonName
    *   Sermon name to attach to processed audio.
@@ -121,14 +125,19 @@ class ProcessedAudio extends Media {
    *   Thrown if $sermonName, $sermonSpeaker, $sermonYear, $sermonCongregation,
    *   or $outputAudioDisplayFilename is empty.
    * @throws \Ranine\Exception\AggregateException
-   *   Thrown if an error occurs while saving the entity after a DynamoDB error.
+   *   Thrown if an error occurs after a DynamoDB error while saving the entity
+   *   setting a field value.
    * @throws \Ranine\Exception\InvalidOperationException
    *   Thrown if the job cannot be queued because it conflicts with a job
    *   already in the audio processing jobs table.
    * @throws \RuntimeException
    *   Thrown if the unprocessed audio file entity could not be loaded.
    */
-  public function initiateAudioProcessing(string $sermonName, string $sermonSpeaker, string $sermonYear, string $sermonCongregation, string $outputAudioDisplayFilename) : void {
+  public function initiateAudioProcessing(string $sermonName,
+    string $sermonSpeaker,
+    string $sermonYear,
+    string $sermonCongregation,
+    string $outputAudioDisplayFilename) : void {
     ThrowHelpers::throwIfEmptyString($sermonName, 'sermonName');
     ThrowHelpers::throwIfEmptyString($sermonSpeaker, 'sermonSpeaker');
     ThrowHelpers::throwIfEmptyString($sermonYear, 'sermonYear');
@@ -142,8 +151,9 @@ class ProcessedAudio extends Media {
     // hex sequence to ensure uniqueness, and 3) the 'm4a' extension.
     $outputSubKey = $this->id() . '-' . bin2hex(random_bytes(8)) . '.m4a';
 
-    // Clear the "audio duration" and "processed audio" fields if necessary.
     $didChangeEntity = FALSE;
+
+    // Clear the "audio duration" and "processed audio" fields if necessary.
     $durationField = $this->get('field_duration');
     if ($durationField->get(0)?->getValue() !== NULL) {
       $durationField->removeItem(0);
@@ -154,7 +164,8 @@ class ProcessedAudio extends Media {
       $processedAudioField->removeItem(0);
       $didChangeEntity = TRUE;
     }
-    // Indicate that we have initiated the audio processing process.
+
+    // Indicate that we have initiated the audio processing.
     $audioProcessingInitiatedField = $this->get('field_audio_processing_initiated');
     $audioProcessingInitiatedFieldItem = $audioProcessingInitiatedField->get(0);
     if ($audioProcessingInitiatedFieldItem === NULL) {
@@ -225,7 +236,7 @@ class ProcessedAudio extends Media {
         $this->save();
       }
       catch (\Exception $inner) {
-        throw new AggregateException('An error occurred while attempting to save the entity, which occurred while handling a DynamoDB error.', 0,
+        throw new AggregateException('An error occurred while attempting to save the entity or set a field value, which occurred while handling a DynamoDB error.', 0,
           [$inner, $e]);
       }
       if ($e->getAwsErrorCode() === 'ConditionalCheckFailedException') {
@@ -236,7 +247,7 @@ class ProcessedAudio extends Media {
   }
 
   /**
-   * Attempts to set the processed audio field.
+   * Attempts to correctly set the processed audio field.
    *
    * The processed audio field is set to the value, indicated by the AWS
    * DynamoDB database, that corresponds to the unprocessed audio field. Nothing
@@ -257,7 +268,7 @@ class ProcessedAudio extends Media {
    *   Thrown if an error occurs when attempting to interface with the AWS audio
    *   processing jobs database.
    * @throws \Drupal\Core\Entity\EntityStorageException
-   *   Thrown if an error occurs when trying to save this or another entity.
+   *   Thrown if an error occurs when trying to save a new file entity.
    * @throws \Drupal\processed_audio_entity\Exception\EntityValidationException
    *   Thrown if the unprocessed audio file field is not set.
    * @throws \Drupal\processed_audio_entity\Exception\InvalidInputAudioFileException
@@ -325,14 +336,11 @@ class ProcessedAudio extends Media {
 
     // Assemble the full URI and create a corresponding file entity, if
     // necessary.
-    if (!isset($outputPrefix)) {
-      $outputPrefix = Settings::getProcessedAudioUriPrefix();
-    }
+    $outputPrefix = Settings::getProcessedAudioUriPrefix();
     $processedAudioUri = $outputPrefix . $outputSubKey;
     // Before creating the file entity, check to see if the current processed
     // audio entity already has the correct URI.
-    $currentProcessedAudio = $this->getProcessedAudioFile();
-    if ($currentProcessedAudio?->get('field_processed_audio')->getValue() === $processedAudioUri) {
+    if ($this->getProcessedAudioFile()?->get('uri')->get(0)?->getValue() === $processedAudioUri) {
       return FALSE;
     }
 
@@ -352,7 +360,7 @@ class ProcessedAudio extends Media {
       $processedAudioField->appendItem([]);
     }
     $processedAudioItem = $processedAudioField->get(0);
-    assert($processedAudioItem instanceof EntityReferenceItem);
+    assert($processedAudioItem instanceof FieldItemBase);
     // Reset the item to its default value.
     $processedAudioItem->applyDefaultValue();
     // Finally, set the target entity ID.
@@ -373,6 +381,8 @@ class ProcessedAudio extends Media {
     /** @var null[] */
     static $finishedEntityIds = [];
     foreach ($entities as $entity) {
+      $entityId = $entity->id();
+
       // If 1) postLoad() hasn't been run for $entity, 2) the processed audio
       // field isn't already set, and 3) field_audio_processing_initiated is
       // set, then we call refreshProcessedAudio() on the entity. Condition 1)
@@ -381,23 +391,20 @@ class ProcessedAudio extends Media {
       // in the same request cycle (such as when it is called again when the
       // entity is saved).
 
-      $entityId = $entity->id();
       // Condition 1:
-      if (array_key_exists($entity->id(), $finishedEntityIds)) continue;
+      if (array_key_exists($entityId, $finishedEntityIds)) continue;
 
       if (!($entity instanceof ProcessedAudio)) {
         throw new \InvalidArgumentException('Invalid entity type in $entities.');
       }
-      /** @var \Drupal\processed_audio_entity\Entity\ProcessedAudio $entity */
 
       // Condition 2:
       if ($entity->getProcessedAudioFid() !== NULL) continue;
       // Condition 3:
-      if (!$entity->get('field_audio_processing_initiated')->getValue()) continue;
+      if (!$entity->get('field_audio_processing_initiated')->get(0)?->getValue()) continue;
 
       
       if ($entity->refreshProcessedAudio()) {
-        $finishedEntityIds[$entityId] = NULL;
         // We add the entity ID to the $finishedEntityIds set before saving.
         // This is because the save process will invoke postLoad() again when
         // loading the unchanged entity.
@@ -414,9 +421,13 @@ class ProcessedAudio extends Media {
    * Gets a DynamoDB client.
    */
   private static function getDynamoDbClient() : DynamoDbClient {
-    /** @var \Drupal\processed_audio_entity\DynamoDbClientFactory */
-    $dynamoDbClientFactory = \Drupal::service('processed_audio_entity.dynamo_db_client_factory');
-    return $dynamoDbClientFactory->getClient();
+    static $client;
+    if (!isset($client)) {
+      $dynamoDbClientFactory = \Drupal::service('processed_audio_entity.dynamo_db_client_factory');
+      assert($dynamoDbClientFactory instanceof DynamoDbClientFactory);
+      $client = $dynamoDbClientFactory->getClient();
+    }
+    return $client;
   }
 
   /**
@@ -469,10 +480,9 @@ class ProcessedAudio extends Media {
 
     $prefix = Settings::getUnprocessedAudioUriPrefix();
     if (!str_starts_with($uri, $prefix)) {
-      throw new InvalidInputAudioFileException('Input audio file prefix was incorrect.');
+      throw new InvalidInputAudioFileException('Input audio file URI prefix was incorrect.');
     }
 
-    // Extract the sub-key from the input URI, if possible.
     $inputSubKey = substr($uri, strlen($prefix));
     if (!is_string($inputSubKey) || $inputSubKey === '') {
       throw new InvalidInputAudioFileException('Input audio file URI has an empty or invalid sub-key.');
