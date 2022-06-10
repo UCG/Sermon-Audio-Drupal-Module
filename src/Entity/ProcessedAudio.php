@@ -13,6 +13,7 @@ use Drupal\processed_audio_entity\Exception\EntityValidationException;
 use Drupal\processed_audio_entity\Exception\InvalidInputAudioFileException;
 use Drupal\processed_audio_entity\Exception\ModuleConfigurationException;
 use Drupal\processed_audio_entity\Settings;
+use Ranine\Exception\AggregateException;
 use Ranine\Exception\InvalidOperationException;
 use Ranine\Helper\ThrowHelpers;
 
@@ -91,6 +92,8 @@ class ProcessedAudio extends Media {
    * @throws \InvalidArgumentException
    *   Thrown if $sermonName, $sermonSpeaker, $sermonYear, $sermonCongregation,
    *   or $outputAudioDisplayFilename is empty.
+   * @throws \Ranine\Exception\AggregateException
+   *   Thrown if an error occurs while saving the entity after a DynamoDB error.
    * @throws \Ranine\Exception\InvalidOperationException
    *   Thrown if the job cannot be queued because it conflicts with a job
    *   already in the audio processing jobs table.
@@ -123,6 +126,18 @@ class ProcessedAudio extends Media {
       $processedAudioField->removeItem(0);
       $didChangeEntity = TRUE;
     }
+    // Indicate that we have initiated the audio processing process.
+    $audioProcessingInitiatedField = $this->get('field_audio_processing_initiated');
+    $audioProcessingInitiatedFieldItem = $audioProcessingInitiatedField->get(0);
+    if ($audioProcessingInitiatedFieldItem === NULL) {
+      $audioProcessingInitiatedFieldItem = $audioProcessingInitiatedField->appendItem(TRUE);
+      $didChangeEntity = TRUE;
+    }
+    elseif (!$audioProcessingInitiatedFieldItem->getValue()) {
+      $audioProcessingInitiatedFieldItem->setValue(TRUE);
+      $didChangeEntity = TRUE;
+    }
+
     if ($didChangeEntity) {
       $this->save();
     }
@@ -175,6 +190,16 @@ class ProcessedAudio extends Media {
       ]);
     }
     catch (DynamoDbException $e) {
+      // Indicate that the audio processing job has not actually successfully
+      // been initiated.
+      try {
+        $audioProcessingInitiatedFieldItem->setValue(FALSE);
+        $this->save();
+      }
+      catch (\Exception $inner) {
+        throw new AggregateException('An error occurred while attempting to save the entity, which occurred while handling a DynamoDB error.', 0,
+          [$inner, $e]);
+      }
       if ($e->getAwsErrorCode() === 'ConditionalCheckFailedException') {
         throw new InvalidOperationException('The job cannot be queued because it conflicts with an existing job.', 0, $e);
       }
