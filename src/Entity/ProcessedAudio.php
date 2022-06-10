@@ -336,9 +336,9 @@ class ProcessedAudio extends Media {
       return FALSE;
     }
 
-    // @todo See if owner and/or other metadata needs to be set here.
     $newProcessedAudio = static::getFileStorage()->create([
       'uri' => $processedAudioUri,
+      'uid' => 1,
       'filename' => basename($processedAudioUri),
       'filemime' => 'audio/m4a',
       'status' => TRUE,
