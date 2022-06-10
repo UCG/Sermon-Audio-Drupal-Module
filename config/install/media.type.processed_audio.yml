@@ -1,6 +1,8 @@
 langcode: en
 status: true
 dependencies:
+  config:
+    - field.field.media.processed_audio.field_processed_audio
   module:
     - media
 id: processed_audio
