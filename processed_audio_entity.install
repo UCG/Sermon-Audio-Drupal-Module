@@ -1,0 +1,70 @@
+<?php
+
+declare (strict_types = 1);
+
+use Drupal\Core\Config\FileStorage;
+use Drupal\Core\Config\StorageInterface;
+
+/**
+ * @file
+ * Contains install hook implementations for the Processed Audio Entity module.
+ */
+
+/**
+* Implements hook_install.
+*/
+function processed_audio_entity_install(bool $is_syncing) {
+  // Some configuration does not install correctly when placed in
+  // config/install, because of dependency resolution issues. Hence, we must
+  // install some of it manually. Everything in config/install should already
+  // be installed, so we make that assumption.
+
+  // If we are syncing, we don't want to install anything, because the syncing
+  // process should take care of it.
+  if ($is_syncing) return;
+
+  // First, set up the source config storage object, which takes configuration
+  // from the set of YAML files in the config/custom-install directory.
+  $inputConfigStorage = new FileStorage(__DIR__ . '/config/custom-install');
+
+  $outputConfigStorage = \Drupal::service('config.storage');
+  assert($outputConfigStorage instanceof StorageInterface);
+
+  // Start by installing the processed_audio media type, because the field
+  // instances may require that their target bundle exists.
+  _processed_audio_entity_copy_configuration('media.type.processed_audio', $inputConfigStorage, $outputConfigStorage);
+  // Next, install all the field instances.
+  _processed_audio_entity_copy_configuration('field.field.media.processed_audio.field_audio_processing_initiated.yml', $inputConfigStorage, $outputConfigStorage);
+  _processed_audio_entity_copy_configuration('field.field.media.processed_audio.field_duration.yml', $inputConfigStorage, $outputConfigStorage);
+  _processed_audio_entity_copy_configuration('field.field.media.processed_audio.field_processed_audio.yml', $inputConfigStorage, $outputConfigStorage);
+  _processed_audio_entity_copy_configuration('field.field.media.processed_audio.field_unprocessed_audio.yml', $inputConfigStorage, $outputConfigStorage);
+  // Finally, install the form and view display config stuff.
+  _processed_audio_entity_copy_configuration('core.entity_form_display.media.processed_audio.default.yml', $inputConfigStorage, $outputConfigStorage);
+  _processed_audio_entity_copy_configuration('core.entity_form_display.media.processed_audio.media_library.yml', $inputConfigStorage, $outputConfigStorage);
+  _processed_audio_entity_copy_configuration('core.entity_view_display.media.processed_audio.default.yml', $inputConfigStorage, $outputConfigStorage);
+  _processed_audio_entity_copy_configuration('core.entity_view_display.media.processed_audio.media_library.yml', $inputConfigStorage, $outputConfigStorage);
+}
+
+/**
+ * Writes config to the ouptut storage by reading from the input storage.
+ *
+ * @param string $configName
+ *   Configuration object name.
+ * @param StorageInterface $inputConfigStorage
+ *   Input storage.
+ * @param StorageInterface $outputConfigStorage
+ *   Output storage.
+ *
+ * @return bool
+ *   TRUE on success; else FALSE.
+ *
+ * @param \Drupal\Core\Config\StorageException
+ *   Thrown if the output storage backend does not exist, and cannot be created.
+ */
+function _processed_audio_entity_copy_configuration(string $configName, StorageInterface $inputConfigStorage, StorageInterface $outputConfigStorage) : bool {
+  $configData = $inputConfigStorage->read($configName);
+  if ($configData === FALSE) {
+    return FALSE;
+  }
+  return $outputConfigStorage->write($configName, $configData);
+}
