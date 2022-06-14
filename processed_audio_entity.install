@@ -34,15 +34,15 @@ function processed_audio_entity_install(bool $is_syncing) {
   // instances may require that their target bundle exists.
   _processed_audio_entity_copy_configuration('media.type.processed_audio', $inputConfigStorage, $outputConfigStorage);
   // Next, install all the field instances.
-  _processed_audio_entity_copy_configuration('field.field.media.processed_audio.field_audio_processing_initiated.yml', $inputConfigStorage, $outputConfigStorage);
-  _processed_audio_entity_copy_configuration('field.field.media.processed_audio.field_duration.yml', $inputConfigStorage, $outputConfigStorage);
-  _processed_audio_entity_copy_configuration('field.field.media.processed_audio.field_processed_audio.yml', $inputConfigStorage, $outputConfigStorage);
-  _processed_audio_entity_copy_configuration('field.field.media.processed_audio.field_unprocessed_audio.yml', $inputConfigStorage, $outputConfigStorage);
+  _processed_audio_entity_copy_configuration('field.field.media.processed_audio.field_audio_processing_initiated', $inputConfigStorage, $outputConfigStorage);
+  _processed_audio_entity_copy_configuration('field.field.media.processed_audio.field_duration', $inputConfigStorage, $outputConfigStorage);
+  _processed_audio_entity_copy_configuration('field.field.media.processed_audio.field_processed_audio', $inputConfigStorage, $outputConfigStorage);
+  _processed_audio_entity_copy_configuration('field.field.media.processed_audio.field_unprocessed_audio', $inputConfigStorage, $outputConfigStorage);
   // Finally, install the form and view display config stuff.
-  _processed_audio_entity_copy_configuration('core.entity_form_display.media.processed_audio.default.yml', $inputConfigStorage, $outputConfigStorage);
-  _processed_audio_entity_copy_configuration('core.entity_form_display.media.processed_audio.media_library.yml', $inputConfigStorage, $outputConfigStorage);
-  _processed_audio_entity_copy_configuration('core.entity_view_display.media.processed_audio.default.yml', $inputConfigStorage, $outputConfigStorage);
-  _processed_audio_entity_copy_configuration('core.entity_view_display.media.processed_audio.media_library.yml', $inputConfigStorage, $outputConfigStorage);
+  _processed_audio_entity_copy_configuration('core.entity_form_display.media.processed_audio.default', $inputConfigStorage, $outputConfigStorage);
+  _processed_audio_entity_copy_configuration('core.entity_form_display.media.processed_audio.media_library', $inputConfigStorage, $outputConfigStorage);
+  _processed_audio_entity_copy_configuration('core.entity_view_display.media.processed_audio.default', $inputConfigStorage, $outputConfigStorage);
+  _processed_audio_entity_copy_configuration('core.entity_view_display.media.processed_audio.media_library', $inputConfigStorage, $outputConfigStorage);
 }
 
 /**
