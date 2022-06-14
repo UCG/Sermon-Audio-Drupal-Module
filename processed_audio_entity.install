@@ -55,16 +55,17 @@ function processed_audio_entity_install(bool $is_syncing) {
  * @param StorageInterface $outputConfigStorage
  *   Output storage.
  *
- * @return bool
- *   TRUE on success; else FALSE.
- *
  * @param \Drupal\Core\Config\StorageException
  *   Thrown if the output storage backend does not exist, and cannot be created.
+ * @param \RuntimeException
+ *   Thrown if the copy operation failed.
  */
-function _processed_audio_entity_copy_configuration(string $configName, StorageInterface $inputConfigStorage, StorageInterface $outputConfigStorage) : bool {
+function _processed_audio_entity_copy_configuration(string $configName, StorageInterface $inputConfigStorage, StorageInterface $outputConfigStorage) : void {
   $configData = $inputConfigStorage->read($configName);
   if ($configData === FALSE) {
-    return FALSE;
+    throw new \RuntimeException('Could not read input configuration with name "' . $configName . '".');
   }
-  return $outputConfigStorage->write($configName, $configData);
+  if (!$outputConfigStorage->write($configName, $configData)) {
+    throw new \RuntimeException('Could not read output configuration with name "' . $configName . '".');
+  }
 }
