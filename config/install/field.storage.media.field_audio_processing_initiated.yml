@@ -8,7 +8,7 @@ field_name: field_audio_processing_initiated
 entity_type: media
 type: boolean
 settings: {}
-module: processed_audio_entity
+module: sermon_audio
 locked: false
 cardinality: 1
 translatable: true

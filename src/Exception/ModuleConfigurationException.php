@@ -2,7 +2,7 @@
 
 declare (strict_types = 1);
 
-namespace Drupal\processed_audio_entity\Exception;
+namespace Drupal\sermon_audio\Exception;
 
 use Ranine\Helper\StringHelpers;
 
@@ -27,7 +27,7 @@ class ModuleConfigurationException extends \RuntimeException {
     // Call the parent constructor with the message (either $message, or, if
     // $message is unset or empty [i.e., an empty string when coerced to a
     // string], a default message) and other parameters.
-    parent::__construct(StringHelpers::getValueOrDefault($message, 'The processed_audio_entity module is mis-configured.'), $code, $previous);
+    parent::__construct(StringHelpers::getValueOrDefault($message, 'The sermon_audio module is mis-configured.'), $code, $previous);
   }
 
 }

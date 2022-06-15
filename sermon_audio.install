@@ -7,13 +7,13 @@ use Drupal\Core\Config\StorageInterface;
 
 /**
  * @file
- * Contains install hook implementations for the Processed Audio Entity module.
+ * Contains install hook implementations for the Sermon Audio module.
  */
 
 /**
 * Implements hook_install().
 */
-function processed_audio_entity_install(bool $is_syncing) {
+function sermon_audio_install(bool $is_syncing) {
   // Some configuration does not install correctly when placed in
   // config/install, because of dependency resolution issues. Hence, we must
   // install some of it manually. Everything in config/install should already

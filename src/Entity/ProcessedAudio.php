@@ -2,7 +2,7 @@
 
 declare (strict_types = 1);
 
-namespace Drupal\processed_audio_entity\Entity;
+namespace Drupal\sermon_audio\Entity;
 
 use Aws\DynamoDb\DynamoDbClient;
 use Aws\DynamoDb\Exception\DynamoDbException;
@@ -11,11 +11,11 @@ use Drupal\Core\Field\FieldItemBase;
 use Drupal\file\FileInterface;
 use Drupal\file\FileStorageInterface;
 use Drupal\media\Entity\Media;
-use Drupal\processed_audio_entity\DynamoDbClientFactory;
-use Drupal\processed_audio_entity\Exception\EntityValidationException;
-use Drupal\processed_audio_entity\Exception\InvalidInputAudioFileException;
-use Drupal\processed_audio_entity\Exception\ModuleConfigurationException;
-use Drupal\processed_audio_entity\Settings;
+use Drupal\sermon_audio\DynamoDbClientFactory;
+use Drupal\sermon_audio\Exception\EntityValidationException;
+use Drupal\sermon_audio\Exception\InvalidInputAudioFileException;
+use Drupal\sermon_audio\Exception\ModuleConfigurationException;
+use Drupal\sermon_audio\Settings;
 use Ranine\Exception\AggregateException;
 use Ranine\Exception\InvalidOperationException;
 use Ranine\Helper\ThrowHelpers;
@@ -114,12 +114,12 @@ class ProcessedAudio extends Media {
    *   processing jobs database.
    * @throws \Drupal\Core\Entity\EntityStorageException
    *   Thrown if an error occurs when attempting to save the current entity.
-   * @throws \Drupal\processed_audio_entity\Exception\EntityValidationException
+   * @throws \Drupal\sermon_audio\Exception\EntityValidationException
    *   Thrown if the unprocessed audio file field is not set.
-   * @throws \Drupal\processed_audio_entity\Exception\InvalidInputAudioFileException
+   * @throws \Drupal\sermon_audio\Exception\InvalidInputAudioFileException
    *   Thrown if the input audio file URI does not have the correct prefix (as
    *   defined in the module settings) or is otherwise invalid.
-   * @throws \Drupal\processed_audio_entity\Exception\ModuleConfigurationException
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if the jobs table name module setting is empty.
    * @throws \InvalidArgumentException
    *   Thrown if $sermonName, $sermonSpeaker, $sermonYear, $sermonCongregation,
@@ -269,9 +269,9 @@ class ProcessedAudio extends Media {
    *   processing jobs database.
    * @throws \Drupal\Core\Entity\EntityStorageException
    *   Thrown if an error occurs when trying to save a new file entity.
-   * @throws \Drupal\processed_audio_entity\Exception\EntityValidationException
+   * @throws \Drupal\sermon_audio\Exception\EntityValidationException
    *   Thrown if the unprocessed audio file field is not set.
-   * @throws \Drupal\processed_audio_entity\Exception\InvalidInputAudioFileException
+   * @throws \Drupal\sermon_audio\Exception\InvalidInputAudioFileException
    *   Thrown if the input audio file URI does not have the correct prefix (as
    *   defined in the module settings) or is otherwise invalid.
    * @throws \RuntimeException
@@ -423,7 +423,7 @@ class ProcessedAudio extends Media {
   private static function getDynamoDbClient() : DynamoDbClient {
     static $client;
     if (!isset($client)) {
-      $dynamoDbClientFactory = \Drupal::service('processed_audio_entity.dynamo_db_client_factory');
+      $dynamoDbClientFactory = \Drupal::service('sermon_audio.dynamo_db_client_factory');
       assert($dynamoDbClientFactory instanceof DynamoDbClientFactory);
       $client = $dynamoDbClientFactory->getClient();
     }
@@ -447,7 +447,7 @@ class ProcessedAudio extends Media {
    * @return string
    *   Non-empty table name.
    *
-   * @throws \Drupal\processed_audio_entity\Exception\ModuleConfigurationException
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if the jobs table name module setting is empty.
    */
   private static function getJobsTableName() : string {
@@ -471,7 +471,7 @@ class ProcessedAudio extends Media {
    * @param \Drupal\file\FileInterface $file
    *   Unprocessed audio file entity.
    *
-   * @throws \Drupal\processed_audio_entity\Exception\InvalidInputAudioFileException
+   * @throws \Drupal\sermon_audio\Exception\InvalidInputAudioFileException
    *   Thrown if the input audio file URI does not have the correct prefix (as
    *   defined in the module settings) or is otherwise invalid.
    */

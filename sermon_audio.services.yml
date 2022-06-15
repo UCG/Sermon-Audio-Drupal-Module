@@ -1,0 +1,4 @@
+services:
+  sermon_audio.dynamo_db_client_factory:
+    class: Drupal\sermon_audio\DynamoDbClientFactory
+    arguments: ['@config.factory']

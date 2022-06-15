@@ -11,7 +11,7 @@ settings:
   unsigned: true
   size: normal
 locked: false
-module: processed_audio_entity
+module: sermon_audio
 cardinality: 1
 translatable: true
 indexes: {}

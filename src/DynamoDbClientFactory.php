@@ -2,13 +2,13 @@
 
 declare (strict_types = 1);
 
-namespace Drupal\processed_audio_entity;
+namespace Drupal\sermon_audio;
 
 use Aws\Credentials\Credentials;
 use Aws\DynamoDb\DynamoDbClient;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ImmutableConfig;
-use Drupal\processed_audio_entity\Exception\ModuleConfigurationException;
+use Drupal\sermon_audio\Exception\ModuleConfigurationException;
 use Ranine\Helper\StringHelpers;
 
 /**
@@ -33,7 +33,7 @@ class DynamoDbClientFactory {
    *   Configuration factory.
    */
   public function __construct(ConfigFactoryInterface $configFactory) {
-    $this->configuration = $configFactory->get('processed_audio_entity.settings');
+    $this->configuration = $configFactory->get('sermon_audio.settings');
   }
 
   /**
@@ -45,11 +45,11 @@ class DynamoDbClientFactory {
    * obtain AWS credentials. Otherwise, the credentials are obtained using AWS's
    * default procedure.
    *
-   * @throws \Drupal\processed_audio_entity\Exception\ModuleConfigurationException
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if a new client instance is created, and the module's
    *   "aws_credentials_file_path" configuration setting points to an invalid or
    *   missing credentials file.
-   * @throws \Drupal\processed_audio_entity\Exception\ModuleConfigurationException
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if a new client instance is created, and the module's
    *   "jobs_db_aws_region" configuration setting is missing or empty.
    */
@@ -66,11 +66,11 @@ class DynamoDbClientFactory {
   /**
    * Creates a new client instance.
    *
-   * @throws \Drupal\processed_audio_entity\Exception\ModuleConfigurationException
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if a new client instance is created, and the module's
    *   "aws_credentials_file_path" configuration setting points to an invalid or
    *   missing credentials file.
-   * @throws \Drupal\processed_audio_entity\Exception\ModuleConfigurationException
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if a new client instance is created, and the module's
    *   "jobs_db_aws_region" configuration setting is missing or empty.
    */

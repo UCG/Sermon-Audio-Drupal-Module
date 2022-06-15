@@ -2,7 +2,7 @@
 
 declare (strict_types = 1);
 
-namespace Drupal\processed_audio_entity\Exception;
+namespace Drupal\sermon_audio\Exception;
 
 use Ranine\Helper\StringHelpers;
 

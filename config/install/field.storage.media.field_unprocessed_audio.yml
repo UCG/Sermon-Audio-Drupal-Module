@@ -13,7 +13,7 @@ settings:
   display_field: false
   display_default: false
   uri_scheme: s3
-module: processed_audio_entity
+module: sermon_audio
 locked: false
 cardinality: 1
 translatable: true

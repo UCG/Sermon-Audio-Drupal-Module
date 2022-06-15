@@ -1,4 +1,0 @@
-name: Processed Audio Entity
-type: module
-description: 'Provides a media type for audio (usually sermon audio) that should be processed in a certain way.'
-core_version_requirement: ^9.3

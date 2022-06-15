@@ -2,7 +2,7 @@
 
 declare (strict_types = 1);
 
-namespace Drupal\processed_audio_entity;
+namespace Drupal\sermon_audio;
 
 use Drupal\Core\Config\ImmutableConfig;
 
@@ -60,7 +60,7 @@ final class Settings {
    */
   private static function getSettings() : ImmutableConfig {
     if (!isset(static::$settings)) {
-      static::$settings = \Drupal::config('processed_audio_entity.settings');
+      static::$settings = \Drupal::config('sermon_audio.settings');
     }
     return static::$settings;
   }

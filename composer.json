@@ -1,6 +1,6 @@
 {
-  "name": "ucg/processed_audio_entity",
-  "description": "Provides a media type for audio (usually sermon audio) that should be processed in a certain way.",
+  "name": "ucg/sermon_audio",
+  "description": "Provides an entity for storing unprocessed and processed sermon audio, and for initiating the processing of such unprocessed audio.",
   "type": "drupal-custom-module",
   "authors": [
     {

@@ -1,4 +1,0 @@
-services:
-  processed_audio_entity.dynamo_db_client_factory:
-    class: Drupal\processed_audio_entity\DynamoDbClientFactory
-    arguments: ['@config.factory']
