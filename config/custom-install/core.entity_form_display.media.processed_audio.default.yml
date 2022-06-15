@@ -60,3 +60,4 @@ content:
 hidden:
   field_processed_audio: true
   field_duration: true
+  field_audio_processing_initiated: true
