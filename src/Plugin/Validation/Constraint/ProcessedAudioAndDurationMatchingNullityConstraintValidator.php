@@ -9,7 +9,7 @@ use Symfony\Component\Validator\Constraint;
 use Symfony\Component\Validator\ConstraintValidator;
 
 /**
- * Handles validation for the ProcessedAudioAndDurationMatchingNullity constraint.
+ * Handles validation for ProcessedAudioAndDurationMatchingNullity constraint.
  */
 class ProcessedAudioAndDurationMatchingNullityConstraintValidator extends ConstraintValidator {
 
@@ -27,7 +27,7 @@ class ProcessedAudioAndDurationMatchingNullityConstraintValidator extends Constr
     // We expect the processed audio duration to be set when the processed audio
     // is set, and the converse is true also.
     if ($entity->hasProcessedAudio() !== ($entity->getDuration() !== NULL)) {
-      $this->context->addViolation('The duration and the processed audio fields do not have matching nullity.');
+      $this->context->addViolation('The duration and processed audio fields do not have matching nullity.');
     }
   }
 

@@ -46,11 +46,11 @@ class DynamoDbClientFactory {
    * default procedure.
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   *   Thrown if a new client instance is created, and the module's
+   *   Thrown if a new client instance is needed, and the module's
    *   "aws_credentials_file_path" configuration setting points to an invalid or
    *   missing credentials file.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   *   Thrown if a new client instance is created, and the module's
+   *   Thrown if a new client instance is needed, and the module's
    *   "jobs_db_aws_region" configuration setting is missing or empty.
    */
   public function getClient() : DynamoDbClient {
@@ -67,11 +67,11 @@ class DynamoDbClientFactory {
    * Creates a new client instance.
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   *   Thrown if a new client instance is created, and the module's
+   *   Thrown if a new client instance is needed, and the module's
    *   "aws_credentials_file_path" configuration setting points to an invalid or
    *   missing credentials file.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   *   Thrown if a new client instance is created, and the module's
+   *   Thrown if a new client instance is needed, and the module's
    *   "jobs_db_aws_region" configuration setting is missing or empty.
    */
   private function createClient() : void {

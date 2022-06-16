@@ -42,14 +42,14 @@ final class Settings {
   }
   
     /**
-     * Gets the required processed audio file URI prefix.
+     * Gets the processed audio file URI prefix.
      */
     public static function getProcessedAudioUriPrefix() : string {
       return (string) static::getSettings()->get('processed_audio_uri_prefix');
     }
 
   /**
-   * Gets the required unprocessed audio file URI prefix.
+   * Gets the unprocessed audio file URI prefix.
    */
   public static function getUnprocessedAudioUriPrefix() : string {
     return (string) static::getSettings()->get('unprocessed_audio_uri_prefix');
