@@ -7,7 +7,7 @@ namespace Drupal\sermon_audio\Exception;
 use Ranine\Helper\StringHelpers;
 
 /**
- * Indicates that an entity has a validation error.
+ * Indicates that an entity is invalid in some way (usually from bad field(s)).
  */
 class EntityValidationException extends \RuntimeException {
 
