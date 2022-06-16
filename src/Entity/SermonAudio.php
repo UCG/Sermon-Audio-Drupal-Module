@@ -55,7 +55,9 @@ use Ranine\Helper\ThrowHelpers;
  *   },
  *   constraints = {
  *     "ProcessedAudioAndDurationMatchingNullity" = {}
- *   }
+ *   },
+ *   translatable = TRUE,
+ *   links = {},
  * )
  */
 class SermonAudio extends ContentEntityBase {
