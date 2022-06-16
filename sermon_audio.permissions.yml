@@ -1,0 +1,11 @@
+view sermon audio entity:
+  title: 'View Sermon Audio entity'
+add sermon audio entity:
+  title: 'Add Sermon Audio entity'
+edit sermon audio entity:
+  title: 'Edit Sermon Audio Entity'
+delete sermon audio entity:
+  title: 'Delete Sermon Audio Entity'
+administer sermon audio entity:
+  title: 'Administer Sermon Audio Entity'
+  restrict access: TRUE
