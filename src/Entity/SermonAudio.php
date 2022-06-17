@@ -48,6 +48,7 @@ use Ranine\Helper\ThrowHelpers;
  *   entity_keys = {
  *     "id" = "id",
  *     "uuid" = "uuid",
+ *     "langcode" = "langcode",
  *   },
  *   admin_permission = "administer sermon audio",
  *   handlers = {
