@@ -56,7 +56,6 @@ use Ranine\Helper\ThrowHelpers;
  *   constraints = {
  *     "ProcessedAudioAndDurationMatchingNullity" = {}
  *   },
- *   translatable = TRUE,
  *   links = {},
  * )
  */
