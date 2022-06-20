@@ -106,7 +106,7 @@ class SermonAudio extends ContentEntityBase {
     }
     return $file;
   }
-  
+
   /**
    * Tells whether there exists processed audio associated with this entity.
    */
