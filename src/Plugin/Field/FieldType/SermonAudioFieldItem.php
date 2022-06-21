@@ -14,8 +14,8 @@ use Ranine\Helper\ParseHelpers;
  * @FieldType(
  *   id = "sermon_audio",
  *   label = @Translation("Sermon Audio"),
- *   default_formatter = "sermon_audio",
- *   default_widget = "sermon_audio",
+ *   default_formatter = "sermon_processed_audio",
+ *   default_widget = "sermon_unprocessed_audio",
  * )
  */
 class SermonAudioFieldItem extends EntityReferenceItem {
