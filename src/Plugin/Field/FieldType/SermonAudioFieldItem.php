@@ -4,8 +4,10 @@ declare (strict_types = 1);
 
 namespace Drupal\sermon_audio\Plugin\Field\FieldType;
 
+use Drupal\Component\Utility\Environment;
 use Drupal\Core\Field\Plugin\Field\FieldType\EntityReferenceItem;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\sermon_audio\Exception\InvalidFieldConfigurationException;
 use Ranine\Helper\ParseHelpers;
 
 /**
@@ -55,10 +57,74 @@ class SermonAudioFieldItem extends EntityReferenceItem {
   }
 
   /**
+   * Returns unprocessed audio upload validators for this field.
+   *
+   * @return array[]
+   *   Validator specifications, suitable for passing to file_save_upload() or
+   *   a managed file element's '#upload_validators' property.
+   */
+  public function getUploadValidators() {
+    $validators = [];
+
+    $validators['file_validate_size'] = [$this->getMaxUploadFileUploadSize()];
+    $validators['file_validate_extensions'] = [$this->getAllowedUploadFileExtensions()];
+
+    return $validators;
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function storageSettingsForm(array &$form, FormStateInterface $form_state, $has_data) : array {
     return [];
+  }
+
+  /**
+   * Gets the allowed upload file extensions from the field settings.
+   *
+   * @throws \Drupal\sermon_audio\Exception\InvalidFieldConfigurationException
+   *   Thrown if the upload_file_extensions field setting does not exist, or is
+   *   empty after being converted to a string and trimmed.
+   */
+  private function getAllowedUploadFileExtensions() : string {
+    $settings = $this->getSettings();
+    if (!isset($settings['upload_file_extensions'])) {
+      throw new InvalidFieldConfigurationException('The upload_file_extensions setting is not set.');
+    }
+    $extensions = trim((string) $settings['upload_file_extensions']);
+    if ($extensions === '') {
+      throw new InvalidFieldConfigurationException('The upload_file_extensions setting is empty after trimming.');
+    }
+    return $extensions;
+  }
+
+  /**
+   * Gets the maximum upload file upload size, in bytes.
+   *
+   * Retrieves from field settings, if the relevant setting is set -- else uses
+   * PHP max value.
+   *
+   * @throws \Drupal\sermon_audio\Exception\InvalidFieldConfigurationException
+   *   Thrown if the upload_max_file_size field setting is set, but is
+   *   non-integral or non-positive.
+   */
+  private function getMaxUploadFileUploadSize() : int {
+    $settings = $this->getSettings();
+    if (isset($settings['upload_max_file_size'])) {
+      $maxUploadSize = $this->getSettings()['upload_max_file_size'];
+      if ($maxUploadSize !== '') {
+        if (!is_int($maxUploadSize)) {
+          throw new InvalidFieldConfigurationException('Sermon audio field setting upload_max_file_size is not an integer.');
+        }
+        if ($maxUploadSize <= 0) {
+          throw new InvalidFieldConfigurationException('Sermon audio field setting upload_max_file_size is non-positive.');
+        }
+        return $maxUploadSize;
+      }
+    }
+
+    // Otherwise, return the PHP max upload size.
+    return Environment::getUploadMaxSize();
   }
 
   /**
@@ -90,10 +156,10 @@ class SermonAudioFieldItem extends EntityReferenceItem {
    *
    * @param array $element
    *   Form element.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   * @param \Drupal\Core\Form\FormStateInterface $formState
    *   Form state.
    */
-  public static function validateAndPrepareUploadMaxFileSize($element, FormStateInterface $form_state) : void {
+  public static function validateAndPrepareUploadMaxFileSize($element, FormStateInterface $formState) : void {
     if (!isset($element['#value'])) return;
 
     $unparsedValue = $element['#value'];
@@ -101,15 +167,15 @@ class SermonAudioFieldItem extends EntityReferenceItem {
 
     $value = 0;
     if (!ParseHelpers::tryParseInt($unparsedValue, $value)) {
-      $form_state->setError($element, t('The maximum file size provided is non-integral.'));
+      $formState->setError($element, t('The maximum file size provided is non-integral.'));
     }
     if ($value <= 0) {
-      $form_state->setError($element, t('The maximum file size provided is not positive.'));
+      $formState->setError($element, t('The maximum file size provided is not positive.'));
     }
 
     // Set the form element value to the integer we just parsed to avoid having
     // to do that later.
-    $form_state->setValueForElement($element, $value);
+    $formState->setValueForElement($element, $value);
   }
 
   /**
@@ -117,30 +183,32 @@ class SermonAudioFieldItem extends EntityReferenceItem {
    *
    * An error is set if the string value of $element['#value'] is not a
    * space-separated list of extensions, each having only alphanumeric
-   * characters, "_", "." and/or "-".
+   * characters, "_", "." and/or "-". An error is also set if
+   * (string) $element['#value'] is empty or consists only of whitespace.
    *
    * @param array $element
    *   Form element.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   * @param \Drupal\Core\Form\FormStateInterface $formState
    *   Form state.
    *
    * @throws \RuntimeException
    *   Thrown if a RegEx matching attempt fails.
    */
-  public static function validateUploadFileExtensions($element, FormStateInterface $form_state) : void {
+  public static function validateUploadFileExtensions($element, FormStateInterface $formState) : void {
     if (!isset($element['#value'])) return;
 
     $extensions = (string) $element['#value'];
-    if ($extensions === "") {
-      return;
+    if (trim($extensions) === "") {
+      $formState->setError($element, t('The extensions list provided is empty or consists only of whitespace.'));
     }
-
-    $matchResult = preg_match('/^[a-z0-9_\-.]+(?: [a-z0-9_\-.]+)*$/i', $extensions);
-    if ($matchResult === FALSE) {
-      throw new \RuntimeException('Regex error.');
-    }
-    if ($matchResult !== 1) {
-      $form_state->setError($element, t('The extensions list provided is invalid.'));
+    else {
+      $matchResult = preg_match('/^[a-z0-9_\-.]+(?: [a-z0-9_\-.]+)*$/i', $extensions);
+      if ($matchResult === FALSE) {
+        throw new \RuntimeException('Regex error.');
+      }
+      if ($matchResult !== 1) {
+        $formState->setError($element, t('The extensions list provided is invalid.'));
+      }
     }
   }
 
