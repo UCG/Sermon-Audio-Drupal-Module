@@ -70,6 +70,7 @@ class SermonAudioWidget extends WidgetBase {
       throw new InvalidOperationException('This method was called on a field with an item of an invalid type.');
     }
 
+    // @todo Add auto re-name support.
     $uploadValidators = $fieldItem->getUploadValidators();
     $element += [
       '#type' => 'managed_file',
