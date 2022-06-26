@@ -64,8 +64,6 @@ class SermonAudioFieldItem extends EntityReferenceItem {
    *   a managed file element's '#upload_validators' property.
    */
   public function getUploadValidators() {
-    // @todo Add "rename signal extension" functionality.
-
     $validators = [];
 
     $validators['file_validate_size'] = [$this->getMaxUploadFileUploadSize()];
