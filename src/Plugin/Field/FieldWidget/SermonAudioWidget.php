@@ -72,6 +72,9 @@ class SermonAudioWidget extends WidgetBase {
 
     // @todo Add auto re-name support.
     $uploadValidators = $fieldItem->getUploadValidators();
+    if ($this->getSetting('auto_rename')) {
+
+    }
     $element += [
       '#type' => 'managed_file',
       '#progress_indicator' => $this->getSetting('progress_indicator'),
@@ -88,30 +91,44 @@ class SermonAudioWidget extends WidgetBase {
    * {@inheritdoc}
    */
   public function settingsForm(array $form, FormStateInterface $form_state) : array {
-    $element['progress_indicator'] = [
-      '#type' => 'radios',
-      '#title' => $this->t('Upload progress indicator'),
-      '#options' => [
-        'throbber' => $this->t('Throbber'),
-        'bar' => $this->t('Progress bar'),
+    return [
+      'progress_indicator' => [
+        '#type' => 'radios',
+        '#title' => $this->t('Upload progress indicator'),
+        '#options' => [
+          'throbber' => $this->t('Throbber'),
+          'bar' => $this->t('Progress bar'),
+        ],
+        '#default_value' => $this->getSetting('progress_indicator'),
+        // file_progress_implementation() seems to indicate what and whether there
+        // is functionality for measuring file upload status -- it should return
+        // FALSE if no such functionality exists.
+        '#access' => file_progress_implementation(),
       ],
-      '#default_value' => $this->getSetting('progress_indicator'),
-      // file_progress_implementation() seems to indicate what and whether there
-      // is functionality for measuring file upload status -- it should return
-      // FALSE if no such functionality exists.
-      '#access' => file_progress_implementation(),
+      'auto_rename' => [
+        '#type' => 'checkbox',
+        '#title' => $this->t('Automatically rename uploaded file'),
+        '#default_value' => (bool) $this->getSetting('auto_rename'),
+        '#description' => $this->t('To avoid naming conflicts, the unprocessed audio file can be given an automatic semi-random name upon upload.'),
+      ],
     ];
-    
-    return $element;
   }
 
   /**
    * {@inheritdoc}
    */
   public function settingsSummary() : array {
-    $summary = [];
-    $summary[] = t('Progress indicator: @progress_indicator', ['@progress_indicator' => $this->getSetting('progress_indicator')]);
-    return $summary;
+    $summaries = [
+      $this->t('Progress indicator: @progress_indicator', ['@progress_indicator' => $this->getSetting('progress_indicator')]),
+    ];
+    if ($this->getSetting('auto_rename')) {
+      $summaries[] = $this->t('Auto rename: yes');
+    }
+    else {
+      $summaries[] = $this->t('Auto rename: no');
+    }
+
+    return $summaries;
   }
 
   /**
@@ -146,7 +163,10 @@ class SermonAudioWidget extends WidgetBase {
    * {@inheritdoc}
    */
   public static function defaultSettings() : array {
-    return ['progress_indicator' => 'throbber'] + parent::defaultSettings();
+    return [
+      'progress_indicator' => 'throbber',
+      'auto_rename' => TRUE,
+    ] + parent::defaultSettings();
   }
 
 }
