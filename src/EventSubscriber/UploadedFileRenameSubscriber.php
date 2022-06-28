@@ -12,13 +12,14 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
  * Renames files on upload.
  *
  * Uploaded files are renamed by checking the allowed extension list against
- * names associated with pseudo-extensions registered in
- * @see \Drupal\sermon_audio\FileRenamePseudoExtensionRepository.
+ * pseudo-extensions registered in
+ * @see \Drupal\sermon_audio\FileRenamePseudoExtensionRepository,
+ * and using a matching psuedo-extension to generate a new filename.
  */
 class UploadedFileRenameSubscriber implements EventSubscriberInterface {
 
   /**
-   * Repository containing possible new (post-rename) filenames.
+   * Repository containing possible new (post-rename) extension-less filenames.
    */
   private FileRenamePseudoExtensionRepository $newFilenamesRepository;
 
@@ -26,7 +27,7 @@ class UploadedFileRenameSubscriber implements EventSubscriberInterface {
    * Creates a new upload file rename subscriber.
    *
    * @param \Drupal\sermon_audio\FileRenamePseudoExtensionRepository $newFilenamesRepository
-   *   Repository containing possible new (post-rename) filenames.
+   *   Repository containing possible new (post-rename) extension-less filenames.
    */
   public function __construct(FileRenamePseudoExtensionRepository $newFilenamesRepository) {
     $this->newFilenamesRepository = $newFilenamesRepository;
@@ -39,10 +40,12 @@ class UploadedFileRenameSubscriber implements EventSubscriberInterface {
    *   Event.
    */
   public function handleSanitizeName(FileUploadSanitizeNameEvent $event) {
-    // Get the new filename, if applicable.
-    $newFilename = $this->newFilenamesRepository->tryGetFilename($event->getAllowedExtensions());
-    if ($newFilename !== NULL) {
-      $event->setFilename($newFilename)->setSecurityRename(FALSE);
+    // Get the new extension-less filename, if applicable.
+    $bareNewFilename = $this->newFilenamesRepository->tryGetBareFilename($event->getAllowedExtensions());
+    if ($bareNewFilename !== NULL) {
+      // Preserve the current extension.
+      $extension = pathinfo($event->getFilename(), PATHINFO_EXTENSION);
+      $event->setFilename($bareNewFilename . '.' . $extension)->setSecurityRename(FALSE);
     }
   }
 
