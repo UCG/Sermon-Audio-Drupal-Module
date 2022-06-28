@@ -147,8 +147,11 @@ class SermonAudioWidget extends WidgetBase {
    */
   public function massageFormValues(array $values, array $form, FormStateInterface $form_state) : array {
     foreach ($values as &$value) {
-      if (isset($value['fids']) && $value['fids'] !== []) {
-        $value = (int) reset($value['fids']);
+      if (is_array($value)) {
+        if (!array_key_exists('aid', $value) || !is_int($value['aid'])) {
+          throw new \RuntimeException('Invalid or missing sermon audio ID in widget form value.');
+        }
+        $value = $value['aid'];
       }
     }
 
