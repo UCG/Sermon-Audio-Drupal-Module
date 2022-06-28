@@ -6,14 +6,20 @@ namespace Drupal\sermon_audio\Plugin\Field\FieldWidget;
 
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ImmutableConfig;
+use Drupal\Core\Entity\ContentEntityStorageInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\Core\Field\WidgetBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\StringTranslation\TranslationInterface;
+use Drupal\file\Element\ManagedFile;
+use Drupal\sermon_audio\Entity\SermonAudio;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
+use Drupal\sermon_audio\FileRenamePseudoExtensionRepository;
 use Drupal\sermon_audio\Plugin\Field\FieldType\SermonAudioFieldItem;
 use Ranine\Exception\InvalidOperationException;
+use Ranine\Helper\ParseHelpers;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -33,6 +39,16 @@ class SermonAudioWidget extends WidgetBase {
     */
    private ImmutableConfig $moduleConfiguration;
 
+   /**
+    * Repository of pseudo-extensions and bare names for to-be-renamed files.
+    */
+   private FileRenamePseudoExtensionRepository $renamePseudoExtensionRepo;
+
+   /**
+    * Storage for sermon audio entities.
+    */
+   private ContentEntityStorageInterface $sermonAudioStorage;
+
   /**
    * Creates a new sermon audio widget.
    *
@@ -48,6 +64,10 @@ class SermonAudioWidget extends WidgetBase {
    *   Widget third party settings.
    * @param \Drupal\Core\StringTranslation\TranslationInterface $translationManager
    *   Translation manager.
+   * @param \Drupal\sermon_audio\FileRenamePseudoExtensionRepository $renamePseudoExtensionRepo
+   *   Repository of pseudo-extensions and bare names for to-be-renamed files.
+   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
+   *   Entity type manager.
    */
   protected function __construct(string $pluginId,
     $pluginDefinition,
@@ -55,9 +75,13 @@ class SermonAudioWidget extends WidgetBase {
     array $settings,
     array $thirdPartySettings,
     TranslationInterface $translationManager,
-    ConfigFactoryInterface $configFactory) {
+    ConfigFactoryInterface $configFactory,
+    FileRenamePseudoExtensionRepository $renamePseudoExtensionRepo,
+    EntityTypeManagerInterface $entityTypeManager) {
     parent::__construct($pluginId, $pluginDefinition, $fieldDefinition, $settings, $thirdPartySettings);
     $this->moduleConfiguration = $configFactory->get('sermon_audio.settings');
+    $this->renamePseudoExtensionRepo = $renamePseudoExtensionRepo;
+    $this->sermonAudioStorage = $entityTypeManager->getStorage('sermon_audio');
     $this->stringTranslation = $translationManager;
   }
 
@@ -70,21 +94,65 @@ class SermonAudioWidget extends WidgetBase {
       throw new InvalidOperationException('This method was called on a field with an item of an invalid type.');
     }
 
-    // @todo Add auto re-name support.
     $uploadValidators = $fieldItem->getUploadValidators();
     if ($this->getSetting('auto_rename')) {
-
+      // Use a random bare filename (filename without extension) to ensure
+      // uniqueness.
+      $bareFilename = hex2bin(random_bytes(8));
+      // Add an extra allowed extension to the "file_validate_extensions"
+      // validator settings. This is not actually a relevant extension (in fact,
+      // we should never get a file with this extension, given that it is a long
+      // random hexadecimal string), but we include it to signal that we want to
+      // rename the file. We associate this extension with the base filename
+      // above.
+      // @see \Drupal\sermon_audio\FileRenamePseudoExtensionRepository
+      $extension = $this->renamePseudoExtensionRepo->addBareFilename($bareFilename);
+      $settings =& $uploadValidators['file_validate_extensions'];
+      $settings[array_key_first($settings)] .= ' ' . $extension;
     }
     $element += [
       '#type' => 'managed_file',
       '#progress_indicator' => $this->getSetting('progress_indicator'),
       '#upload_location' => $this->getUploadLocation(),
       '#upload_validators' => $uploadValidators,
+      '#value_callback' => [static::class, 'getWidgetValue'],
+      // Ensure that we can encode other information in #value besides that
+      // handled/returned by the managed_file form element.
+      '#extended' => TRUE,
     ];
 
-    $element['#default_value'] = $fieldItem->getValue();
+    $targetId = $fieldItem->get('target_id');
+    if ($targetId === '') { 
+      $sermonAudioId = NULL;
+      $processedAudioFid = NULL;
+    }
+    else {
+      $sermonAudioId = (int) $targetId;
+      $sermonAudio = $this->sermonAudioStorage->load($sermonAudioId);
+      assert($sermonAudio instanceof SermonAudio);
+      $processedAudioFid = $sermonAudio->getProcessedAudioFid();
+    }
+
+    $element['#default_value'] = [
+      'aid' => $sermonAudioId,
+      'fid' => $processedAudioFid,
+      'processed' => TRUE,
+    ];
 
     return $element;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function massageFormValues(array $values, array $form, FormStateInterface $form_state) : array {
+    foreach ($values as &$value) {
+      if (isset($value['fids']) && $value['fids'] !== []) {
+        $value = (int) reset($value['fids']);
+      }
+    }
+
+    return $values;
   }
 
   /**
@@ -156,7 +224,10 @@ class SermonAudioWidget extends WidgetBase {
       $configuration['settings'],
       $configuration['third_party_settings'],
       $container->get('string_translation'),
-      $container->get('config.factory'));
+      $container->get('config.factory'),
+      $container->get('sermon_audio.file_rename_pseudo_extension_repository'),
+      $container->get('entity_type.manager'),
+    );
   }
 
   /**
@@ -167,6 +238,106 @@ class SermonAudioWidget extends WidgetBase {
       'progress_indicator' => 'throbber',
       'auto_rename' => TRUE,
     ] + parent::defaultSettings();
+  }
+
+  /**
+   * Gets the widget element #value from the user input.
+   *
+   * @param array $element
+   *   Form element.
+   * @param mixed $input
+   *   Value previously computed from user input, or FALSE to indicate that the
+   *   element's default value should be returned.
+   * @param \Drupal\Core\Form\FormStateInterface $formState
+   *   Form state.
+   *
+   * @return array
+   *   Widget element value.
+   *
+   * @throws \Drupal\Core\Entity\EntityStorageException
+   *   Thrown if an error occurs while saving an entity.
+   * @throws \Ranine\Exception\ParseException
+   *   Thrown if an error occurs when attempting to parse the input FID.
+   * @throws \RuntimeException
+   *   Thrown in some cases if $input is invalid (we don't throw an
+   *   \InvalidArgumentException because of how this function is called...).
+   */
+  public static function getWidgetValue(array &$element, $input, FormStateInterface $formState) : array {
+    // @todo: Finish: If default value, return. If new value or changed FID,
+    // create new media entity and return. Check state and throw exceptions as
+    // necessary.
+    // To start, let the managed_file form element compute a value.
+    // The $input value may contain some extra stuff that the managed_file
+    // callback doesn't need, and that might mess up our calculations later.
+    // Thus, we strip everything except the FID out. Save the input first for
+    // use later.
+    $dirtyInput = $input;
+    if (is_array($input)) {
+      if (array_key_exists('fids', $input)) {
+        // We should never have more than one FID.
+        $originalFidString = trim((string) $input['fids']);
+        if ($originalFidString !== '') {
+          $originalFid = ParseHelpers::parseIntFromString($originalFidString);
+          $input = ['fids' => $originalFidString];
+        }
+        else {
+          $input = [];
+        }
+      }
+      else $input = [];
+    }
+    $value = ManagedFile::valueCallback($element, $input, $formState);
+    // If the form element produced the default value (referencing the processed
+    // audio file), we don't want to mess with it. Otherwise, we have to figure
+    // out what sermon audio ID to attach.
+    if (empty($value['processed'])) {
+      // If the FID has changed, we create a new sermon audio entity for the new
+      // unprocessed audio file. If it hasn't changed, we re-use the current
+      // sermon audio ID (which must exist).
+      // Now, we don't need or want a sermon audio entity if there is no file.
+      if (isset($value['fids']) && $value['fids'] !== []) {
+        $value['processed'] = FALSE;
+        $newFid = (int) reset($value['fids']);
+        if (!isset($originalFid) || ($newFid !== $originalFid)) {
+          $value['aid'] = static::createSermonAudioFromUnprocessedFid($newFid);
+        }
+        else {
+          // Use the old value for the audio ID.
+          assert(is_array($dirtyInput));
+          if (!array_key_exists('aid', $dirtyInput)) {
+            throw new \RuntimeException('Invalid input value.');
+          }
+          $value['aid'] = $dirtyInput['aid'];
+        }
+      }
+    }
+
+    return $value;
+  }
+
+  /**
+   * Creates/saves a new sermon audio entity from an unprocessed audio file ID.
+   *
+   * The new entity will have its unprocessed audio file field set in
+   * correspondence with $unprocessedFid, and will have its other fields set to
+   * default values.
+   *
+   * @param int $unprocessedFid
+   *   Unprocessed file ID.
+   *
+   * @return int
+   *   Entity ID of the new, saved sermon audio entity.
+   *
+   * @throws \Drupal\Core\Entity\EntityStorageException
+   *   Thrown if an error occurs while saving the entity.
+   */
+  private static function createSermonAudioFromUnprocessedFid(int $unprocessedFid) : int {
+    $storage = \Drupal::entityTypeManager()->getStorage('sermon_audio');
+    $entity = $storage->create([
+      'unprocessed_audio' => ['target_id' => $unprocessedFid]
+    ])->enforceIsNew();
+    $entity->save();
+    return (int) $entity->id();
   }
 
 }
