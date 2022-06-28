@@ -61,7 +61,8 @@ class SermonAudioFieldItem extends EntityReferenceItem {
    *
    * @return array[]
    *   Validator specifications, suitable for passing to file_save_upload() or
-   *   a managed file element's '#upload_validators' property.
+   *   a managed file element's '#upload_validators' property. Includes at least
+   *   specifications for the "file_validate_extensions" validator.
    */
   public function getUploadValidators() {
     $validators = [];

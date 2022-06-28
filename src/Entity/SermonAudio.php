@@ -88,23 +88,44 @@ class SermonAudio extends ContentEntityBase {
     }
     return $media;
   }
-  
+
+  /**
+   * Gets the file ID associated with the processed audio, or NULL if not set.
+   *
+   * @throws \RuntimeException
+   *   Thrown if there is a reference to a processed audio media entity, but the
+   *   entity was not found.
+   */
+  public function getProcessedAudioFid() : ?int {
+    $item = $this->getProcessedAudio()?->get(0)?->getValue();
+    if (empty($item) || $item['target_id'] === NULL) return NULL;
+    else return (int) $item['target_id'];
+  }
+
   /**
    * Gets the unprocessed audio file entity, or NULL if it is not set.
    *
    * @throws \RuntimeException
-   *   Thrown if there is a reference to an unprocessed audio media entity, but
-   *   the entity was not found.
+   *   Thrown if there is a reference to an unprocessed audio file, but the
+   *   entity was not found.
    */
   public function getUnprocessedAudio() : ?FileInterface {
-    $item = $this->get('unprocessed_audio')->get(0)?->getValue();
-    if (empty($item) || $item['target_id'] === NULL) return NULL;
-    $targetId = (int) $item['target_id'];
+    $targetId = $this->getUnprocessedAudioId();
+    if ($targetId === NULL) return NULL;
     $file = $this->getFileStorage()->load($targetId);
     if ($file === NULL) {
       throw new \RuntimeException('Could not load file entity with ID "' . $targetId . '".');
     }
     return $file;
+  }
+
+  /**
+   * Gets the unprocessed audio file ID, or NULL if it is not set.
+   */
+  public function getUnprocessedAudioId() : ?int {
+    $item = $this->get('unprocessed_audio')->get(0)?->getValue();
+    if (empty($item) || $item['target_id'] === NULL) return NULL;
+    else return (int) $item['target_id'];
   }
 
   /**
