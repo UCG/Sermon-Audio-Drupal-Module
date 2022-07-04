@@ -113,7 +113,7 @@ class SermonAudioFieldItem extends EntityReferenceItem {
     $settings = $this->getSettings();
     if (isset($settings['upload_max_file_size'])) {
       $maxUploadSize = $this->getSettings()['upload_max_file_size'];
-      if ($maxUploadSize !== '') {
+      if ($maxUploadSize !== NULL) {
         if (!is_int($maxUploadSize)) {
           throw new InvalidFieldConfigurationException('Sermon audio field setting upload_max_file_size is not an integer.');
         }
@@ -150,17 +150,20 @@ class SermonAudioFieldItem extends EntityReferenceItem {
   }
 
   /**
-   * Validates / converts to int the given form element's upload maximum size.
+   * Validates / massages the given form element's upload maximum size.
    *
-   * An error is set if $element['#value'] is neither unset, nor NULL, nor an
-   * empty string, nor a positive, integral value.
+   * If $element['#value'] is an empty string, the upload maximum size is set to
+   * NULL. An error is set if $element['#value'] is neither unset, nor NULL, nor
+   * an empty string, nor a positive, integral value. If $element['#value'] is a
+   * positive, integral value, the upload maximum size is set to
+   * $element['#value'] after it is converted to an integer.
    *
    * @param array $element
    *   Form element.
    * @param \Drupal\Core\Form\FormStateInterface $formState
    *   Form state.
    */
-  public static function validateAndPrepareUploadMaxFileSize($element, FormStateInterface $formState) : void {
+  public static function validateAndPrepareUploadMaxFileSize(array $element, FormStateInterface $formState) : void {
     if (!isset($element['#value'])) return;
 
     $unparsedValue = $element['#value'];
@@ -195,7 +198,7 @@ class SermonAudioFieldItem extends EntityReferenceItem {
    * @throws \RuntimeException
    *   Thrown if a RegEx matching attempt fails.
    */
-  public static function validateUploadFileExtensions($element, FormStateInterface $formState) : void {
+  public static function validateUploadFileExtensions(array $element, FormStateInterface $formState) : void {
     if (!isset($element['#value'])) return;
 
     $extensions = (string) $element['#value'];

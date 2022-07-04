@@ -91,7 +91,7 @@ class SermonAudioWidget extends WidgetBase {
   public function formElement(FieldItemListInterface $items, $delta, array $element, array &$form, FormStateInterface $form_state) : array {
     $fieldItem = $items[$delta];
     if (!($fieldItem instanceof SermonAudioFieldItem)) {
-      throw new InvalidOperationException('This method was called on a field with an item of an invalid type.');
+      throw new InvalidOperationException('This method was called for a field with an item of an invalid type.');
     }
 
     $uploadValidators = $fieldItem->getUploadValidators();
@@ -103,14 +103,14 @@ class SermonAudioWidget extends WidgetBase {
       // validator settings. This is not actually a relevant extension (in fact,
       // we should never get a file with this extension, given that it is a long
       // random hexadecimal string), but we include it to signal that we want to
-      // rename the file. We associate this extension with the base filename
+      // rename the file. We associate this extension with the bare filename
       // above.
       // @see \Drupal\sermon_audio\FileRenamePseudoExtensionRepository
-      $extension = $this->renamePseudoExtensionRepo->addBareFilename($bareFilename);
+      $pseudoExtension = $this->renamePseudoExtensionRepo->addBareFilename($bareFilename);
       $settings =& $uploadValidators['file_validate_extensions'];
-      $settings[array_key_first($settings)] .= ' ' . $extension;
+      $settings[array_key_first($settings)] .= ' ' . $pseudoExtension;
     }
-    $element += [
+    $element = [
       '#type' => 'managed_file',
       '#progress_indicator' => $this->getSetting('progress_indicator'),
       '#upload_location' => $this->getUploadLocation(),
@@ -119,10 +119,10 @@ class SermonAudioWidget extends WidgetBase {
       // Ensure that we can encode other information in #value besides that
       // handled/returned by the managed_file form element.
       '#extended' => TRUE,
-    ];
+    ] + $element;
 
     $targetId = $fieldItem->get('target_id');
-    if ($targetId === '') { 
+    if ($targetId === '' || $targetId === NULL) { 
       $sermonAudioId = NULL;
       $processedAudioFid = NULL;
     }
@@ -151,7 +151,7 @@ class SermonAudioWidget extends WidgetBase {
         if (!array_key_exists('aid', $value) || !is_int($value['aid'])) {
           throw new \RuntimeException('Invalid or missing sermon audio ID in widget form value.');
         }
-        $value = $value['aid'];
+        $value = ['target_id' => $value['aid']];
       }
     }
 
@@ -171,8 +171,8 @@ class SermonAudioWidget extends WidgetBase {
           'bar' => $this->t('Progress bar'),
         ],
         '#default_value' => $this->getSetting('progress_indicator'),
-        // file_progress_implementation() seems to indicate what and whether there
-        // is functionality for measuring file upload status -- it should return
+        // file_progress_implementation() seems to indicate whether there is
+        // functionality for measuring file upload status -- it should return
         // FALSE if no such functionality exists.
         '#access' => file_progress_implementation(),
       ],
@@ -266,25 +266,22 @@ class SermonAudioWidget extends WidgetBase {
    *   \InvalidArgumentException because of how this function is called...).
    */
   public static function getWidgetValue(array &$element, $input, FormStateInterface $formState) : array {
-    // @todo: Finish: If default value, return. If new value or changed FID,
-    // create new media entity and return. Check state and throw exceptions as
-    // necessary.
     // To start, let the managed_file form element compute a value.
     // The $input value may contain some extra stuff that the managed_file
     // callback doesn't need, and that might mess up our calculations later.
     // Thus, we strip everything except the FID out. Save the input first for
     // use later.
-    $dirtyInput = $input;
+    $originalInput = $input;
     if (is_array($input)) {
       if (array_key_exists('fids', $input)) {
         // We should never have more than one FID.
         $originalFidString = trim((string) $input['fids']);
-        if ($originalFidString !== '') {
-          $originalFid = ParseHelpers::parseIntFromString($originalFidString);
-          $input = ['fids' => $originalFidString];
+        if ($originalFidString === '') {
+          $input = [];
         }
         else {
-          $input = [];
+          $originalFid = ParseHelpers::parseIntFromString($originalFidString);
+          $input = ['fids' => $originalFidString];
         }
       }
       else $input = [];
@@ -306,11 +303,11 @@ class SermonAudioWidget extends WidgetBase {
         }
         else {
           // Use the old value for the audio ID.
-          assert(is_array($dirtyInput));
-          if (!array_key_exists('aid', $dirtyInput)) {
+          assert(is_array($originalInput));
+          if (!array_key_exists('aid', $originalInput)) {
             throw new \RuntimeException('Invalid input value.');
           }
-          $value['aid'] = $dirtyInput['aid'];
+          $value['aid'] = $originalInput['aid'];
         }
       }
     }
@@ -337,7 +334,7 @@ class SermonAudioWidget extends WidgetBase {
   private static function createSermonAudioFromUnprocessedFid(int $unprocessedFid) : int {
     $storage = \Drupal::entityTypeManager()->getStorage('sermon_audio');
     $entity = $storage->create([
-      'unprocessed_audio' => ['target_id' => $unprocessedFid]
+      'unprocessed_audio' => ['target_id' => $unprocessedFid],
     ])->enforceIsNew();
     $entity->save();
     return (int) $entity->id();

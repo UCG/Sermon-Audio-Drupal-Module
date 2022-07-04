@@ -8,15 +8,16 @@ namespace Drupal\sermon_audio;
  * References a repository of file "extensions" used for file rename requests.
  *
  * It is difficult to rename files on upload unless you are willing to have the
- * file moved twice (once from the temp directory, and one to the final location
- * with the final name). To avoid this inefficiency in a relatively robust
- * manner, one can add a fake random "allowed extension" when uploading the
- * file. Then, when the @see \Drupal\Core\File\Event\FileUploadSanitizeNameEvent
- * is fired, one can subscribe to that event and determine if any of the allowed
- * extensions passed to the handler correspond to an extension in this
- * repository: if so, the handler can rename the file in accordance with the
- * new extension-less name (which would be linked in this repository to the
- * dummy allowed extension).
+ * file moved twice (once from the temp directory, and again to the final
+ * location with the final name). To avoid this inefficiency in a relatively
+ * robust manner, one can add a fake random "allowed extension" when uploading
+ * the file, obtained by calling addBareFilename() with the bare
+ * (extension-less) filename one wishes to make the final filename. Then, when
+ * @see \Drupal\Core\File\Event\FileUploadSanitizeNameEvent is fired, one can
+ * subscribe to that event and determine if any of the allowed extensions passed
+ * to the handler correspond to an extension in this repository: if so, the
+ * handler can rename the file in accordance with the new bare filename (which
+ * would be linked in this repository to the dummy allowed extension).
  *
  * The repository itself is stored statically, not per class instance.
  */
@@ -29,7 +30,8 @@ class FileRenamePseudoExtensionRepository {
    *   Bare (extension-less) filename to add.
    *
    * @return string
-   *   New pseudo-extension associated with filename.
+   *   New pseudo-extension (alphanumeric string of length 16) associated with
+   *   bare filename.
    */
   public function addBareFilename(string $bareFilename) : string {
     // 64 bits should be sufficient entropy.

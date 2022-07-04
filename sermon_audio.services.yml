@@ -4,7 +4,7 @@ services:
     arguments: ['@config.factory']
   sermon_audio.file_rename_pseudo_extension_repository:
     class: Drupal\sermon_audio\FileRenamePseudoExtensionRepository
-  single_sign_on_sp.uploaded_file_rename_subscriber:
+  sermon_audio.uploaded_file_rename_subscriber:
     class: Drupal\sermon_audio\EventSubscriber\UploadedFileRenameSubscriber
     arguments: ['@sermon_audio.file_rename_pseudo_extension_repository']
     tags:

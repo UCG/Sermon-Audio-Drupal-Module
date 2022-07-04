@@ -76,7 +76,7 @@ class DynamoDbClientFactory {
    */
   private function createClient() : void {
     $credentialsFilePath = trim((string) $this->configuration->get('aws_credentials_file_path'));
-    if ($credentialsFilePath != '') {
+    if ($credentialsFilePath !== '') {
       $credentialsJson = file_get_contents($credentialsFilePath);
       if (!is_string($credentialsJson)) {
         throw new ModuleConfigurationException('Failed to read from credentials file specified by aws_credentials_file_path.');

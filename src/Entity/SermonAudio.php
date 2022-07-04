@@ -97,7 +97,8 @@ class SermonAudio extends ContentEntityBase {
    *   entity was not found.
    */
   public function getProcessedAudioFid() : ?int {
-    $item = $this->getProcessedAudio()?->get(0)?->getValue();
+    $processedAudio = $this->getProcessedAudio();
+    $item = $processedAudio?->getSource()->getSourceFieldValue($processedAudio)?->get(0)?->getValue();
     if (empty($item) || $item['target_id'] === NULL) return NULL;
     else return (int) $item['target_id'];
   }
@@ -172,7 +173,7 @@ class SermonAudio extends ContentEntityBase {
    *   Thrown if $sermonName, $sermonSpeaker, $sermonYear, $sermonCongregation,
    *   or $outputAudioDisplayFilename is empty.
    * @throws \Ranine\Exception\AggregateException
-   *   Thrown if, after a DynamoDB error occurs, another error occurs in th
+   *   Thrown if, after a DynamoDB error occurs, another error occurs in the
    *   process of setting a field value and subsequently saving the entity.
    * @throws \Ranine\Exception\InvalidOperationException
    *   Thrown if the job cannot be queued because it conflicts with a job
@@ -237,10 +238,10 @@ class SermonAudio extends ContentEntityBase {
     // 3) An in-progress job entry exists, and the job is marked as "in
     // progress," but the start timestamp of the job indicates that the Lambda
     // function that was responsible for executing the job has already timed
-    // out. In this case, we may likewise re-queue the job.
+    // out. In this case, we also may re-queue the job.
     $dynamoDb = static::getDynamoDbClient();
     $currentTime = \Drupal::time()->getCurrentTime();
-    // The Lambda jobs time out after 15 minutes; make it 20 to be safe.
+    // Lambda jobs time out after 15 minutes; make our threshold 20 to be safe.
     $thresholdRestartTime = $currentTime - (20 * 60);
     try {
       $dynamoDb->putItem([
@@ -302,9 +303,9 @@ class SermonAudio extends ContentEntityBase {
    * Nothing is changed if the URI computed from the DynamoDB query response is
    * the same as that currently associated with the processed audio field.
    * 
-   * Note that this method still performs its function even if the current
-   * processed audio field value is non-NULL, and even if processing_initiated
-   * is not TRUE.
+   * Note that this method performs its function even if the current processed
+   * audio field value is non-NULL, and even if processing_initiated is not
+   * TRUE.
    *
    * This entity is not saved after the processed audio field is set -- that is
    * up to the caller.
@@ -325,7 +326,7 @@ class SermonAudio extends ContentEntityBase {
    * @throws \RuntimeException
    *   Thrown if something is wrong with the DynamoDB record returned.
    * @throws \RuntimeException
-   *   Thrown if a referenced file entity does not exist.
+   *   Thrown if a referenced file or media entity does not exist.
    */
   public function refreshProcessedAudio() : bool {
     $unprocessedAudio = $this->getUnprocessedAudio() ?? throw static::getUnprocessedAudioFieldException();
@@ -392,23 +393,28 @@ class SermonAudio extends ContentEntityBase {
     assert(isset($audioDuration));
     assert(isset($outputDisplayFilename));
     assert($outputSubKey != "");
+    assert($outputDisplayFilename != "");
     assert(is_finite($audioDuration) && $audioDuration >= 0);
 
     $processedAudioUri = Settings::getProcessedAudioUriPrefix() . $outputSubKey;
+
     // Before creating the media and file entities, check to see if the current
     // processed audio entity already references the correct URI.
-    $processedAudio = $this->getProcessedAudio();
-    if ($processedAudio !== NULL) {
-      $processedAudioFile = $processedAudio->getSource()->getSourceFieldValue($processedAudio);
-      if ($processedAudioFile instanceof FileInterface
-        && $processedAudioFile->getFileUri() === $processedAudioUri) {
-        return FALSE;
+    $processedAudioFid = $this->getProcessedAudioFid();
+    if ($processedAudioFid !== NULL) {
+      $fileStorage = static::getFileStorage();
+      $processedAudioFile = $fileStorage->load($processedAudioFid);
+      if ($processedAudioFile === NULL) {
+        throw new \RuntimeException('Could not load processed audio file with FID "' . $processedAudioFid . '".');
       }
+      assert($processedAudioFile instanceof FileInterface);
+      if ($processedAudioFile->getFileUri() === $processedAudioUri) return FALSE;
     }
+    if (!isset($fileStorage)) $fileStorage = static::getFileStorage();
 
     // Create the new processed audio file entity, and then create a new
     // corresponding media entity.
-    $newProcessedAudioFile = static::getFileStorage()->create([
+    $newProcessedAudioFile = $fileStorage->create([
       'uri' => $processedAudioUri,
       'uid' => 1,
       'filename' => basename($processedAudioUri),
@@ -483,8 +489,8 @@ class SermonAudio extends ContentEntityBase {
       ->setTranslatable(TRUE)
       ->setSetting('target_type', 'media')
       // Per https://www.drupal.org/project/commerce/issues/3137225 and
-      // https://www.drupal.org/node/2576151, it seems target bundles should
-      // have identical keys and values.
+      // https://www.drupal.org/node/2576151, it seems the target bundles array
+      // should have identical keys and values.
       ->setSetting('handler_settings', ['target_bundles' => ['audio' => 'audio']]);
     $fields['unprocessed_audio'] = BaseFieldDefinition::create('file')
       ->setLabel(new TranslatableMarkup('Unprocessed Audio'))
@@ -492,13 +498,7 @@ class SermonAudio extends ContentEntityBase {
       ->setCardinality(1)
       ->setRequired(TRUE)
       ->setTranslatable(TRUE)
-      ->setSetting('target_type', 'file')
-      // The module consumer may which to override some of these settings using
-      // a bundle.
-      ->setSetting('uri_scheme', 's3')
-      ->setSetting('file_extensions', 'mp3 mp4 m4a wav aac ogg')
-      ->setSetting('max_filesize', '1 GB')
-      ->setSetting('file_directory', 'audio-uploads');
+      ->setSetting('target_type', 'file');
 
     return $fields;
   }
@@ -562,11 +562,7 @@ class SermonAudio extends ContentEntityBase {
    * Gets the file storage.
    */
   private static function getFileStorage() : FileStorageInterface {
-    static $storage;
-    if (!isset($storage)) {
-      $storage = \Drupal::entityTypeManager()->getStorage('file');
-    }
-    return $storage;
+    return \Drupal::entityTypeManager()->getStorage('file');
   }
 
   /**
@@ -590,11 +586,7 @@ class SermonAudio extends ContentEntityBase {
    * Gets the media entity storage.
    */
   private static function getMediaStorage() : MediaStorage {
-    static $storage;
-    if (!isset($storage)) {
-      $storage = \Drupal::entityTypeManager()->getStorage('media');
-    }
-    return $storage;
+    return \Drupal::entityTypeManager()->getStorage('media');
   }
 
   /**

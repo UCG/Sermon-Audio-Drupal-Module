@@ -59,10 +59,7 @@ final class Settings {
    * Gets the module settings object.
    */
   private static function getSettings() : ImmutableConfig {
-    if (!isset(static::$settings)) {
-      static::$settings = \Drupal::config('sermon_audio.settings');
-    }
-    return static::$settings;
+    return \Drupal::config('sermon_audio.settings');
   }
 
 }
