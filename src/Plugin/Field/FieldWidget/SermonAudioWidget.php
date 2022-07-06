@@ -135,7 +135,7 @@ class SermonAudioWidget extends WidgetBase {
 
     $element['#default_value'] = [
       'aid' => $sermonAudioId,
-      'fid' => $processedAudioFid,
+      'fids' => [$processedAudioFid],
       'processed' => TRUE,
     ];
 
