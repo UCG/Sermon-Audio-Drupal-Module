@@ -25,9 +25,11 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 /**
  * Edit widget for sermon audio fields.
  *
- * id = "sermon_unprocessed_audio",
- * label = @Translation("Sermon Unprocessed Audio"),
- * field_types = { "sermon_audio" },
+ * @FieldWidget(
+ *   id = "sermon_unprocessed_audio",
+ *   label = @Translation("Sermon Unprocessed Audio"),
+ *   field_types = { "sermon_audio" },
+ * )
  */
 class SermonAudioWidget extends WidgetBase {
 
