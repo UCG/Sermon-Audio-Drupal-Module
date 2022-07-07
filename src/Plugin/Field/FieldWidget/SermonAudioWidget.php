@@ -123,8 +123,8 @@ class SermonAudioWidget extends WidgetBase {
       '#extended' => TRUE,
     ] + $element;
 
-    $targetId = $fieldItem->get('target_id');
-    if ($targetId === '' || $targetId === NULL) { 
+    $targetId = $fieldItem->get('target_id')->getValue();
+    if ($targetId === '' || $targetId === NULL) {
       $sermonAudioId = NULL;
       $processedAudioFid = NULL;
     }
