@@ -100,7 +100,7 @@ class SermonAudioWidget extends WidgetBase {
     if ($this->getSetting('auto_rename')) {
       // Use a random bare filename (filename without extension) to ensure
       // uniqueness.
-      $bareFilename = hex2bin(random_bytes(8));
+      $bareFilename = bin2hex(random_bytes(8));
       // Add an extra allowed extension to the "file_validate_extensions"
       // validator settings. This is not actually a relevant extension (in fact,
       // we should never get a file with this extension, given that it is a long

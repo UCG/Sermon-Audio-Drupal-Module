@@ -103,8 +103,10 @@ class SermonAudioFieldItem extends EntityReferenceItem {
   /**
    * Gets the maximum upload file upload size, in bytes.
    *
-   * Retrieves from field settings, if the relevant setting is set -- else uses
-   * PHP max value.
+   * @return int
+   *   Maximum upload size, in bytes. Retrieves from field settings, if the
+   *   relevant setting is set and less than the PHP max value -- else uses the
+   *   max value.
    *
    * @throws \Drupal\sermon_audio\Exception\InvalidFieldConfigurationException
    *   Thrown if the upload_max_file_size field setting is set, but is
@@ -121,11 +123,10 @@ class SermonAudioFieldItem extends EntityReferenceItem {
         if ($maxUploadSize <= 0) {
           throw new InvalidFieldConfigurationException('Sermon audio field setting upload_max_file_size is non-positive.');
         }
-        return $maxUploadSize;
+        return min($maxUploadSize, Environment::getUploadMaxSize());
       }
     }
 
-    // Otherwise, return the PHP max upload size.
     return Environment::getUploadMaxSize();
   }
 
