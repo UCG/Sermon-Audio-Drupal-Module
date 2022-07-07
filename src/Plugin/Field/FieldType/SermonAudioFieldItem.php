@@ -123,11 +123,11 @@ class SermonAudioFieldItem extends EntityReferenceItem {
         if ($maxUploadSize <= 0) {
           throw new InvalidFieldConfigurationException('Sermon audio field setting upload_max_file_size is non-positive.');
         }
-        return min($maxUploadSize, Environment::getUploadMaxSize());
+        return min($maxUploadSize, (int) Environment::getUploadMaxSize());
       }
     }
 
-    return Environment::getUploadMaxSize();
+    return (int) Environment::getUploadMaxSize();
   }
 
   /**
