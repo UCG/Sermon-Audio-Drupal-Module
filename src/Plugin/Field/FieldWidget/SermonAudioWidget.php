@@ -125,21 +125,19 @@ class SermonAudioWidget extends WidgetBase {
 
     $targetId = $fieldItem->get('target_id')->getValue();
     if ($targetId === '' || $targetId === NULL) {
-      $sermonAudioId = NULL;
-      $processedAudioFid = NULL;
+      $element['#default_value'] = NULL;
     }
     else {
       $sermonAudioId = (int) $targetId;
       $sermonAudio = $this->sermonAudioStorage->load($sermonAudioId);
       assert($sermonAudio instanceof SermonAudio);
       $processedAudioFid = $sermonAudio->getProcessedAudioFid();
+      $element['#default_value'] = [
+        'aid' => $sermonAudioId,
+        'fids' => $processedAudioFid === NULL ? [] : [$processedAudioFid],
+        'processed' => TRUE,
+      ];
     }
-
-    $element['#default_value'] = [
-      'aid' => $sermonAudioId,
-      'fids' => [$processedAudioFid],
-      'processed' => TRUE,
-    ];
 
     return $element;
   }
@@ -149,12 +147,16 @@ class SermonAudioWidget extends WidgetBase {
    */
   public function massageFormValues(array $values, array $form, FormStateInterface $form_state) : array {
     foreach ($values as &$value) {
-      if (is_array($value)) {
-        if (!array_key_exists('aid', $value) || !is_int($value['aid'])) {
-          throw new \RuntimeException('Invalid or missing sermon audio ID in widget form value.');
+      if (is_array($value) && array_key_exists('aid', $value)) {
+        $sermonAudioId = $value['aid'];
+        if (!is_int($sermonAudioId)) {
+          throw new \RuntimeException('An invalid sermon audio ID was detected.');
         }
-        $value = ['target_id' => $value['aid']];
+        $value = ['target_id' => $sermonAudioId];
       }
+      // Otherwise, yield an empty array. The corresponding field item will then
+      // automatically be removed.
+      else $value = [];
     }
 
     return $values;
@@ -289,9 +291,9 @@ class SermonAudioWidget extends WidgetBase {
       else $input = [];
     }
     $value = ManagedFile::valueCallback($element, $input, $formState);
-    // If the form element produced the default value (referencing the processed
-    // audio file), we don't want to mess with it. Otherwise, we have to figure
-    // out what sermon audio ID to attach.
+    // If we got back a value corresponding to the processed audio, we don't
+    // have to set the sermon audio ID; it is already set. Otherwise, we have to
+    // figure out what sermon audio ID to attach.
     if (empty($value['processed'])) {
       // If the FID has changed, we create a new sermon audio entity for the new
       // unprocessed audio file. If it hasn't changed, we re-use the current
