@@ -11,6 +11,7 @@ use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeInterface;
 use Drupal\Core\Field\BaseFieldDefinition;
 use Drupal\Core\Field\FieldItemBase;
+use Drupal\Core\Field\FieldItemInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\file\FileInterface;
 use Drupal\file\FileStorageInterface;
@@ -67,7 +68,7 @@ class SermonAudio extends ContentEntityBase {
    * Gets the processed audio duration, or NULL if it is not set.
    */
   public function getDuration() : ?float {
-    $value = $this->get('duration')->get(0)?->getValue();
+    $value = static::getScalarValueFromFieldItem($this->get('duration')->get(0));
     return $value === NULL ? NULL : (float) $value;
   }
 
@@ -204,12 +205,12 @@ class SermonAudio extends ContentEntityBase {
 
     // Clear the "audio duration" and "processed audio" fields if necessary.
     $durationField = $this->get('duration');
-    if ($durationField->get(0)?->getValue() !== NULL) {
+    if (!$durationField->isEmpty()) {
       $durationField->removeItem(0);
       $didChangeEntity = TRUE;
     }
     $processedAudioField = $this->get('processed_audio');
-    if ($processedAudioField->get(0)?->getValue() !== NULL) {
+    if (!$processedAudioField->isEmpty()) {
       $processedAudioField->removeItem(0);
       $didChangeEntity = TRUE;
     }
@@ -218,11 +219,11 @@ class SermonAudio extends ContentEntityBase {
     $processingInitiatedField = $this->get('processing_initiated');
     $processingInitiatedFieldItem = $processingInitiatedField->get(0);
     if ($processingInitiatedFieldItem === NULL) {
-      $processingInitiatedFieldItem = $processingInitiatedField->appendItem(TRUE);
+      $processingInitiatedFieldItem = $processingInitiatedField->appendItem(['value' => TRUE]);
       $didChangeEntity = TRUE;
     }
-    elseif (!$processingInitiatedFieldItem->getValue()) {
-      $processingInitiatedFieldItem->setValue(TRUE);
+    elseif (!static::getScalarValueFromFieldItem($processingInitiatedFieldItem)) {
+      static::setScalarValueOnFieldItem($processingInitiatedFieldItem, TRUE);
       $didChangeEntity = TRUE;
     }
 
@@ -590,6 +591,21 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
+   * Gets the value ("value" property) from a field item of a scalar type.
+   *
+   * @param \Drupal\Core\Field\FieldItemInterface|null $item
+   *   Field item, or NULL if no field item (in that case, this method will just
+   *   return NULL -- this is just for convenience).
+   *
+   * @return mixed
+   *   Item value, or NULL if item value is not defined.
+   */
+  private static function getScalarValueFromFieldItem(?FieldItemInterface $item) : mixed {
+    $fullValue = $item->getValue();
+    return $fullValue ? $fullValue['value'] : NULL;
+  }
+
+  /**
    * Gets a new exception indicating the unprocessed audio file doesn't exist.
    */
   private static function getUnprocessedAudioFieldException() : EntityValidationException {
@@ -620,6 +636,18 @@ class SermonAudio extends ContentEntityBase {
     }
 
     return $inputSubKey;
+  }
+
+  /**
+   * Sets the core value (defined by "value" proeprty) for scalar field item.
+   *
+   * @param \Drupal\Core\Field\FieldItemInterface $item
+   *   Field item.
+   * @param mixed $value
+   *   Scalar value.
+   */
+  private static function setScalarValueOnFieldItem(FieldItemInterface $item, $value) : mixed {
+    $item->setValue(['value' => $value]);
   }
 
 }
