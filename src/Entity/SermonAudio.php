@@ -427,7 +427,7 @@ class SermonAudio extends ContentEntityBase {
       'bundle' => 'audio',
       'uid' => 1,
       'name' => $outputDisplayFilename,
-      'field_audio_file' => [['target_id' => (int) $newProcessedAudioFile->id()]],
+      'field_media_audio_file' => [['target_id' => (int) $newProcessedAudioFile->id()]],
     ])->enforceIsNew();
     $newProcessedAudio->save();
 
@@ -446,8 +446,8 @@ class SermonAudio extends ContentEntityBase {
 
     // Set the audio duration.
     $durationField = $this->get('duration');
-    if ($durationField->count() === 0) $durationField->appendItem($audioDuration);
-    else $durationField->get(0)->setValue($audioDuration);
+    if ($durationField->count() === 0) $durationField->appendItem(['value' => $audioDuration]);
+    else static::setScalarValueOnFieldItem($durationField->get(0), $audioDuration);
 
     return TRUE;
   }
@@ -646,7 +646,7 @@ class SermonAudio extends ContentEntityBase {
    * @param mixed $value
    *   Scalar value.
    */
-  private static function setScalarValueOnFieldItem(FieldItemInterface $item, $value) : mixed {
+  private static function setScalarValueOnFieldItem(FieldItemInterface $item, $value) : void {
     $item->setValue(['value' => $value]);
   }
 
