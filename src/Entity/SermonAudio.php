@@ -282,7 +282,7 @@ class SermonAudio extends ContentEntityBase {
       // Indicate that the audio processing job has not actually successfully
       // been initiated.
       try {
-        $processingInitiatedFieldItem->setValue(FALSE);
+        static::setScalarValueOnFieldItem($processingInitiatedFieldItem, FALSE);
         $this->save();
       }
       catch (\Exception $inner) {
@@ -456,7 +456,7 @@ class SermonAudio extends ContentEntityBase {
    * Tells whether the audio processing was initiated by reading field value.
    */
   public function wasAudioProcessingInitiated() : bool {
-    return (bool) $this->get('processing_initiated')->get(0)?->getValue();
+    return (bool) static::getScalarValueFromFieldItem($this->get('processing_initiated')->get(0));
   }
 
   /**
