@@ -13,12 +13,17 @@ use Ranine\Helper\ParseHelpers;
 /**
  * Represents a field linking to a sermon audio entity.
  *
+ * Note that the list class for this field type is set to the entity reference
+ * list class: this is done so that \Drupal\Core\Field\Plugin\Field\FieldFormatter\EntityReferenceFormatterBase::getEntitiesToView()
+ * can be called in the default field formatter.
+ *
  * @FieldType(
  *   id = "sermon_audio",
  *   label = @Translation("Sermon Audio"),
  *   category = @Translation("Reference"),
  *   default_formatter = "sermon_processed_audio",
  *   default_widget = "sermon_unprocessed_audio",
+ *   list_class = "\Drupal\Core\Field\EntityReferenceFieldItemListInterface",
  * )
  */
 class SermonAudioFieldItem extends EntityReferenceItem {
