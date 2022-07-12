@@ -606,6 +606,7 @@ class SermonAudio extends ContentEntityBase {
    *   Item value, or NULL if item value is not defined.
    */
   private static function getScalarValueFromFieldItem(?FieldItemInterface $item) : mixed {
+    if ($item === NULL) return NULL;
     $fullValue = $item->getValue();
     return $fullValue ? $fullValue['value'] : NULL;
   }
