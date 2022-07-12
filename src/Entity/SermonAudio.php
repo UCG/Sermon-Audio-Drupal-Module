@@ -493,7 +493,12 @@ class SermonAudio extends ContentEntityBase {
       // https://www.drupal.org/node/2576151, it seems the target bundles array
       // should have identical keys and values.
       ->setSetting('handler_settings', ['target_bundles' => ['audio' => 'audio']]);
-    $fields['unprocessed_audio'] = BaseFieldDefinition::create('file')
+    // We use an entity reference instead of a file field because 1) we do not
+    // need the extra features provided by the file field type, and 2) we would
+    // rather not have restrictions on the possible file extensions (these can
+    // instead be imposed on sermon audio fields), and the file field does not
+    // permit one to allow all extensions.
+    $fields['unprocessed_audio'] = BaseFieldDefinition::create('entity_reference')
       ->setLabel(new TranslatableMarkup('Unprocessed Audio'))
       ->setDescription(new TranslatableMarkup('Unprocessed audio file.'))
       ->setCardinality(1)
