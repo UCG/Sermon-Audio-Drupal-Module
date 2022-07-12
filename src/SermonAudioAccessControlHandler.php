@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-namespace Drupal\calendar_item;
+namespace Drupal\sermon_audio;
 
 use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Access\AccessResultInterface;

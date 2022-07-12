@@ -99,9 +99,9 @@ class SermonAudio extends ContentEntityBase {
    */
   public function getProcessedAudioFid() : ?int {
     $processedAudio = $this->getProcessedAudio();
-    $item = $processedAudio?->getSource()->getSourceFieldValue($processedAudio)?->get(0)?->getValue();
-    if (empty($item) || $item['target_id'] === NULL) return NULL;
-    else return (int) $item['target_id'];
+    $targetId = $processedAudio?->getSource()->getSourceFieldValue($processedAudio);
+    if ($targetId === NULL) return NULL;
+    else return (int) $targetId;
   }
 
   /**
@@ -492,7 +492,10 @@ class SermonAudio extends ContentEntityBase {
       // Per https://www.drupal.org/project/commerce/issues/3137225 and
       // https://www.drupal.org/node/2576151, it seems the target bundles array
       // should have identical keys and values.
-      ->setSetting('handler_settings', ['target_bundles' => ['audio' => 'audio']]);
+      ->setSetting('handler_settings', ['target_bundles' => ['audio' => 'audio']])
+      // Force the use of the "rendered entity" view type, because otherwise
+      // only a link will be shown.
+      ->setDisplayOptions('view', ['type' => 'entity_reference_entity_view', 'label' => 'hidden', 'weight' => 1]);
     // We use an entity reference instead of a file field because 1) we do not
     // need the extra features provided by the file field type, and 2) we would
     // rather not have restrictions on the possible file extensions (these can

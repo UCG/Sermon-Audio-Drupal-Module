@@ -23,7 +23,7 @@ use Ranine\Helper\ParseHelpers;
  *   category = @Translation("Reference"),
  *   default_formatter = "sermon_processed_audio",
  *   default_widget = "sermon_unprocessed_audio",
- *   list_class = "\Drupal\Core\Field\EntityReferenceFieldItemListInterface",
+ *   list_class = "\Drupal\Core\Field\EntityReferenceFieldItemList",
  * )
  */
 class SermonAudioFieldItem extends EntityReferenceItem {
