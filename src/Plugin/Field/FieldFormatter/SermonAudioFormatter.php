@@ -27,9 +27,15 @@ class SermonAudioFormatter extends EntityReferenceFormatterBase {
     foreach ($this->getEntitiesToView($items, $langcode) as $delta => $sermonAudio) {
       assert($sermonAudio instanceof SermonAudio);
 
-      // Output the processed audio field if it's set.
-      $output[$delta] = $sermonAudio->get('processed_audio')?->view() ?? [];
-      // @todo During testing, see if cache tags must be attached.
+      // Output the processed audio field if it's set. Force the use of the
+      // "rendered entity" view type (with no label), because otherwise a link
+      // and a label will instead be shown.
+      $output[$delta] = $sermonAudio->get('processed_audio')?->view([
+        'type' => 'entity_reference_entity_view',
+        'label' => 'hidden',
+        'weight' => 0,
+      ]) ?? [];
+      // @todo See if cache tags must be attached.
     }
 
     return $output;
