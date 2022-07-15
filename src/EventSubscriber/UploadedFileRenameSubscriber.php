@@ -45,7 +45,7 @@ class UploadedFileRenameSubscriber implements EventSubscriberInterface {
     if ($bareNewFilename !== NULL) {
       // Preserve the current extension.
       $extension = pathinfo($event->getFilename(), PATHINFO_EXTENSION);
-      $event->setFilename($bareNewFilename . '.' . $extension)->setSecurityRename(FALSE);
+      $event->setFilename($bareNewFilename . '.' . $extension);
     }
   }
 
