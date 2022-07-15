@@ -22,6 +22,10 @@ use Ranine\Exception\InvalidOperationException;
 use Ranine\Helper\ParseHelpers;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
+// @todo Need to figure out where to inject sermon audio entity creation code --
+// in validate handler (also using $form_state->isSubmitted()?)?
+// @todo Get rid of file link appearing after upload.
+
 /**
  * Edit widget for sermon audio fields.
  *
@@ -270,6 +274,8 @@ class SermonAudioWidget extends WidgetBase {
    *   \InvalidArgumentException because of how this function is called...).
    */
   public static function getWidgetValue(array &$element, $input, FormStateInterface $formState) : array {
+    // @todo Redo this. Probably shouldn't be creating sermon audio entity here.
+
     // To start, let the managed_file form element compute a value.
     // The $input value may contain some extra stuff that the managed_file
     // callback doesn't need, and that might mess up our calculations later.
@@ -278,19 +284,20 @@ class SermonAudioWidget extends WidgetBase {
     $originalInput = $input;
     if (is_array($input)) {
       if (array_key_exists('fids', $input)) {
-        // We should never have more than one FID.
         $originalFidString = trim((string) $input['fids']);
-        if ($originalFidString === '') {
-          $input = [];
-        }
-        else {
+        $input = ['fids' => $originalFidString];
+        if ($originalFidString !== '') {
+          // We should never have more than one FID.
           $originalFid = ParseHelpers::parseIntFromString($originalFidString);
-          $input = ['fids' => $originalFidString];
         }
       }
       else $input = [];
     }
+
+    // @todo Move extension injection to here, and cache so it is not repeated.
     $value = ManagedFile::valueCallback($element, $input, $formState);
+    // @todo Undo extension injection.
+
     // If we got back a value corresponding to the processed audio, we don't
     // have to set the sermon audio ID; it is already set. Otherwise, we have to
     // figure out what sermon audio ID to attach.
