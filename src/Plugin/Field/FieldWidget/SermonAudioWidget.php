@@ -12,6 +12,7 @@ use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\Core\Field\WidgetBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Render\ElementInfoManagerInterface;
 use Drupal\Core\StringTranslation\TranslationInterface;
 use Drupal\file\Element\ManagedFile;
 use Drupal\sermon_audio\Entity\SermonAudio;
@@ -22,9 +23,8 @@ use Ranine\Exception\InvalidOperationException;
 use Ranine\Helper\ParseHelpers;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
-// @todo Need to figure out where to inject sermon audio entity creation code --
-// in validate handler (also using $form_state->isSubmitted()?)?
 // @todo Get rid of file link appearing after upload.
+// @todo Figure out who owns the newly created entities.
 
 /**
  * Edit widget for sermon audio fields.
@@ -37,8 +37,38 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 class SermonAudioWidget extends WidgetBase {
 
+  // @todo Verify this.
+  /* As I understand it, the operation of this widget in the context of the
+  Form API is as follows:
+
+  -- When loading an edit form containing the widget --
+  1) The edit form is built, and formElement() is called to build this
+  widget's form element.
+  2) The value callback for this widget (static::getWidgetValue()) is invoked.
+  3) The process callbacks are invoked, starting with the managed_file form
+  element callback and following with static::handlePostProcessing().
+
+  -- When an AJAX file upload / removal submission occurs --
+  1), 2) and 3) above.
+  4) $this->massageFormValues() is called to extract field value for validation.
+  5) Validation occurs.
+  6) Assuming validation is successful (@todo Check what happens what it fails),
+  the form is rebuilt, and 1), 2) and 3) above are fired again.
+
+  -- When the edit form is submitted --
+  1), 2), 3) and 4) above.
+  5) Validation and submission, if validation successful (@todo Check what
+  happens when it fails).
+  6) The form is rebuilt, and 1), 2), and 3) are fired.
+  */
+
   /** Some of the code herein is adapted from
    * @see \Drupal\file\Plugin\Field\FieldWidget\FileWidget */
+
+   /**
+    * Render array element info manager.
+    */
+   private ElementInfoManagerInterface $elementInfoManager;
 
    /**
     * Module configuration.
@@ -74,6 +104,8 @@ class SermonAudioWidget extends WidgetBase {
    *   Repository of pseudo-extensions and bare names for to-be-renamed files.
    * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
    *   Entity type manager.
+   * @param \Drupal\Core\Render\ElementInfoManagerInterface
+   *   Render array element info manager.
    */
   protected function __construct(string $pluginId,
     $pluginDefinition,
@@ -83,8 +115,10 @@ class SermonAudioWidget extends WidgetBase {
     TranslationInterface $translationManager,
     ConfigFactoryInterface $configFactory,
     FileRenamePseudoExtensionRepository $renamePseudoExtensionRepo,
-    EntityTypeManagerInterface $entityTypeManager) {
+    EntityTypeManagerInterface $entityTypeManager,
+    ElementInfoManagerInterface $elementInfoManager) {
     parent::__construct($pluginId, $pluginDefinition, $fieldDefinition, $settings, $thirdPartySettings);
+    $this->elementInfoManager = $elementInfoManager;
     $this->moduleConfiguration = $configFactory->get('sermon_audio.settings');
     $this->renamePseudoExtensionRepo = $renamePseudoExtensionRepo;
     $this->sermonAudioStorage = $entityTypeManager->getStorage('sermon_audio');
@@ -100,48 +134,58 @@ class SermonAudioWidget extends WidgetBase {
       throw new InvalidOperationException('This method was called for a field with an item of an invalid type.');
     }
 
-    $uploadValidators = $fieldItem->getUploadValidators();
-    if ($this->getSetting('auto_rename')) {
-      // Use a random bare filename (filename without extension) to ensure
-      // uniqueness.
-      $bareFilename = bin2hex(random_bytes(8));
-      // Add an extra allowed extension to the "file_validate_extensions"
-      // validator settings. This is not actually a relevant extension (in fact,
-      // we should never get a file with this extension, given that it is a long
-      // random hexadecimal string), but we include it to signal that we want to
-      // rename the file. We associate this extension with the bare filename
-      // above.
-      // @see \Drupal\sermon_audio\FileRenamePseudoExtensionRepository
-      $pseudoExtension = $this->renamePseudoExtensionRepo->addBareFilename($bareFilename);
-      $settings =& $uploadValidators['file_validate_extensions'];
-      $settings[array_key_first($settings)] .= ' ' . $pseudoExtension;
-    }
-    $element = [
-      '#type' => 'managed_file',
-      '#progress_indicator' => $this->getSetting('progress_indicator'),
-      '#upload_location' => $this->getUploadLocation(),
-      '#upload_validators' => $uploadValidators,
-      '#value_callback' => [static::class, 'getWidgetValue'],
-      // Ensure that we can encode other information in #value besides that
-      // handled/returned by the managed_file form element.
-      '#extended' => TRUE,
-    ] + $element;
-
+    // Prepare the default value of the form element. If there is already a
+    // processed sermon audio entity, the default value should include its ID,
+    // as well as the FID of the processed audio (if available) or unprocessed
+    // audio (otherwise).
     $targetId = $fieldItem->get('target_id')->getValue();
     if ($targetId === '' || $targetId === NULL) {
-      $element['#default_value'] = NULL;
+      $defaultValue = NULL;
     }
     else {
       $sermonAudioId = (int) $targetId;
       $sermonAudio = $this->sermonAudioStorage->load($sermonAudioId);
       assert($sermonAudio instanceof SermonAudio);
-      $processedAudioFid = $sermonAudio->getProcessedAudioFid();
-      $element['#default_value'] = [
+      $hasProcessedAudio = $sermonAudio->hasProcessedAudio();
+      $fid = $hasProcessedAudio ? $sermonAudio->getProcessedAudioFid() : $sermonAudio->getUnprocessedAudioId();
+      $defaultValue = [
         'aid' => $sermonAudioId,
-        'fids' => $processedAudioFid === NULL ? [] : [$processedAudioFid],
-        'processed' => TRUE,
+        // We use the "fids" array to be compatible with the managed_file form
+        // element type.
+        'fids' => [$fid],
+        'processed' => $hasProcessedAudio,
       ];
     }
+    $element = [
+      // We use the built-in managed_file widget to handle the actual file
+      // uploads/removals.
+      '#type' => 'managed_file',
+      '#progress_indicator' => $this->getSetting('progress_indicator'),
+      '#upload_location' => $this->getUploadLocation(),
+      '#upload_validators' => $fieldItem->getUploadValidators(),
+      '#default_value' => $defaultValue,
+      // The value callback takes the form input (which does *not* include any
+      // actual newly uploaded file, though it may contain references to the IDs
+      // of previously uploaded files) and converts it into a form value. The
+      // form value contains any file ID of an uploaded file, as well as any
+      // associated sermon audio ID. This value is *not* the final value used as
+      // the value of the associated field item -- the value will be further
+      // transformed by massageFieldsValues() into its final form. The value
+      // callback is also responsible for creating, if necessary, any new file
+      // or sermon audio entities needed.
+      '#value_callback' => fn(array &$element, $input, FormStateInterface $formState)
+        => static::getWidgetValue($element, $input, $formState, $this->getSetting('auto_rename')),
+      // Add our own processing routine that runs after the default routine for
+      // the managed_file form element. This may, we can get rid of the link (to
+      // an uploaded file) that the existing processing routine adds.
+      // @todo Add post processing.
+      '#process' => [$this->elementInfoManager->getInfo('managed_file')['#process'], static::handlePostProcessing(...)],
+      // Ensure that we can encode the sermon audio in the form value.
+      '#extended' => TRUE,
+    ]
+      // We use the passed-in $element as a base, overriding any contradicting
+      // information.
+      + $element;
 
     return $element;
   }
@@ -150,6 +194,8 @@ class SermonAudioWidget extends WidgetBase {
    * {@inheritdoc}
    */
   public function massageFormValues(array $values, array $form, FormStateInterface $form_state) : array {
+    // @todo Redo this.
+
     foreach ($values as &$value) {
       if (is_array($value) && array_key_exists('aid', $value)) {
         $sermonAudioId = $value['aid'];
@@ -238,6 +284,7 @@ class SermonAudioWidget extends WidgetBase {
       $container->get('config.factory'),
       $container->get('sermon_audio.file_rename_pseudo_extension_repository'),
       $container->get('entity_type.manager'),
+      $container->get('element_info'),
     );
   }
 
@@ -254,6 +301,28 @@ class SermonAudioWidget extends WidgetBase {
   /**
    * Gets the widget element #value from the user input.
    *
+   * If there is a new file upload, the value is computed as follows. First, a
+   * file entity for the uploaded file is created if possible, or, if an entity
+   * has already been created during this request cycle, that entity is re-used.
+   * A corresponding new sermon audio entity is also created and outputted,
+   * unless, again, such an entity has already been created during this request
+   * cycle (this can occur if getWidgetValue() has already been called during
+   * this request cycle).
+   *
+   * If there is not a new file upload, but $input['fids'] contains an FID from
+   * a previous upload, that FID is used in the output value provided it can be
+   * verified that the user has permission to use that FID. It is then necessary
+   * to determine the corresponding sermon audio ID. If one has already been
+   * computed during this request cycle for that FID, that is used. Otherwise,
+   * we look in a persistent key-value store for $input['aid-code'], which is a
+   * token granting "attachment rights" for a particular audio ID for a certain
+   * time period, and examine the value returned to see what audio ID we can use
+   * (if any). If this is unsuccessful, a new sermon audio entity is generated
+   * and outputted.
+   *
+   * If there is no input of any kind, and in certain error conditions, the
+   * default value is outputted.
+   *
    * @param array $element
    *   Form element.
    * @param mixed $input
@@ -261,9 +330,16 @@ class SermonAudioWidget extends WidgetBase {
    *   element's default value should be returned.
    * @param \Drupal\Core\Form\FormStateInterface $formState
    *   Form state.
+   * @param bool $autoRenameUploads
+   *   Whether newly uploaded files should automatically be given a random name.
+   *   This can be used for S3 uploads to prevent the overwriting of existing
+   *   files (which can happen automatically in some configurations).
    *
    * @return array
-   *   Widget element value.
+   *   Widget element value representing the file currently associated with the
+   *   widget. This is an empty array if there is no such file. Otherwise, it is
+   *   an array of the form ['fids' => [file ID], 'aid' => [associated sermon
+   *   audio ID], 'processed' => [whether file represents processed audio]].
    *
    * @throws \Drupal\Core\Entity\EntityStorageException
    *   Thrown if an error occurs while saving an entity.
@@ -273,8 +349,8 @@ class SermonAudioWidget extends WidgetBase {
    *   Thrown in some cases if $input is invalid (we don't throw an
    *   \InvalidArgumentException because of how this function is called...).
    */
-  public static function getWidgetValue(array &$element, $input, FormStateInterface $formState) : array {
-    // @todo Redo this. Probably shouldn't be creating sermon audio entity here.
+  public static function getWidgetValue(array &$element, $input, FormStateInterface $formState, bool $autoRenameUploads) : array {
+    // @todo Re-do all this.
 
     // To start, let the managed_file form element compute a value.
     // The $input value may contain some extra stuff that the managed_file
@@ -294,7 +370,23 @@ class SermonAudioWidget extends WidgetBase {
       else $input = [];
     }
 
-    // @todo Move extension injection to here, and cache so it is not repeated.
+    // @todo Move extension injection to here -- something like that below --
+    // and cache if repeated.
+    if ($autoRename) {
+      // Use a random bare filename (filename without extension) to ensure
+      // uniqueness.
+      $bareFilename = bin2hex(random_bytes(8));
+      // Add an extra allowed extension to the "file_validate_extensions"
+      // validator settings. This is not actually a relevant extension (in fact,
+      // we should never get a file with this extension, given that it is a long
+      // random hexadecimal string), but we include it to signal that we want to
+      // rename the file. We associate this extension with the bare filename
+      // above.
+      // @see \Drupal\sermon_audio\FileRenamePseudoExtensionRepository
+      $pseudoExtension = $this->renamePseudoExtensionRepo->addBareFilename($bareFilename);
+      $settings =& $uploadValidators['file_validate_extensions'];
+      $settings[array_key_first($settings)] .= ' ' . $pseudoExtension;
+    }
     $value = ManagedFile::valueCallback($element, $input, $formState);
     // @todo Undo extension injection.
 
