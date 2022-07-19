@@ -15,6 +15,7 @@ use Drupal\Core\Field\FieldItemInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\file\FileInterface;
 use Drupal\file\FileStorageInterface;
+use Drupal\file\FileUsage\FileUsageInterface;
 use Drupal\media\MediaInterface;
 use Drupal\media\MediaStorage;
 use Drupal\sermon_audio\Exception\EntityValidationException;
@@ -25,6 +26,7 @@ use Drupal\sermon_audio\Exception\ModuleConfigurationException;
 use Ranine\Exception\AggregateException;
 use Ranine\Exception\InvalidOperationException;
 use Ranine\Helper\ThrowHelpers;
+use Ranine\Iteration\ExtendableIterable;
 
 /**
  * An entity representing audio for a sermon.
@@ -65,11 +67,41 @@ use Ranine\Helper\ThrowHelpers;
 class SermonAudio extends ContentEntityBase {
 
   /**
+   * {@inheritdoc}
+   */
+  public function delete() {
+    parent::delete();
+
+    $fileUsageManager = \Drupal::service('file.usage');
+    assert($fileUsageManager instanceof FileUsageInterface);
+    $entityTypeId = $this->getEntityTypeId();
+    $entityId = (int) $this->id();
+    $fileStorage = static::getFileStorage();
+    foreach ($this->iterateTranslations() as $translation) {
+      $fid = $translation->getUnprocessedAudioId();
+      if ($fid !== NULL) {
+        $file = $fileStorage->load($fid);
+        if ($file !== NULL) {
+          // Remove all usage information for this FID.
+          $fileUsageManager->delete($file, 'sermon_audio', $entityTypeId, $entityId, 0);
+        }
+      }
+    }
+  }
+
+  /**
    * Gets the processed audio duration, or NULL if it is not set.
    */
   public function getDuration() : ?float {
     $value = static::getScalarValueFromFieldItem($this->get('duration')->get(0));
     return $value === NULL ? NULL : (float) $value;
+  }
+
+  /**
+   * Gets the current langcode.
+   */
+  public function getLangcode() : string {
+    return (string) static::getScalarValueFromFieldItem($this->get('langcode')->get(0));
   }
 
   /**
@@ -297,6 +329,101 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
+   * Iterates over all translations of this entity.
+   *
+   * @return iterable<\Drupal\sermon_audio\Entity\SermonAudio>&\Ranine\Iteration\ExtendableIterable
+   *   Iterable, whose keys are the langcodes, and whose values are the
+   *   translated entities.
+   */
+  public function iterateTranslations() : iterable {
+    return ExtendableIterable::from($this->getTranslationLanguages())
+      ->map(fn($langcode) => $this->getTranslation($langcode));
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function postSave(EntityStorageInterface $storage, $update = TRUE) : void {
+    parent::postSave($storage, $update);
+
+    // We have to announce file usage for the unprocessed audio field, since
+    // this field is a plain entity reference field instead of a file field.
+    // This is adapated from @see \Drupal\file\Plugin\Field\FieldType\FileFieldItemList::postSave().
+    // Note that unlike in the method referenced above, we don't have to worry
+    // about revision stuff, as our entity type is not revisionable.
+
+    // Record by what amount the usage should change for each FID.
+    /* @var array<int, int>*/
+    $usageChanges = [];
+    if ($update) {
+      if (!isset($this->original) || !($this->original instanceof SermonAudio)) {
+        throw new \RuntimeException('Missing our invalid original entity.');
+      }
+      $originalEntity = $this->original;
+
+      // Combine the langcodes from both the original and current entity.
+      $langcodesToScanAsKeys = ExtendableIterable::from($this->getTranslationLanguages())
+        ->append($originalEntity->getTranslationLanguages())
+        ->map(fn() => NULL)
+        ->toArray();
+      foreach ($langcodesToScanAsKeys as $langcode => $n) {
+        $originalFid = NULL;
+        if ($originalEntity->hasTranslation($langcode)) {
+          $originalTranslation = $originalEntity->getTranslation($langcode);
+          assert($originalTranslation instanceof SermonAudio);
+          $originalFid = $originalTranslation->getUnprocessedAudioId();
+        }
+        $newFid = NULL;
+        if ($this->hasTranslation($langcode)) {
+          $newTranslation = $this->getTranslation($langcode);
+          assert($newTranslation instanceof SermonAudio);
+          $newFid = $newTranslation->getUnprocessedAudioId();
+        }
+
+        // Depending on how the original FID and new FID compare, change the
+        // usage values.
+        if ($originalFid !== $newFid) {
+          if ($originalFid !== NULL) {
+            if (!array_key_exists($originalFid, $usageChanges)) $usageChanges[$originalFid] = -1;
+            else $usageChanges[$originalFid]--;
+          }
+          if ($newFid === NULL) {
+            if (!array_key_exists($newFid, $usageChanges)) $usageChanges[$newFid] = -1;
+            else $usageChanges[$newFid]--;
+          }
+          else {
+            if (!array_key_exists($newFid, $usageChanges)) $usageChanges[$newFid] = 1;
+            else $usageChanges[$newFid]++;
+          }
+        }
+      }
+    }
+    else {
+      foreach ($this->iterateTranslations() as $translation) {
+        $fid = $translation->getUnprocessedAudioId();
+        if ($fid !== NULL) {
+          if (!array_key_exists($fid, $usageChanges)) $usageChanges[$fid] = 1;
+          else $usageChanges[$fid]++;
+        }
+      }
+    }
+
+    $fileUsageManager = \Drupal::service('file.usage');
+    assert($fileUsageManager instanceof FileUsageInterface);
+    $fileStorage = static::getFileStorage();
+    $entityTypeId = $this->getEntityTypeId();
+    $entityId = (int) $this->id();
+    foreach ($usageChanges as $fid => $change) {
+      if ($change === 0) continue;
+      $file = $fileStorage->load($fid);
+      if ($file === NULL) continue;
+
+      if ($change > 0) $fileUsageManager->add($file, 'sermon_audio', $entityTypeId, $entityId, $change);
+      else $fileUsageManager->delete($file, 'sermon_audio', $entityTypeId, $entityId, -$change);
+    }
+  }
+
+  /**
    * Attempts to correctly set the processed audio field.
    *
    * The processed audio field is set to point to the audio file, indicated by
@@ -516,29 +643,32 @@ class SermonAudio extends ContentEntityBase {
     /** @var null[] */
     static $finishedEntityIds = [];
     foreach ($entities as $entity) {
+      if (!($entity instanceof SermonAudio)) {
+        throw new \RuntimeException('Invalid entity type in $entities.');
+      }
+
       $entityId = $entity->id();
 
-      // If 1) postLoad() hasn't been run for $entity, 2) the processed audio
-      // field isn't already set, and 3) processing_initiated is set, then we
-      // call refreshProcessedAudio() on the entity. Condition 1) avoids various
-      // problems with the static entity cache being cleared and
+      // Don't do anything if postLoad() has already been run for this entity.
+      // This avoids various problems with the static entity cache being cleared and
       // refreshProcessedAudio() thus being called multiple times on the same
       // entity in the same request cycle (such as when it is called again when
       // the entity is saved).
-
-      // Condition 1:
       if (array_key_exists($entityId, $finishedEntityIds)) continue;
 
-      if (!($entity instanceof SermonAudio)) {
-        throw new \InvalidArgumentException('Invalid entity type in $entities.');
+      // Otherwise, we'll have to loop through all translations, as postLoad()
+      // is only called once for all translations.
+      $requiresSave = FALSE;
+      foreach ($entity->iterateTranslations() as $translation) {
+        // If the processed audio field isn't already set, and
+        // processing_initiated is set, we call refreshProcessedAudio() on the
+        // entity.
+        if ($translation->hasProcessedAudio()) continue;
+        if (!$translation->wasAudioProcessingInitiated()) continue;
+        if ($translation->refreshProcessedAudio()) $requiresSave = TRUE;
       }
 
-      // Condition 2:
-      if ($entity->hasProcessedAudio()) continue;
-      // Condition 3:
-      if (!$entity->wasAudioProcessingInitiated()) continue;
-
-      if ($entity->refreshProcessedAudio()) {
+      if ($requiresSave) {
         // We add the entity ID to the $finishedEntityIds set before saving.
         // This is because the save process will invoke postLoad() again (when
         // loading the unchanged entity).

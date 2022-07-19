@@ -24,7 +24,6 @@ use Ranine\Helper\ParseHelpers;
 use Ranine\Helper\StringHelpers;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
-// @todo Get rid of file link appearing after upload.
 // @todo Figure out who owns the newly created entities.
 
 /**
