@@ -77,11 +77,6 @@ class SermonAudioWidget extends WidgetBase {
    private ImmutableConfig $moduleConfiguration;
 
    /**
-    * Repository of pseudo-extensions and bare names for to-be-renamed files.
-    */
-   private FileRenamePseudoExtensionRepository $renamePseudoExtensionRepo;
-
-   /**
     * Storage for sermon audio entities.
     */
    private ContentEntityStorageInterface $sermonAudioStorage;
@@ -101,8 +96,6 @@ class SermonAudioWidget extends WidgetBase {
    *   Widget third party settings.
    * @param \Drupal\Core\StringTranslation\TranslationInterface $translationManager
    *   Translation manager.
-   * @param \Drupal\sermon_audio\FileRenamePseudoExtensionRepository $renamePseudoExtensionRepo
-   *   Repository of pseudo-extensions and bare names for to-be-renamed files.
    * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
    *   Entity type manager.
    * @param \Drupal\Core\Render\ElementInfoManagerInterface
@@ -115,13 +108,11 @@ class SermonAudioWidget extends WidgetBase {
     array $thirdPartySettings,
     TranslationInterface $translationManager,
     ConfigFactoryInterface $configFactory,
-    FileRenamePseudoExtensionRepository $renamePseudoExtensionRepo,
     EntityTypeManagerInterface $entityTypeManager,
     ElementInfoManagerInterface $elementInfoManager) {
     parent::__construct($pluginId, $pluginDefinition, $fieldDefinition, $settings, $thirdPartySettings);
     $this->elementInfoManager = $elementInfoManager;
     $this->moduleConfiguration = $configFactory->get('sermon_audio.settings');
-    $this->renamePseudoExtensionRepo = $renamePseudoExtensionRepo;
     $this->sermonAudioStorage = $entityTypeManager->getStorage('sermon_audio');
     $this->stringTranslation = $translationManager;
   }
@@ -280,7 +271,6 @@ class SermonAudioWidget extends WidgetBase {
       $configuration['third_party_settings'],
       $container->get('string_translation'),
       $container->get('config.factory'),
-      $container->get('sermon_audio.file_rename_pseudo_extension_repository'),
       $container->get('entity_type.manager'),
       $container->get('element_info'),
     );
@@ -294,6 +284,102 @@ class SermonAudioWidget extends WidgetBase {
       'progress_indicator' => 'throbber',
       'auto_rename' => TRUE,
     ] + parent::defaultSettings();
+  }
+
+  /**
+   * Creates/saves a new sermon audio entity from an unprocessed audio file ID.
+   *
+   * The new entity will have its unprocessed audio file field set in
+   * correspondence with $unprocessedFid, and will have its other fields set to
+   * default values.
+   *
+   * @param int $unprocessedFid
+   *   Unprocessed file ID.
+   *
+   * @return int
+   *   Entity ID of the new, saved sermon audio entity.
+   *
+   * @throws \Drupal\Core\Entity\EntityStorageException
+   *   Thrown if an error occurs while saving the entity.
+   */
+  private static function createSermonAudioFromUnprocessedFid(int $unprocessedFid) : int {
+    $storage = \Drupal::entityTypeManager()->getStorage('sermon_audio');
+    $entity = $storage->create([
+      'unprocessed_audio' => ['target_id' => $unprocessedFid],
+    ])->enforceIsNew();
+    $entity->save();
+    return (int) $entity->id();
+  }
+
+  /**
+   * Gets sermon audio ID associated with particular sermon audio ID token.
+   *
+   * This function retrieves the ID stored in the persistent key-value store and
+   * associated with the given token, if the ID exists in the store and has not
+   * expired.
+   *
+   * @param string $token
+   *   Token.
+   *
+   * @return int|null
+   *   Sermon audio ID, or NULL if no ID was found in the store, or if the ID
+   *   had expired.
+   */
+  private static function getAidFromToken(string $token) : ?int {
+    $store = \Drupal::keyValueExpirable('sermon_audio.sermon_audio_ids');
+    return $store->get($token);
+  }
+
+  /**
+   * Gets a reference to cache object for a particular widget element and key.
+   *
+   * @param array $element
+   *   Widget element.
+   * @param string $key
+   *   Key.
+   *
+   * @throws \RuntimeException
+   *   Can be thrown if $element contains a bad #parent value.
+   */
+  private static function &getCacheReferenceForElement(array $element, string $key) : mixed {
+    $elementKey = static::getElementKey($element);
+    $store =& drupal_static('sermon_audio.widget_cache.' . $elementKey, []);
+    if (!array_key_exists($key, $store)) {
+      $store[$key] = NULL;
+    }
+    return $store[$key];
+  }
+
+  /**
+   * Gets a unique key associated with a given widget element array.
+   *
+   * @param array $element
+   *   Widget element.
+   *
+   * @return string
+   *   Key.
+   *
+   * @throws \RuntimeException
+   *   Can be thrown if $element contains a bad #parent value.
+   */
+  private static function getElementKey(array $element) : string {
+    $key = '';
+    if (!isset($element['#parents'])) {
+      return $key;
+    }
+    if (!is_array($element['#parents'])) {
+      throw new \RuntimeException('A widget element had invalid an invalid #parents key.');
+    }
+    $firstTime = FALSE;
+    $escapeChars = [StringHelpers::ASCII_UNIT_SEPARATOR];
+    foreach ($element['#parents'] as $parent) {
+      if (!$firstTime) {
+        $key .= StringHelpers::ASCII_UNIT_SEPARATOR;
+      }
+      $key .= StringHelpers::escape((string) $parent, $escapeChars);
+    }
+
+    return $key;
   }
 
   /**
@@ -347,7 +433,7 @@ class SermonAudioWidget extends WidgetBase {
    *   Thrown in some cases if $input is invalid (we don't throw an
    *   \InvalidArgumentException because of how this function is called...).
    */
-  public static function getWidgetValue(array &$element, $input, FormStateInterface $formState, bool $autoRenameUploads) : array {
+  private static function getWidgetValue(array &$element, $input, FormStateInterface $formState, bool $autoRenameUploads) : array {
     // To start, we let the managed_file form element compute a value. This will
     // get us the correct file ID. Now, to keep things predictable and to avoid
     // messing up some stuff we do later on, strip anything extraneous (that is,
@@ -467,99 +553,73 @@ class SermonAudioWidget extends WidgetBase {
   }
 
   /**
-   * Creates/saves a new sermon audio entity from an unprocessed audio file ID.
-   *
-   * The new entity will have its unprocessed audio file field set in
-   * correspondence with $unprocessedFid, and will have its other fields set to
-   * default values.
-   *
-   * @param int $unprocessedFid
-   *   Unprocessed file ID.
-   *
-   * @return int
-   *   Entity ID of the new, saved sermon audio entity.
-   *
-   * @throws \Drupal\Core\Entity\EntityStorageException
-   *   Thrown if an error occurs while saving the entity.
-   */
-  private static function createSermonAudioFromUnprocessedFid(int $unprocessedFid) : int {
-    $storage = \Drupal::entityTypeManager()->getStorage('sermon_audio');
-    $entity = $storage->create([
-      'unprocessed_audio' => ['target_id' => $unprocessedFid],
-    ])->enforceIsNew();
-    $entity->save();
-    return (int) $entity->id();
-  }
-
-  /**
-   * Gets sermon audio ID associated with particular sermon audio ID token.
-   *
-   * This function retrieves the ID stored in the persistent key-value store and
-   * associated with the given token, if the ID exists in the store and has not
-   * expired.
-   *
-   * @param string $token
-   *   Token.
-   *
-   * @return int|null
-   *   Sermon audio ID, or NULL if no ID was found in the store, or if the ID
-   *   had expired.
-   */
-  private static function getAidFromToken(string $token) : ?int {
-    $store = \Drupal::keyValueExpirable('sermon_audio.sermon_audio_ids');
-    return $store->get($token);
-  }
-
-  /**
-   * Gets a reference to cache object for a particular widget element and key.
+   * Handles the post-processing callback for a given widget element.
    *
    * @param array $element
-   *   Widget element.
-   * @param string $key
-   *   Key.
-   *
-   * @throws \RuntimeException
-   *   Can be thrown if $element contains a bad #parent value.
+   *   Widget form element.
    */
-  private static function &getCacheReferenceForElement(array $element, string $key) : mixed {
-    $elementKey = static::getElementKey($element);
-    $store =& drupal_static('sermon_audio.widget_cache.' . $elementKey, []);
-    if (!array_key_exists($key, $store)) {
-      $store[$key] = NULL;
+  private static function handlePostProcessing(array &$element) : void {
+    // If we don't have a sermon audio ID, we shouldn't have a file either, and
+    // we have nothing to do here.
+    if (!isset($element['#value']['aid'])) {
+      if (!empty($element['#value']['fids'])) {
+        throw new \RuntimeException('Unexpected FID without sermon audio ID.');
+      }
+      return;
     }
-    return $store[$key];
+
+    // Go ahead and tokenize it and put it on the form. This way, when the user
+    // submits the form later, we can re-use that sermon audio ID. Set the token
+    // to expire in one hour for security purposes.
+    if (isset($element['#value']['aid'])) {
+      $aid = (int) $element['#value']['aid'];
+      $element['aid_token'] = [
+        '#type' => 'hidden',
+        '#value' => static::tokenizeAid($aid),
+      ];
+    }
+
+    // Grab the render array associated with displaying the filename.
+    // @see \Drupal\file\Element\ManagedFile::processManagedFile().
+    $filenameElement =& $element['file_0']['filename'];
+    $isProcessed = (bool) $element['#value']['processed'];
+    // If we have an unprocessed audio file, we don't want to show a link to the
+    // file (we just want plain text). Also, add something indicating whether or
+    // not the audio is processed or not.
+    if ($isProcessed) {
+      if (isset($filenameElement['#suffix'])) $filenameElement['#suffix'] .= '<br>Unprocessed Audio';
+      else $filenameElement['#suffix'] = '<br>Unprocessed Audio';
+    }
+    else {
+      $filenameElement['#sermon_audio_suppress_link'] = TRUE;
+      if (isset($filenameElement['#suffix'])) $filenameElement['#suffix'] .= '<br>Processed Audio';
+      else $filenameElement['#suffix'] = '<br>Processed Audio';
+    }
   }
 
   /**
-   * Gets a unique key associated with a given widget element array.
+   * Stores given sermon audio ID in a key-value store with random token.
    *
-   * @param array $element
-   *   Widget element.
+   * This function generates a token corresponding to the given sermon audio ID
+   * and stores the ID with the given expiry time.
+   *
+   * @param int $aid
+   *   Sermon audio ID.
+   * @param int $expiry
+   *   The number of seconds for which the sermon ID / token combination should
+   *   be valid. Should be positive.
    *
    * @return string
-   *   Key.
-   *
-   * @throws \RuntimeException
-   *   Can be thrown if $element contains a bad #parent value.
+   *   Associated token.
    */
-  private static function getElementKey(array $element) : string {
-    $key = '';
-    if (!isset($element['#parents'])) {
-      return $key;
-    }
-    if (!is_array($element['#parents'])) {
-      throw new \RuntimeException('A widget element had invalid an invalid #parents key.');
-    }
-    $firstTime = FALSE;
-    $escapeChars = [StringHelpers::ASCII_UNIT_SEPARATOR];
-    foreach ($element['#parents'] as $parent) {
-      if (!$firstTime) {
-        $key .= StringHelpers::ASCII_UNIT_SEPARATOR;
-      }
-      $key .= StringHelpers::escape((string) $parent, $escapeChars);
-    }
+  private static function tokenizeAid(int $aid, int $expiry = 3600) : string {
+    assert($expiry > 0);
 
-    return $key;
+    $token = base64_encode(random_bytes(12));
+    $store = \Drupal::keyValueExpirable('sermon_audio.sermon_audio_ids');
+    $store->setWithExpire($token, $aid, $expiry);
+
+    return $token;
   }
 
 }
