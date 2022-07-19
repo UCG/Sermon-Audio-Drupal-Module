@@ -21,6 +21,7 @@ use Drupal\sermon_audio\FileRenamePseudoExtensionRepository;
 use Drupal\sermon_audio\Plugin\Field\FieldType\SermonAudioFieldItem;
 use Ranine\Exception\InvalidOperationException;
 use Ranine\Helper\ParseHelpers;
+use Ranine\Helper\StringHelpers;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 // @todo Get rid of file link appearing after upload.
@@ -178,8 +179,7 @@ class SermonAudioWidget extends WidgetBase {
       // Add our own processing routine that runs after the default routine for
       // the managed_file form element. This may, we can get rid of the link (to
       // an uploaded file) that the existing processing routine adds.
-      // @todo Add post processing.
-      '#process' => [$this->elementInfoManager->getInfo('managed_file')['#process'], static::handlePostProcessing(...)],
+      '#process' => array_merge($this->elementInfoManager->getInfo('managed_file')['#process'], [static::handlePostProcessing(...)]),
       // Ensure that we can encode the sermon audio in the form value.
       '#extended' => TRUE,
     ]
@@ -194,8 +194,6 @@ class SermonAudioWidget extends WidgetBase {
    * {@inheritdoc}
    */
   public function massageFormValues(array $values, array $form, FormStateInterface $form_state) : array {
-    // @todo Redo this.
-
     foreach ($values as &$value) {
       if (is_array($value) && array_key_exists('aid', $value)) {
         $sermonAudioId = $value['aid'];
@@ -350,71 +348,121 @@ class SermonAudioWidget extends WidgetBase {
    *   \InvalidArgumentException because of how this function is called...).
    */
   public static function getWidgetValue(array &$element, $input, FormStateInterface $formState, bool $autoRenameUploads) : array {
-    // @todo Re-do all this.
-
-    // To start, let the managed_file form element compute a value.
-    // The $input value may contain some extra stuff that the managed_file
-    // callback doesn't need, and that might mess up our calculations later.
-    // Thus, we strip everything except the FID out. Save the input first for
-    // use later.
-    $originalInput = $input;
-    if (is_array($input)) {
-      if (array_key_exists('fids', $input)) {
-        $originalFidString = trim((string) $input['fids']);
-        $input = ['fids' => $originalFidString];
-        if ($originalFidString !== '') {
-          // We should never have more than one FID.
-          $originalFid = ParseHelpers::parseIntFromString($originalFidString);
-        }
+    // To start, we let the managed_file form element compute a value. This will
+    // get us the correct file ID. Now, to keep things predictable and to avoid
+    // messing up some stuff we do later on, strip anything extraneous (that is,
+    // anything but the FID) from $input.
+    if (is_array($input) && array_key_exists('fids', $input)) {
+      $originalFidString = trim((string) $input['fids']);
+      if ($originalFidString !== '') {
+        $cleanInput = ['fids' => $originalFidString];
+        // We should never have more than one FID.
+        $originalFid = ParseHelpers::parseIntFromString($originalFidString);
       }
-      else $input = [];
+      else $cleanInput = [];
     }
+    elseif ($input === FALSE) $cleanInput = FALSE;
+    else $cleanInput = [];
 
-    // @todo Move extension injection to here -- something like that below --
-    // and cache if repeated.
-    if ($autoRename) {
-      // Use a random bare filename (filename without extension) to ensure
-      // uniqueness.
-      $bareFilename = bin2hex(random_bytes(8));
-      // Add an extra allowed extension to the "file_validate_extensions"
-      // validator settings. This is not actually a relevant extension (in fact,
+    // If requested, automatically rename any new file upload.
+    if ($autoRenameUploads) {
+      // We use "psuedo-extensions" to force a rename of the file. Basically, we
+      // add an extra extension to the "file_validate_extensions" validator
+      // settings. This is not actually a relevant extension (in fact,
       // we should never get a file with this extension, given that it is a long
       // random hexadecimal string), but we include it to signal that we want to
-      // rename the file. We associate this extension with the bare filename
-      // above.
+      // rename the file. We associate this extension with the new bare
+      // (extension-less)filename we wish to use.
       // @see \Drupal\sermon_audio\FileRenamePseudoExtensionRepository
-      $pseudoExtension = $this->renamePseudoExtensionRepo->addBareFilename($bareFilename);
-      $settings =& $uploadValidators['file_validate_extensions'];
-      $settings[array_key_first($settings)] .= ' ' . $pseudoExtension;
-    }
-    $value = ManagedFile::valueCallback($element, $input, $formState);
-    // @todo Undo extension injection.
+      // If we already determined this "pseudo-extension" earlier, go ahead and
+      // use it. Otherwise, calculate and cache a new pseudo-extension.
+      $pseudoExtension =& static::getCacheReferenceForElement($element, 'pseudo_extension');
 
-    // If we got back a value corresponding to the processed audio, we don't
-    // have to set the sermon audio ID; it is already set. Otherwise, we have to
-    // figure out what sermon audio ID to attach.
-    if (empty($value['processed'])) {
-      // If the FID has changed, we create a new sermon audio entity for the new
-      // unprocessed audio file. If it hasn't changed, we re-use the current
-      // sermon audio ID (which must exist).
-      // Now, we don't need or want a sermon audio entity if there is no file.
-      if (isset($value['fids']) && $value['fids'] !== []) {
-        $value['processed'] = FALSE;
-        $newFid = (int) reset($value['fids']);
-        if (!isset($originalFid) || ($newFid !== $originalFid)) {
-          $value['aid'] = static::createSermonAudioFromUnprocessedFid($newFid);
+      if ($pseudoExtension === NULL) {
+        // Use a random bare filename to ensure uniqueness.
+        $bareFilename = bin2hex(random_bytes(8));
+        $renamePseudoExtensionRepo = \Drupal::service('sermon_audio.file_rename_pseudo_extension_repository');
+        assert($renamePseudoExtensionRepo instanceof FileRenamePseudoExtensionRepository);
+        $pseudoExtension = $renamePseudoExtensionRepo->addBareFilename($bareFilename);
+      }
+
+      $extensionValidatorSettings =& $element['upload_validators']['file_validate_extensions'];
+      $extensionList =& $extensionValidatorSettings[array_key_first($extensionValidatorSettings)];
+      if (!is_string($extensionList) || $extensionList = '') $extensionList = $pseudoExtension;
+      else $extensionList .= ' ' . $pseudoExtension;
+    }
+
+    $fileElementValue = ManagedFile::valueCallback($element, $cleanInput, $formState);
+
+    if ($autoRenameUploads) {
+      // Remove the fake extension from the validator settings. We don't want
+      // this extension to be shown to the user!
+      assert(isset($extensionValidatorSettings));
+      assert(isset($pseudoExtension));
+      assert(isset($extensionList));
+
+      $extensionListLength = strlen($extensionList);
+      $pseudoExtensionLength = strlen($pseudoExtension);
+      if ($extensionListLength > $pseudoExtensionLength) {
+        // The pseudo-extension should be on the end of the list of extensions.
+        // If it is not, we'll have to search the extension list to remove it.
+        if (str_ends_with($extensionList, ' ' . $pseudoExtension)) {
+          $extensionList = substr($extensionList, 0, -($pseudoExtensionLength + 1));
         }
         else {
-          // Use the old value for the audio ID.
-          assert(is_array($originalInput));
-          if (!array_key_exists('aid', $originalInput)) {
-            throw new \RuntimeException('Invalid input value.');
-          }
-          $value['aid'] = $originalInput['aid'];
+          $extensionList = str_replace($pseudoExtension . ' ', '', $extensionList);
         }
+      }
+      elseif ($extensionList === $pseudoExtension) {
+        $extensionList = '';
       }
     }
 
+    // If $fileElementValue includes a sermon audio ID, we know that it is the
+    // default value. We don't want to mess with anything in that case...
+    if (array_key_exists('aid', $fileElementValue)) return $fileElementValue;
+
+    // If no FID was returned, return nothing...
+    if (!isset($fileElementValue['fids']) || $fileElementValue['fids'] === []) {
+      return [];
+    }
+
+    // Otherwise, extract the FID, and ensure the $value is presented in our
+    // canonical fashion.
+    $fid = (int) reset($fileElementValue['fids']);
+    // We know we are working with an unprocessed file, as the only way a
+    // processed file can be attached is if the default value is returned (as
+    // above).
+    $value = ['fids' => [$fid], 'processed' => FALSE];
+    // Now we must determine the sermon audio ID. First, we check to see if we
+    // have an appropriate cached audio ID from earlier on in this request
+    // cycle. If so, we may use it.
+    $aid = static::getCacheReferenceForElement($element, 'aid');
+    if ($aid === NULL || static::getCacheReferenceForElement($element, 'fid') !== $fid) {
+      // But if not, we have to determine whether we need to create a new sermon
+      // audio entity or if we can re-use an existing one.
+      // If the FID is different than that given in $input, we know that a new
+      // file was uploaded. In that case, we'll create a new sermon audio
+      // entity.
+      if ($originalFid === $fid) {
+        // ...But otherwise, we'll re-use the existing sermon audio entity,
+        // provided the user has authorization to use it.
+        if (!isset($input['aid_token'])) {
+          throw new \RuntimeException('The audio ID token was missing from the form input.');
+        }
+        $aid = static::getAidFromToken((string) $input['aid_token']);
+        if ($aid === NULL) {
+          // It looks like we'll just have to create a new entity.
+          $aid = static::createSermonAudioFromUnprocessedFid($fid);
+        }
+      }
+      else {
+        $aid = static::createSermonAudioFromUnprocessedFid($fid);
+      }
+    }
+    assert(isset($aid));
+
+    $value['aid'] = $aid;
     return $value;
   }
 
@@ -441,6 +489,77 @@ class SermonAudioWidget extends WidgetBase {
     ])->enforceIsNew();
     $entity->save();
     return (int) $entity->id();
+  }
+
+  /**
+   * Gets sermon audio ID associated with particular sermon audio ID token.
+   *
+   * This function retrieves the ID stored in the persistent key-value store and
+   * associated with the given token, if the ID exists in the store and has not
+   * expired.
+   *
+   * @param string $token
+   *   Token.
+   *
+   * @return int|null
+   *   Sermon audio ID, or NULL if no ID was found in the store, or if the ID
+   *   had expired.
+   */
+  private static function getAidFromToken(string $token) : ?int {
+    $store = \Drupal::keyValueExpirable('sermon_audio.sermon_audio_ids');
+    return $store->get($token);
+  }
+
+  /**
+   * Gets a reference to cache object for a particular widget element and key.
+   *
+   * @param array $element
+   *   Widget element.
+   * @param string $key
+   *   Key.
+   *
+   * @throws \RuntimeException
+   *   Can be thrown if $element contains a bad #parent value.
+   */
+  private static function &getCacheReferenceForElement(array $element, string $key) : mixed {
+    $elementKey = static::getElementKey($element);
+    $store =& drupal_static('sermon_audio.widget_cache.' . $elementKey, []);
+    if (!array_key_exists($key, $store)) {
+      $store[$key] = NULL;
+    }
+    return $store[$key];
+  }
+
+  /**
+   * Gets a unique key associated with a given widget element array.
+   *
+   * @param array $element
+   *   Widget element.
+   *
+   * @return string
+   *   Key.
+   *
+   * @throws \RuntimeException
+   *   Can be thrown if $element contains a bad #parent value.
+   */
+  private static function getElementKey(array $element) : string {
+    $key = '';
+    if (!isset($element['#parents'])) {
+      return $key;
+    }
+    if (!is_array($element['#parents'])) {
+      throw new \RuntimeException('A widget element had invalid an invalid #parents key.');
+    }
+    $firstTime = FALSE;
+    $escapeChars = [StringHelpers::ASCII_UNIT_SEPARATOR];
+    foreach ($element['#parents'] as $parent) {
+      if (!$firstTime) {
+        $key .= StringHelpers::ASCII_UNIT_SEPARATOR;
+      }
+      $key .= StringHelpers::escape((string) $parent, $escapeChars);
+    }
+
+    return $key;
   }
 
 }
