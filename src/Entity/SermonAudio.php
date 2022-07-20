@@ -541,10 +541,12 @@ class SermonAudio extends ContentEntityBase {
     if (!isset($fileStorage)) $fileStorage = static::getFileStorage();
 
     // Create the new processed audio file entity, and then create a new
-    // corresponding media entity.
+    // corresponding media entity. Set the owner of the two new entities to the
+    // owner of the unprocessed audio file.
+    $owner = $unprocessedAudio->getOwnerId();
     $newProcessedAudioFile = $fileStorage->create([
       'uri' => $processedAudioUri,
-      'uid' => 1,
+      'uid' => $owner,
       'filename' => basename($processedAudioUri),
       'filemime' => 'audio/m4a',
       'status' => TRUE,
@@ -552,7 +554,7 @@ class SermonAudio extends ContentEntityBase {
     $newProcessedAudioFile->save();
     $newProcessedAudio = static::getMediaStorage()->create([
       'bundle' => 'audio',
-      'uid' => 1,
+      'uid' => $owner,
       'name' => $outputDisplayFilename,
       'field_media_audio_file' => [['target_id' => (int) $newProcessedAudioFile->id()]],
     ])->enforceIsNew();

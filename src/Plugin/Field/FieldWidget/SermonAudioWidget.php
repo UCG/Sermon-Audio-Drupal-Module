@@ -24,8 +24,6 @@ use Ranine\Helper\ParseHelpers;
 use Ranine\Helper\StringHelpers;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
-// @todo Figure out who owns the newly created entities.
-
 /**
  * Edit widget for sermon audio fields.
  *
