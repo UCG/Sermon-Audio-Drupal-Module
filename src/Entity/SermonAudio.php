@@ -387,11 +387,7 @@ class SermonAudio extends ContentEntityBase {
             if (!array_key_exists($originalFid, $usageChanges)) $usageChanges[$originalFid] = -1;
             else $usageChanges[$originalFid]--;
           }
-          if ($newFid === NULL) {
-            if (!array_key_exists($newFid, $usageChanges)) $usageChanges[$newFid] = -1;
-            else $usageChanges[$newFid]--;
-          }
-          else {
+          if ($newFid !== NULL) {
             if (!array_key_exists($newFid, $usageChanges)) $usageChanges[$newFid] = 1;
             else $usageChanges[$newFid]++;
           }

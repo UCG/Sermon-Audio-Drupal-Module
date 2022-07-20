@@ -51,7 +51,7 @@ class SermonAudioWidget extends WidgetBase {
   4) $this->massageFormValues() is called to extract field value for validation.
   5) Validation occurs.
   6) Assuming validation is successful (@todo Check what happens what it fails),
-  the form is rebuilt, and 1), 2) and 3) above are fired again.
+  the form is rebuilt, and 1), 2) and 3) are fired again.
 
   -- When the edit form is submitted --
   1), 2), 3) and 4) above.
@@ -162,12 +162,14 @@ class SermonAudioWidget extends WidgetBase {
       // transformed by massageFieldsValues() into its final form. The value
       // callback is also responsible for creating, if necessary, any new file
       // or sermon audio entities needed.
-      '#value_callback' => fn(array &$element, $input, FormStateInterface $formState)
-        => static::getWidgetValue($element, $input, $formState, $this->getSetting('auto_rename')),
+      '#value_callback' => [
+        static::class,
+        $this->getSetting('auto_rename') ? 'getWidgetValue' : 'getWidgetValueNoAutoRename',
+      ],
       // Add our own processing routine that runs after the default routine for
       // the managed_file form element. This may, we can get rid of the link (to
       // an uploaded file) that the existing processing routine adds.
-      '#process' => array_merge($this->elementInfoManager->getInfo('managed_file')['#process'], [static::handlePostProcessing(...)]),
+      '#process' => array_merge($this->elementInfoManager->getInfo('managed_file')['#process'], [[static::class, 'handlePostProcessing']]),
       // Ensure that we can encode the sermon audio in the form value.
       '#extended' => TRUE,
     ]
@@ -284,102 +286,6 @@ class SermonAudioWidget extends WidgetBase {
   }
 
   /**
-   * Creates/saves a new sermon audio entity from an unprocessed audio file ID.
-   *
-   * The new entity will have its unprocessed audio file field set in
-   * correspondence with $unprocessedFid, and will have its other fields set to
-   * default values.
-   *
-   * @param int $unprocessedFid
-   *   Unprocessed file ID.
-   *
-   * @return int
-   *   Entity ID of the new, saved sermon audio entity.
-   *
-   * @throws \Drupal\Core\Entity\EntityStorageException
-   *   Thrown if an error occurs while saving the entity.
-   */
-  private static function createSermonAudioFromUnprocessedFid(int $unprocessedFid) : int {
-    $storage = \Drupal::entityTypeManager()->getStorage('sermon_audio');
-    $entity = $storage->create([
-      'unprocessed_audio' => ['target_id' => $unprocessedFid],
-    ])->enforceIsNew();
-    $entity->save();
-    return (int) $entity->id();
-  }
-
-  /**
-   * Gets sermon audio ID associated with particular sermon audio ID token.
-   *
-   * This function retrieves the ID stored in the persistent key-value store and
-   * associated with the given token, if the ID exists in the store and has not
-   * expired.
-   *
-   * @param string $token
-   *   Token.
-   *
-   * @return int|null
-   *   Sermon audio ID, or NULL if no ID was found in the store, or if the ID
-   *   had expired.
-   */
-  private static function getAidFromToken(string $token) : ?int {
-    $store = \Drupal::keyValueExpirable('sermon_audio.sermon_audio_ids');
-    return $store->get($token);
-  }
-
-  /**
-   * Gets a reference to cache object for a particular widget element and key.
-   *
-   * @param array $element
-   *   Widget element.
-   * @param string $key
-   *   Key.
-   *
-   * @throws \RuntimeException
-   *   Can be thrown if $element contains a bad #parent value.
-   */
-  private static function &getCacheReferenceForElement(array $element, string $key) : mixed {
-    $elementKey = static::getElementKey($element);
-    $store =& drupal_static('sermon_audio.widget_cache.' . $elementKey, []);
-    if (!array_key_exists($key, $store)) {
-      $store[$key] = NULL;
-    }
-    return $store[$key];
-  }
-
-  /**
-   * Gets a unique key associated with a given widget element array.
-   *
-   * @param array $element
-   *   Widget element.
-   *
-   * @return string
-   *   Key.
-   *
-   * @throws \RuntimeException
-   *   Can be thrown if $element contains a bad #parent value.
-   */
-  private static function getElementKey(array $element) : string {
-    $key = '';
-    if (!isset($element['#parents'])) {
-      return $key;
-    }
-    if (!is_array($element['#parents'])) {
-      throw new \RuntimeException('A widget element had invalid an invalid #parents key.');
-    }
-    $firstTime = FALSE;
-    $escapeChars = [StringHelpers::ASCII_UNIT_SEPARATOR];
-    foreach ($element['#parents'] as $parent) {
-      if (!$firstTime) {
-        $key .= StringHelpers::ASCII_UNIT_SEPARATOR;
-      }
-      $key .= StringHelpers::escape((string) $parent, $escapeChars);
-    }
-
-    return $key;
-  }
-
-  /**
    * Gets the widget element #value from the user input.
    *
    * If there is a new file upload, the value is computed as follows. First, a
@@ -430,11 +336,12 @@ class SermonAudioWidget extends WidgetBase {
    *   Thrown in some cases if $input is invalid (we don't throw an
    *   \InvalidArgumentException because of how this function is called...).
    */
-  private static function getWidgetValue(array &$element, $input, FormStateInterface $formState, bool $autoRenameUploads) : array {
+  public static function getWidgetValue(array &$element, $input, FormStateInterface $formState, bool $autoRenameUploads = TRUE) : array {
     // To start, we let the managed_file form element compute a value. This will
     // get us the correct file ID. Now, to keep things predictable and to avoid
     // messing up some stuff we do later on, strip anything extraneous (that is,
     // anything but the FID) from $input.
+    $originalFid = NULL;
     if (is_array($input) && array_key_exists('fids', $input)) {
       $originalFidString = trim((string) $input['fids']);
       if ($originalFidString !== '') {
@@ -459,7 +366,7 @@ class SermonAudioWidget extends WidgetBase {
       // @see \Drupal\sermon_audio\FileRenamePseudoExtensionRepository
       // If we already determined this "pseudo-extension" earlier, go ahead and
       // use it. Otherwise, calculate and cache a new pseudo-extension.
-      $pseudoExtension =& static::getCacheReferenceForElement($element, 'pseudo_extension');
+      $pseudoExtension =& static::getCacheReferenceForElement($element, 'pseudo_extension', $formState);
 
       if ($pseudoExtension === NULL) {
         // Use a random bare filename to ensure uniqueness.
@@ -469,9 +376,9 @@ class SermonAudioWidget extends WidgetBase {
         $pseudoExtension = $renamePseudoExtensionRepo->addBareFilename($bareFilename);
       }
 
-      $extensionValidatorSettings =& $element['upload_validators']['file_validate_extensions'];
+      $extensionValidatorSettings =& $element['#upload_validators']['file_validate_extensions'];
       $extensionList =& $extensionValidatorSettings[array_key_first($extensionValidatorSettings)];
-      if (!is_string($extensionList) || $extensionList = '') $extensionList = $pseudoExtension;
+      if (!is_string($extensionList) || $extensionList === '') $extensionList = $pseudoExtension;
       else $extensionList .= ' ' . $pseudoExtension;
     }
 
@@ -520,8 +427,9 @@ class SermonAudioWidget extends WidgetBase {
     // Now we must determine the sermon audio ID. First, we check to see if we
     // have an appropriate cached audio ID from earlier on in this request
     // cycle. If so, we may use it.
-    $aid = static::getCacheReferenceForElement($element, 'aid');
-    if ($aid === NULL || static::getCacheReferenceForElement($element, 'fid') !== $fid) {
+    $aid =& static::getCacheReferenceForElement($element, 'aid', $formState);
+    $cachedFid =& static::getCacheReferenceForElement($element, 'fid', $formState);
+    if ($aid === NULL || $cachedFid !== $fid) {
       // But if not, we have to determine whether we need to create a new sermon
       // audio entity or if we can re-use an existing one.
       // If the FID is different than that given in $input, we know that a new
@@ -542,6 +450,8 @@ class SermonAudioWidget extends WidgetBase {
       else {
         $aid = static::createSermonAudioFromUnprocessedFid($fid);
       }
+      // Record the FID associated with this AID.
+      $cachedFid = $fid;
     }
     assert(isset($aid));
 
@@ -550,48 +460,164 @@ class SermonAudioWidget extends WidgetBase {
   }
 
   /**
+   * Calls static::getWidgetValue() with $autoRename = FALSE.
+   */
+  public static function getWidgetValueNoAutoRename(array &$element, $input, FormStateInterface $formState) : array {
+    return static::getWidgetValue($element, $input, $formState, FALSE);
+  }
+
+  /**
    * Handles the post-processing callback for a given widget element.
    *
    * @param array $element
    *   Widget form element.
+   *
+   * @return array
+   *   Widget form element.
+   *
+   * @throws \RuntimeException
+   *   Can be thrown if something is wrong with $element. We don't throw an
+   *   \InvalidArgumentException because of how this function is called.
    */
-  private static function handlePostProcessing(array &$element) : void {
+  public static function handlePostProcessing(array &$element) : array {
     // If we don't have a sermon audio ID, we shouldn't have a file either, and
     // we have nothing to do here.
     if (!isset($element['#value']['aid'])) {
       if (!empty($element['#value']['fids'])) {
         throw new \RuntimeException('Unexpected FID without sermon audio ID.');
       }
-      return;
+      return $element;
     }
 
     // Go ahead and tokenize it and put it on the form. This way, when the user
     // submits the form later, we can re-use that sermon audio ID. Set the token
     // to expire in one hour for security purposes.
-    if (isset($element['#value']['aid'])) {
-      $aid = (int) $element['#value']['aid'];
-      $element['aid_token'] = [
-        '#type' => 'hidden',
-        '#value' => static::tokenizeAid($aid),
-      ];
-    }
+    $aid = (int) $element['#value']['aid'];
+    $element['aid_token'] = [
+      '#type' => 'hidden',
+      // @todo Cache this.
+      '#value' => static::tokenizeAid($aid),
+    ];
 
     // Grab the render array associated with displaying the filename.
     // @see \Drupal\file\Element\ManagedFile::processManagedFile().
-    $filenameElement =& $element['file_0']['filename'];
+    $fids = $element['#value']['fids'];
+    $fid = (int) reset($fids);
+    $filenameElement =& $element['file_' . $fid]['filename'];
     $isProcessed = (bool) $element['#value']['processed'];
     // If we have an unprocessed audio file, we don't want to show a link to the
     // file (we just want plain text). Also, add something indicating whether or
     // not the audio is processed or not.
+    // @todo Fix this.
     if ($isProcessed) {
       if (isset($filenameElement['#suffix'])) $filenameElement['#suffix'] .= '<br>Unprocessed Audio';
       else $filenameElement['#suffix'] = '<br>Unprocessed Audio';
     }
     else {
+      // @todo Fix this -- why isn't it showing up?
       $filenameElement['#sermon_audio_suppress_link'] = TRUE;
       if (isset($filenameElement['#suffix'])) $filenameElement['#suffix'] .= '<br>Processed Audio';
       else $filenameElement['#suffix'] = '<br>Processed Audio';
     }
+
+    return $element;
+  }
+
+  /**
+   * Creates/saves a new sermon audio entity from an unprocessed audio file ID.
+   *
+   * The new entity will have its unprocessed audio file field set in
+   * correspondence with $unprocessedFid, and will have its other fields set to
+   * default values.
+   *
+   * @param int $unprocessedFid
+   *   Unprocessed file ID.
+   *
+   * @return int
+   *   Entity ID of the new, saved sermon audio entity.
+   *
+   * @throws \Drupal\Core\Entity\EntityStorageException
+   *   Thrown if an error occurs while saving the entity.
+   */
+  private static function createSermonAudioFromUnprocessedFid(int $unprocessedFid) : int {
+    $storage = \Drupal::entityTypeManager()->getStorage('sermon_audio');
+    $entity = $storage->create([
+      'unprocessed_audio' => ['target_id' => $unprocessedFid],
+    ])->enforceIsNew();
+    $entity->save();
+    return (int) $entity->id();
+  }
+
+  /**
+   * Gets sermon audio ID associated with particular sermon audio ID token.
+   *
+   * This function retrieves the ID stored in the persistent key-value store and
+   * associated with the given token, if the ID exists in the store and has not
+   * expired.
+   *
+   * @param string $token
+   *   Token.
+   *
+   * @return int|null
+   *   Sermon audio ID, or NULL if no ID was found in the store, or if the ID
+   *   had expired.
+   */
+  private static function getAidFromToken(string $token) : ?int {
+    $store = \Drupal::keyValueExpirable('sermon_audio.sermon_audio_ids');
+    return $store->get($token);
+  }
+
+  /**
+   * Gets a reference to cache object for a particular widget element and key.
+   *
+   * @param array $element
+   *   Widget element.
+   * @param string $key
+   *   Key.
+   * @param \Drupal\Core\Form\FormStateInterface $formState
+   *   Form state.
+   *
+   * @throws \RuntimeException
+   *   Can be thrown if $element contains a bad #parent value.
+   */
+  private static function &getCacheReferenceForElement(array $element, string $key, FormStateInterface $formState) : mixed {
+    $key = 'sermon_audio.widget.' . static::getElementKey($element) . '.' . $key;
+    if (!$formState->hasTemporaryValue($key)) {
+      $formState->setTemporaryValue($key, NULL);
+    }
+    return $formState->getTemporaryValue($key);
+  }
+
+  /**
+   * Gets a key, unique within form, associated with given widget element array.
+   *
+   * @param array $element
+   *   Widget element.
+   *
+   * @return string
+   *   Key.
+   *
+   * @throws \RuntimeException
+   *   Can be thrown if $element contains a bad #parent value.
+   */
+  private static function getElementKey(array $element) : string {
+    $key = '';
+    if (!isset($element['#parents'])) {
+      return $key;
+    }
+    if (!is_array($element['#parents'])) {
+      throw new \RuntimeException('A widget element had invalid an invalid #parents key.');
+    }
+    $firstTime = FALSE;
+    $escapeChars = [StringHelpers::ASCII_UNIT_SEPARATOR];
+    foreach ($element['#parents'] as $parent) {
+      if (!$firstTime) {
+        $key .= StringHelpers::ASCII_UNIT_SEPARATOR;
+      }
+      $key .= StringHelpers::escape((string) $parent, $escapeChars);
+    }
+
+    return $key;
   }
 
   /**
