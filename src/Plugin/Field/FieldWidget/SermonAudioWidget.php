@@ -7,6 +7,7 @@ namespace Drupal\sermon_audio\Plugin\Field\FieldWidget;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\Entity\ContentEntityStorageInterface;
+use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Field\FieldItemListInterface;
@@ -19,6 +20,7 @@ use Drupal\sermon_audio\Entity\SermonAudio;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
 use Drupal\sermon_audio\FileRenamePseudoExtensionRepository;
 use Drupal\sermon_audio\Plugin\Field\FieldType\SermonAudioFieldItem;
+use Drupal\sermon_audio\Settings;
 use Ranine\Exception\InvalidOperationException;
 use Ranine\Helper\ParseHelpers;
 use Ranine\Helper\StringHelpers;
@@ -38,10 +40,6 @@ class SermonAudioWidget extends WidgetBase {
   /* As I understand it, the operation of this widget in the context of the
   Form API is as follows:
 
-  @todo With all these repeated calls, see if we can make this more efficient.
-  @todo Figure out what's going on with form caching, and whether it might mess
-  us up.
-
   -- When loading an edit form containing the widget --
   1) The edit form is built, and formElement() is called to build this
   widget's form element.
@@ -50,15 +48,14 @@ class SermonAudioWidget extends WidgetBase {
   element callback and following with static::handlePostProcessing().
 
   -- When an AJAX file upload / removal submission occurs --
-  1), 2) and 3) above.
+  1) (may not occur because of caching), 2) and 3) above.
   4) $this->massageFormValues() is called to extract field value for validation.
   5) Validation occurs.
-  6) Assuming validation is successful, the form is rebuilt, and 1), 2) and 3)
-  are fired again.
+  6) Assuming validation is successful, the form is rebuilt, and 1) (maybe not),
+  2) and 3) are fired again.
 
   -- When the edit form is submitted --
-  2), 3) and 4) above (1) might occur first if the form wasn't successfully
-  cached).
+  1) (may not occur because of caching), 2), 3) and 4) above.
   5) Validation, and then 4) again in the course of submission, if validation is
   successful.
   */
@@ -148,14 +145,22 @@ class SermonAudioWidget extends WidgetBase {
         'processed' => $hasProcessedAudio,
       ];
     }
+
+    $entity = $items->getEntity();
     $element = [
+      // getWidgetValue() uses the entity type and bundle, so we pass that
+      // through.
+      '#custom' => [
+        'entity_type' => $entity->getEntityTypeId(),
+        'bundle' => $entity->bundle(),
+      ],
       // We use the built-in managed_file widget to handle the actual file
       // uploads/removals.
       '#type' => 'managed_file',
       '#progress_indicator' => $this->getSetting('progress_indicator'),
+      '#default_value' => $defaultValue,
       '#upload_location' => $this->getUploadLocation(),
       '#upload_validators' => $fieldItem->getUploadValidators(),
-      '#default_value' => $defaultValue,
       // The value callback takes the form input (which does *not* include any
       // actual newly uploaded file, though it may contain references to the IDs
       // of previously uploaded files) and converts it into a form value. The
@@ -336,10 +341,34 @@ class SermonAudioWidget extends WidgetBase {
    * @throws \Ranine\Exception\ParseException
    *   Thrown if an error occurs when attempting to parse the input FID.
    * @throws \RuntimeException
-   *   Thrown in some cases if $input is invalid (we don't throw an
-   *   \InvalidArgumentException because of how this function is called...).
+   *   Thrown in some cases if $input or $element is invalid (we don't throw an
+   *   \InvalidArgumentException because of how this function is typically
+   *   called...).
    */
   public static function getWidgetValue(array &$element, $input, FormStateInterface $formState, bool $autoRenameUploads = TRUE) : array {
+    /** @var \Drupal\Core\Entity\EntityFieldManagerInterface */
+    $entityFieldManager = \Drupal::service('entity_field.manager');
+    assert($entityFieldManager instanceof EntityFieldManagerInterface);
+
+    if (!isset($element['#custom']['entity_type'])) {
+      throw new \RuntimeException('Missing ["#custom"]["entity_type"] value in widget form element.');
+    }
+    if (!isset($element['#custom']['bundle'])) {
+      throw new \RuntimeException('Missing ["#custom"]["bundle"] value in widget form element.');
+    }
+    $fieldSettings = $entityFieldManager
+      ->getFieldDefinitions((string) $element['#custom']['entity_type'], (string) $element['#custom']['bundle'])
+      ['sermon_audio']
+      ->getSettings();
+
+    // First, re-compute the form element's upload location & validators. This
+    // is done since the form element could have been cached, and thus
+    // formElement() not fired during this request cycle. In turn, this could
+    // lead to stale upload location and validators, which seems a bit risky
+    // from a security perspective.
+    $element['#upload_location'] = static::getUploadLocationStatically();
+    $element['#upload_validators'] = SermonAudioFieldItem::getUploadValidatorsForSettings($fieldSettings);
+
     // To start, we let the managed_file form element compute a value. This will
     // get us the correct file ID. Now, to keep things predictable and to avoid
     // messing up some stuff we do later on, strip anything extraneous (that is,
@@ -630,6 +659,23 @@ class SermonAudioWidget extends WidgetBase {
     }
 
     return $key;
+  }
+
+  /**
+   * Validates and gets the unprocessed audio upload location.
+   *
+   * Module settings are retrieved statically, not using DI.
+   *
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
+   *   Thrown if the upload location (pulled from the module configuration) is
+   *   empty.
+   */
+  private static function getUploadLocationStatically() : string {
+    $uploadLocation = Settings::getUnprocessedAudioUriPrefix();
+    if ($uploadLocation === '') {
+      throw new ModuleConfigurationException('The unprocessed_audio_uri_prefix setting is empty.');
+    }
+    return $uploadLocation;
   }
 
   /**
