@@ -543,7 +543,7 @@ class SermonAudio extends ContentEntityBase {
     $newProcessedAudioFile = $fileStorage->create([
       'uri' => $processedAudioUri,
       'uid' => $owner,
-      'filename' => basename($processedAudioUri),
+      'filename' => $outputDisplayFilename,
       'filemime' => 'audio/m4a',
       'status' => TRUE,
     ])->enforceIsNew();

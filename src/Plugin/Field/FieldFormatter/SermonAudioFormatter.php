@@ -8,6 +8,8 @@ use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\Core\Field\Plugin\Field\FieldFormatter\EntityReferenceFormatterBase;
 use Drupal\sermon_audio\Entity\SermonAudio;
 
+// @todo Fix render array caching issue.
+
 /**
  * Formatter for sermon audio fields.
  *

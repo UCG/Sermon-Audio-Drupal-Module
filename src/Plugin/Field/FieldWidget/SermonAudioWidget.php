@@ -35,9 +35,12 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 class SermonAudioWidget extends WidgetBase {
 
-  // @todo Verify this.
   /* As I understand it, the operation of this widget in the context of the
   Form API is as follows:
+
+  @todo With all these repeated calls, see if we can make this more efficient.
+  @todo Figure out what's going on with form caching, and whether it might mess
+  us up.
 
   -- When loading an edit form containing the widget --
   1) The edit form is built, and formElement() is called to build this
@@ -50,14 +53,14 @@ class SermonAudioWidget extends WidgetBase {
   1), 2) and 3) above.
   4) $this->massageFormValues() is called to extract field value for validation.
   5) Validation occurs.
-  6) Assuming validation is successful (@todo Check what happens what it fails),
-  the form is rebuilt, and 1), 2) and 3) are fired again.
+  6) Assuming validation is successful, the form is rebuilt, and 1), 2) and 3)
+  are fired again.
 
   -- When the edit form is submitted --
-  1), 2), 3) and 4) above.
-  5) Validation and submission, if validation successful (@todo Check what
-  happens when it fails).
-  6) The form is rebuilt, and 1), 2), and 3) are fired.
+  2), 3) and 4) above (1) might occur first if the form wasn't successfully
+  cached).
+  5) Validation, and then 4) again in the course of submission, if validation is
+  successful.
   */
 
   /** Some of the code herein is adapted from
@@ -222,7 +225,7 @@ class SermonAudioWidget extends WidgetBase {
         '#type' => 'checkbox',
         '#title' => $this->t('Automatically rename uploaded file'),
         '#default_value' => (bool) $this->getSetting('auto_rename'),
-        '#description' => $this->t('To avoid naming conflicts, the unprocessed audio file can be given an automatic semi-random name upon upload.'),
+        '#description' => $this->t('To avoid naming conflicts, the unprocessed audio file can be given a random name upon upload.'),
       ],
     ];
   }
@@ -471,6 +474,8 @@ class SermonAudioWidget extends WidgetBase {
    *
    * @param array $element
    *   Widget form element.
+   * @param \Drupal\Core\Form\FormStateInterface $formState
+   *   Form state.
    *
    * @return array
    *   Widget form element.
@@ -479,7 +484,7 @@ class SermonAudioWidget extends WidgetBase {
    *   Can be thrown if something is wrong with $element. We don't throw an
    *   \InvalidArgumentException because of how this function is called.
    */
-  public static function handlePostProcessing(array &$element) : array {
+  public static function handlePostProcessing(array &$element, FormStateInterface $formState) : array {
     // If we don't have a sermon audio ID, we shouldn't have a file either, and
     // we have nothing to do here.
     if (!isset($element['#value']['aid'])) {
@@ -490,13 +495,23 @@ class SermonAudioWidget extends WidgetBase {
     }
 
     // Go ahead and tokenize it and put it on the form. This way, when the user
-    // submits the form later, we can re-use that sermon audio ID. Set the token
-    // to expire in one hour for security purposes.
+    // submits the form later, we can re-use that sermon audio ID.
     $aid = (int) $element['#value']['aid'];
+    // See if we already have a token in the cache.
+    $cachedAid =& static::getCacheReferenceForElement($element, 'aid', $formState);
+    if ($cachedAid !== NULL && $cachedAid !== $aid) {
+      throw new \RuntimeException('Sermon audio ID does not match cached value.');
+    }
+    $token =& static::getCacheReferenceForElement($element, 'aid_token', $formState);
+    if ($token === NULL || $cachedAid === NULL) {
+      $token = static::tokenizeAid($aid);
+      if ($cachedAid === NULL) {
+        $cachedAid = $aid;
+      }
+    }
     $element['aid_token'] = [
       '#type' => 'hidden',
-      // @todo Cache this.
-      '#value' => static::tokenizeAid($aid),
+      '#value' => $token,
     ];
 
     // Grab the render array associated with displaying the filename.
@@ -504,20 +519,17 @@ class SermonAudioWidget extends WidgetBase {
     $fids = $element['#value']['fids'];
     $fid = (int) reset($fids);
     $filenameElement =& $element['file_' . $fid]['filename'];
-    $isProcessed = (bool) $element['#value']['processed'];
     // If we have an unprocessed audio file, we don't want to show a link to the
     // file (we just want plain text). Also, add something indicating whether or
     // not the audio is processed or not.
-    // @todo Fix this.
-    if ($isProcessed) {
-      if (isset($filenameElement['#suffix'])) $filenameElement['#suffix'] .= '<br>Unprocessed Audio';
-      else $filenameElement['#suffix'] = '<br>Unprocessed Audio';
-    }
-    else {
-      // @todo Fix this -- why isn't it showing up?
+    if (!$element['#value']['processed']) {
+      // The newlines are to ensure there is whitespace (one space) on either
+      // side of the text.
+      $suffix = "\n<span>(unprocessed)</span>\n";
+      if (isset($filenameElement['#suffix'])) $filenameElement['#suffix'] .= $suffix;
+      else $filenameElement['#suffix'] = $suffix;
+
       $filenameElement['#sermon_audio_suppress_link'] = TRUE;
-      if (isset($filenameElement['#suffix'])) $filenameElement['#suffix'] .= '<br>Processed Audio';
-      else $filenameElement['#suffix'] = '<br>Processed Audio';
     }
 
     return $element;
