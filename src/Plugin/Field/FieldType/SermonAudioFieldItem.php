@@ -26,7 +26,7 @@ use Ranine\Helper\ParseHelpers;
  *   list_class = "\Drupal\Core\Field\EntityReferenceFieldItemList",
  * )
  */
-class SermonAudioFieldItem extends EntityReferenceItem {
+final class SermonAudioFieldItem extends EntityReferenceItem {
 
   /**
    * {@inheritdoc}
@@ -69,14 +69,12 @@ class SermonAudioFieldItem extends EntityReferenceItem {
    *   Validator specifications, suitable for passing to file_save_upload() or
    *   a managed file element's '#upload_validators' property. Includes at least
    *   specifications for the "file_validate_extensions" validator.
+   *
+   * @throws \Drupal\sermon_audio\Exception\InvalidFieldConfigurationException
+   *   Thrown if a relevant field setting does not exist or is invalid.
    */
-  public function getUploadValidators() {
-    $validators = [];
-
-    $validators['file_validate_size'] = [$this->getMaxUploadFileUploadSize()];
-    $validators['file_validate_extensions'] = [$this->getAllowedUploadFileExtensions()];
-
-    return $validators;
+  public function getUploadValidators() : array {
+    return static::getUploadValidatorsForSettings($this->getSettings());
   }
 
   /**
@@ -84,55 +82,6 @@ class SermonAudioFieldItem extends EntityReferenceItem {
    */
   public function storageSettingsForm(array &$form, FormStateInterface $form_state, $has_data) : array {
     return [];
-  }
-
-  /**
-   * Gets the allowed upload file extensions from the field settings.
-   *
-   * @throws \Drupal\sermon_audio\Exception\InvalidFieldConfigurationException
-   *   Thrown if the upload_file_extensions field setting does not exist, or is
-   *   empty after being converted to a string and trimmed.
-   */
-  private function getAllowedUploadFileExtensions() : string {
-    $settings = $this->getSettings();
-    if (!isset($settings['upload_file_extensions'])) {
-      throw new InvalidFieldConfigurationException('The upload_file_extensions setting is not set.');
-    }
-    $extensions = trim((string) $settings['upload_file_extensions']);
-    if ($extensions === '') {
-      throw new InvalidFieldConfigurationException('The upload_file_extensions setting is empty after trimming.');
-    }
-    return $extensions;
-  }
-
-  /**
-   * Gets the maximum upload file upload size, in bytes.
-   *
-   * @return int
-   *   Maximum upload size, in bytes. Retrieves from field settings, if the
-   *   relevant setting is set and less than the PHP max value -- else uses the
-   *   max value.
-   *
-   * @throws \Drupal\sermon_audio\Exception\InvalidFieldConfigurationException
-   *   Thrown if the upload_max_file_size field setting is set, but is
-   *   non-integral or non-positive.
-   */
-  private function getMaxUploadFileUploadSize() : int {
-    $settings = $this->getSettings();
-    if (isset($settings['upload_max_file_size'])) {
-      $maxUploadSize = $this->getSettings()['upload_max_file_size'];
-      if ($maxUploadSize !== NULL) {
-        if (!is_int($maxUploadSize)) {
-          throw new InvalidFieldConfigurationException('Sermon audio field setting upload_max_file_size is not an integer.');
-        }
-        if ($maxUploadSize <= 0) {
-          throw new InvalidFieldConfigurationException('Sermon audio field setting upload_max_file_size is non-positive.');
-        }
-        return min($maxUploadSize, (int) Environment::getUploadMaxSize());
-      }
-    }
-
-    return (int) Environment::getUploadMaxSize();
   }
 
   /**
@@ -154,6 +103,29 @@ class SermonAudioFieldItem extends EntityReferenceItem {
       'display_field' => FALSE,
       'display_default' => FALSE,
     ] + parent::defaultStorageSettings();
+  }
+
+  /**
+   * Returns unprocessed audio upload validators given the field settings.
+   *
+   * @param array $settings
+   *   Field settings.
+   *
+   * @return array[]
+   *   Validator specifications, suitable for passing to file_save_upload() or
+   *   a managed file element's '#upload_validators' property. Includes at least
+   *   specifications for the "file_validate_extensions" validator.
+   *
+   * @throws \Drupal\sermon_audio\Exception\InvalidFieldConfigurationException
+   *   Thrown if a relevant field setting does not exist or is invalid.
+   */
+  public static function getUploadValidatorsForSettings(array $settings) : array {
+    $validators = [];
+
+    $validators['file_validate_size'] = [static::getMaxUploadFileUploadSize($settings)];
+    $validators['file_validate_extensions'] = [static::getAllowedUploadFileExtensions($settings)];
+
+    return $validators;
   }
 
   /**
@@ -221,6 +193,59 @@ class SermonAudioFieldItem extends EntityReferenceItem {
         $formState->setError($element, t('The extensions list provided is invalid.'));
       }
     }
+  }
+
+  /**
+   * Gets the allowed upload file extensions from the field settings.
+   *
+   * @param array $settings
+   *   Field settings.
+   *
+   * @throws \Drupal\sermon_audio\Exception\InvalidFieldConfigurationException
+   *   Thrown if the upload_file_extensions field setting does not exist, or is
+   *   empty after being converted to a string and trimmed.
+   */
+  private static function getAllowedUploadFileExtensions(array $settings) : string {
+    if (!isset($settings['upload_file_extensions'])) {
+      throw new InvalidFieldConfigurationException('The upload_file_extensions setting is not set.');
+    }
+    $extensions = trim((string) $settings['upload_file_extensions']);
+    if ($extensions === '') {
+      throw new InvalidFieldConfigurationException('The upload_file_extensions setting is empty after trimming.');
+    }
+    return $extensions;
+  }
+
+  /**
+   * Gets the maximum upload file upload size, in bytes.
+   *
+   * @param array $settings
+   *   Field settings.
+   *
+   * @return int
+   *   Maximum upload size, in bytes. Retrieves from field settings, if the
+   *   relevant setting is set and less than the PHP max value -- else uses the
+   *   max value.
+   *
+   * @throws \Drupal\sermon_audio\Exception\InvalidFieldConfigurationException
+   *   Thrown if the upload_max_file_size field setting is set, but is
+   *   non-integral or non-positive.
+   */
+  private static function getMaxUploadFileUploadSize(array $settings) : int {
+    if (isset($settings['upload_max_file_size'])) {
+      $maxUploadSize = $settings['upload_max_file_size'];
+      if ($maxUploadSize !== NULL) {
+        if (!is_int($maxUploadSize)) {
+          throw new InvalidFieldConfigurationException('Sermon audio field setting upload_max_file_size is not an integer.');
+        }
+        if ($maxUploadSize <= 0) {
+          throw new InvalidFieldConfigurationException('Sermon audio field setting upload_max_file_size is non-positive.');
+        }
+        return min($maxUploadSize, (int) Environment::getUploadMaxSize());
+      }
+    }
+
+    return (int) Environment::getUploadMaxSize();
   }
 
 }
