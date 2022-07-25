@@ -26,7 +26,7 @@ use Ranine\Helper\ParseHelpers;
  *   list_class = "\Drupal\Core\Field\EntityReferenceFieldItemList",
  * )
  */
-final class SermonAudioFieldItem extends EntityReferenceItem {
+class SermonAudioFieldItem extends EntityReferenceItem {
 
   /**
    * {@inheritdoc}
@@ -53,7 +53,7 @@ final class SermonAudioFieldItem extends EntityReferenceItem {
       '#type' => 'textfield',
       '#title' => t('Maximum unprocessed audio upload size'),
       '#default_value' => (int) $settings['upload_max_file_size'],
-      '#description' => t('Maximum uploaded unprocessed audio size, in bytes. If this is not present or greater than the PHP limit, the PHP maximum upload limit applies.'),
+      '#description' => t('Maximum uploaded unprocessed audio size, in bytes. If this is not present or is greater than the PHP limit, the PHP maximum upload limit applies.'),
       '#size' => 10,
       '#element_validate' => [[static::class, 'validateAndPrepareUploadMaxFileSize']],
       '#weight' => 2,
@@ -106,7 +106,7 @@ final class SermonAudioFieldItem extends EntityReferenceItem {
   }
 
   /**
-   * Returns unprocessed audio upload validators given the field settings.
+   * Returns unprocessed audio upload validators for the given field settings.
    *
    * @param array $settings
    *   Field settings.
@@ -146,7 +146,7 @@ final class SermonAudioFieldItem extends EntityReferenceItem {
     if (!isset($element['#value'])) return;
 
     $unparsedValue = $element['#value'];
-    if ($unparsedValue === '' || $unparsedValue === NULL) return;
+    if ($unparsedValue === '') return;
 
     $value = 0;
     if (!ParseHelpers::tryParseInt($unparsedValue, $value)) {
@@ -164,8 +164,8 @@ final class SermonAudioFieldItem extends EntityReferenceItem {
   /**
    * Validates the given form element's value as a list of extensions.
    *
-   * An error is set if the string value of $element['#value'] is not a
-   * space-separated list of extensions, each having only alphanumeric
+   * An error is set if $element['#value'] isn't set, or if its string value is
+   * not a space-separated list of extensions, each having only alphanumeric
    * characters, "_", "." and/or "-". An error is also set if
    * (string) $element['#value'] is empty or consists only of whitespace.
    *
@@ -175,23 +175,26 @@ final class SermonAudioFieldItem extends EntityReferenceItem {
    *   Form state.
    *
    * @throws \RuntimeException
-   *   Thrown if a RegEx matching attempt fails.
+   *   Thrown if a regex matching attempt fails.
    */
   public static function validateUploadFileExtensions(array $element, FormStateInterface $formState) : void {
-    if (!isset($element['#value'])) return;
+    if (!isset($element['#value'])) {
+      $formState->setError($element, t('There is no extensions list value.'));
+      return;
+    }
 
     $extensions = (string) $element['#value'];
     if (trim($extensions) === "") {
       $formState->setError($element, t('The extensions list provided is empty or consists only of whitespace.'));
+      return;
     }
-    else {
-      $matchResult = preg_match('/^[a-z0-9_\-.]+(?: [a-z0-9_\-.]+)*$/i', $extensions);
-      if ($matchResult === FALSE) {
-        throw new \RuntimeException('Regex error.');
-      }
-      if ($matchResult !== 1) {
-        $formState->setError($element, t('The extensions list provided is invalid.'));
-      }
+
+    $matchResult = preg_match('/^[a-z0-9_\-.]+(?: [a-z0-9_\-.]+)*$/i', $extensions);
+    if ($matchResult === FALSE) {
+      throw new \RuntimeException('Regex error.');
+    }
+    if ($matchResult !== 1) {
+      $formState->setError($element, t('The extensions list provided is invalid.'));
     }
   }
 
@@ -224,8 +227,8 @@ final class SermonAudioFieldItem extends EntityReferenceItem {
    *
    * @return int
    *   Maximum upload size, in bytes. Retrieves from field settings, if the
-   *   relevant setting is set and less than the PHP max value -- else uses the
-   *   max value.
+   *   relevant setting is set and less than the PHP max value -- else the PHP
+   *   max value is used.
    *
    * @throws \Drupal\sermon_audio\Exception\InvalidFieldConfigurationException
    *   Thrown if the upload_max_file_size field setting is set, but is

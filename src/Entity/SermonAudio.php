@@ -35,7 +35,7 @@ use Ranine\Iteration\ExtendableIterable;
  * intiateAudioProcessing() method. This method first sets the
  * processing_initiated flag.
  *
- * After a "processed audio" entity is intially loaded (this does not occur on
+ * After a sermon audio entity is intially loaded (this does not occur on
  * subsequent loads within the same request), a "post load" handler checks to
  * see if processing_intiated is set. If the field is set and the processed
  * audio field is not set, a check is made to see if the AWS audio processing
@@ -72,6 +72,7 @@ class SermonAudio extends ContentEntityBase {
   public function delete() {
     parent::delete();
 
+    // Delete usage information associated with unprocessed audio file entities.
     $fileUsageManager = \Drupal::service('file.usage');
     assert($fileUsageManager instanceof FileUsageInterface);
     $entityTypeId = $this->getEntityTypeId();
@@ -95,13 +96,6 @@ class SermonAudio extends ContentEntityBase {
   public function getDuration() : ?float {
     $value = static::getScalarValueFromFieldItem($this->get('duration')->get(0));
     return $value === NULL ? NULL : (float) $value;
-  }
-
-  /**
-   * Gets the current langcode.
-   */
-  public function getLangcode() : string {
-    return (string) static::getScalarValueFromFieldItem($this->get('langcode')->get(0));
   }
 
   /**
@@ -188,7 +182,8 @@ class SermonAudio extends ContentEntityBase {
    * @param string $outputAudioDisplayFilename
    *   Display filename to use for processed audio (this is the filename that a
    *   user who downloads the audio file will see) -- this is also used later
-   *   as the name of the processed audio media entity.
+   *   as the name of the processed audio media entity and the filename for the
+   *   processed audio file entity.
    *
    * @throws \Aws\DynamoDb\Exception\DynamoDbException
    *   Thrown if an error occurs when attempting to interface with the AWS audio
@@ -431,11 +426,10 @@ class SermonAudio extends ContentEntityBase {
    * audio field value is non-NULL, and even if processing_initiated is not
    * TRUE.
    *
-   * This entity is not saved after the processed audio field is set -- that is
-   * up to the caller.
+   * This entity is not saved in this method -- that is up to the caller.
    *
    * @return bool
-   *   TRUE if the processed audio field was updated, else FALSE.
+   *   TRUE if the processed audio field was changed, else FALSE.
    *
    * @throws \Aws\DynamoDb\Exception\DynamoDbException
    *   Thrown if an error occurs when attempting to interface with the AWS audio
@@ -609,7 +603,7 @@ class SermonAudio extends ContentEntityBase {
       ->setSetting('off_label', 'Off');
     $fields['processed_audio'] = BaseFieldDefinition::create('entity_reference')
       ->setLabel(new TranslatableMarkup('Processed Audio'))
-      ->setDescription(new TranslatableMarkup('Processed audio media reference.'))
+      ->setDescription(new TranslatableMarkup('Processed audio media.'))
       ->setCardinality(1)
       ->setRequired(TRUE)
       ->setTranslatable(TRUE)
@@ -622,7 +616,9 @@ class SermonAudio extends ContentEntityBase {
     // need the extra features provided by the file field type, and 2) we would
     // rather not have restrictions on the possible file extensions (these can
     // instead be imposed on sermon audio fields), and the file field does not
-    // permit one to allow all extensions.
+    // permit one to allow all extensions. However, our way of doing it does
+    // have its costs -- for instance, we have to implement file usage updates
+    // manually (see delete() and postSave()).
     $fields['unprocessed_audio'] = BaseFieldDefinition::create('entity_reference')
       ->setLabel(new TranslatableMarkup('Unprocessed Audio'))
       ->setDescription(new TranslatableMarkup('Unprocessed audio file.'))
@@ -648,15 +644,16 @@ class SermonAudio extends ContentEntityBase {
       $entityId = $entity->id();
 
       // Don't do anything if postLoad() has already been run for this entity.
-      // This avoids various problems with the static entity cache being cleared and
-      // refreshProcessedAudio() thus being called multiple times on the same
-      // entity in the same request cycle (such as when it is called again when
-      // the entity is saved).
+      // This avoids various problems with the static entity cache being cleared
+      // and refreshProcessedAudio() thus being called multiple times on the
+      // same entity in the same request cycle (such as when it is called again
+      // when the entity is saved).
       if (array_key_exists($entityId, $finishedEntityIds)) continue;
 
-      // Otherwise, we'll have to loop through all translations, as postLoad()
-      // is only called once for all translations.
       $requiresSave = FALSE;
+
+      // We'll have to loop through the translations, as postLoad() is only
+      // called once for all translations.
       foreach ($entity->iterateTranslations() as $translation) {
         // If the processed audio field isn't already set, and
         // processing_initiated is set, we call refreshProcessedAudio() on the
@@ -683,13 +680,9 @@ class SermonAudio extends ContentEntityBase {
    * Gets a DynamoDB client.
    */
   private static function getDynamoDbClient() : DynamoDbClient {
-    static $client;
-    if (!isset($client)) {
-      $dynamoDbClientFactory = \Drupal::service('sermon_audio.dynamo_db_client_factory');
-      assert($dynamoDbClientFactory instanceof DynamoDbClientFactory);
-      $client = $dynamoDbClientFactory->getClient();
-    }
-    return $client;
+    $dynamoDbClientFactory = \Drupal::service('sermon_audio.dynamo_db_client_factory');
+    assert($dynamoDbClientFactory instanceof DynamoDbClientFactory);
+    return $dynamoDbClientFactory->getClient();
   }
 
   /**

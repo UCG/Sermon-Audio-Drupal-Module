@@ -17,11 +17,6 @@ use Drupal\Core\Config\ImmutableConfig;
 final class Settings {
 
   /**
-   * Module settings.
-   */
-  private static ImmutableConfig $settings;
-
-  /**
    * Empty private constructor to ensure no one instantiates this class.
    */
   private function __construct() {

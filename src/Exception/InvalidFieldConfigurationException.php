@@ -27,7 +27,7 @@ class InvalidFieldConfigurationException extends \RuntimeException {
     // Call the parent constructor with the message (either $message, or, if
     // $message is unset or empty [i.e., an empty string when coerced to a
     // string], a default message) and other parameters.
-    parent::__construct(StringHelpers::getValueOrDefault($message, 'A field settings is mis-configured.'), $code, $previous);
+    parent::__construct(StringHelpers::getValueOrDefault($message, 'A field setting(s) is mis-configured.'), $code, $previous);
   }
 
 }

@@ -4,6 +4,7 @@ declare (strict_types = 1);
 
 namespace Drupal\sermon_audio\Plugin\Field\FieldFormatter;
 
+use Drupal\Core\Cache\Cache;
 use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\Core\Field\Plugin\Field\FieldFormatter\EntityReferenceFormatterBase;
 use Drupal\sermon_audio\Entity\SermonAudio;
@@ -40,7 +41,8 @@ class SermonAudioFormatter extends EntityReferenceFormatterBase {
       // at any time. Also, in any case, attach the sermon audio entity as a
       // dependency with respect to caching.
       if (isset($output[$delta]['#cache']['tags'])) {
-        $output[$delta]['#cache']['tags'] += $sermonAudio->getCacheTags();
+        $cacheTags =& $output[$delta]['#cache']['tags'];
+        $cacheTags = Cache::mergeTags($cacheTags, $sermonAudio->getCacheTags());
       }
       else {
         $output[$delta]['#cache']['tags'] = $sermonAudio->getCacheTags();

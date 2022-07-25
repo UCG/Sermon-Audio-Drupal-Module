@@ -28,12 +28,12 @@ function sermon_audio_preprocess_file_link(array &$variables) : void {
   if (!empty($variables['sermon_audio_suppress_link'])) {
     $file = $variables['file'];
     if (!($file instanceof FileInterface)) {
-      throw new \RuntimeException('Invalid theme hook variables.');
+      throw new \RuntimeException('Invalid file_link theme hook #file variable.');
     }
     // In this case, we don't want to show an actual link to the file. Hence,
-    // override the "link" variable with  the sanitized plain-text filename (it
+    // override the "link" variable with the sanitized plain-text filename (it
     // should be sanitized by Twig automatically, but we do so here just in case
-    // the template is changed later).
+    // a template is used which suppresses this sanitization, etc).
     $variables['link'] = Html::escape($file->getFilename());
   }
 }

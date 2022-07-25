@@ -168,8 +168,8 @@ class SermonAudioWidget extends WidgetBase {
       // associated sermon audio ID. This value is *not* the final value used as
       // the value of the associated field item -- the value will be further
       // transformed by massageFieldsValues() into its final form. The value
-      // callback is also responsible for creating, if necessary, any new file
-      // or sermon audio entities needed.
+      // callback is also responsible for creating, as necessary, any new file
+      // or sermon audio entities.
       '#value_callback' => [
         static::class,
         $this->getSetting('auto_rename') ? 'getWidgetValue' : 'getWidgetValueNoAutoRename',
@@ -309,7 +309,7 @@ class SermonAudioWidget extends WidgetBase {
    * verified that the user has permission to use that FID. It is then necessary
    * to determine the corresponding sermon audio ID. If one has already been
    * computed during this request cycle for that FID, that is used. Otherwise,
-   * we look in a persistent key-value store for $input['aid-code'], which is a
+   * we look in a persistent key-value store for $input['aid_token'], which is a
    * token granting "attachment rights" for a particular audio ID for a certain
    * time period, and examine the value returned to see what audio ID we can use
    * (if any). If this is unsuccessful, a new sermon audio entity is generated
@@ -321,8 +321,8 @@ class SermonAudioWidget extends WidgetBase {
    * @param array $element
    *   Form element.
    * @param mixed $input
-   *   Value previously computed from user input, or FALSE to indicate that the
-   *   element's default value should be returned.
+   *   Value from user form input, or FALSE to indicate that the element's
+   *   default value should be returned.
    * @param \Drupal\Core\Form\FormStateInterface $formState
    *   Form state.
    * @param bool $autoRenameUploads
@@ -346,7 +346,6 @@ class SermonAudioWidget extends WidgetBase {
    *   called...).
    */
   public static function getWidgetValue(array &$element, $input, FormStateInterface $formState, bool $autoRenameUploads = TRUE) : array {
-    /** @var \Drupal\Core\Entity\EntityFieldManagerInterface */
     $entityFieldManager = \Drupal::service('entity_field.manager');
     assert($entityFieldManager instanceof EntityFieldManagerInterface);
 
@@ -361,11 +360,11 @@ class SermonAudioWidget extends WidgetBase {
       ['sermon_audio']
       ->getSettings();
 
-    // First, re-compute the form element's upload location & validators. This
-    // is done since the form element could have been cached, and thus
-    // formElement() not fired during this request cycle. In turn, this could
-    // lead to stale upload location and validators, which seems a bit risky
-    // from a security perspective.
+    // Re-compute the form element's upload location & validators. This is done
+    // since the form element could have been cached, and thus formElement() not
+    // fired during this request cycle. In turn, this could lead to a stale
+    // upload location and validators, which seems a bit risky from a security
+    // perspective.
     $element['#upload_location'] = static::getUploadLocationStatically();
     $element['#upload_validators'] = SermonAudioFieldItem::getUploadValidatorsForSettings($fieldSettings);
 
@@ -388,13 +387,13 @@ class SermonAudioWidget extends WidgetBase {
 
     // If requested, automatically rename any new file upload.
     if ($autoRenameUploads) {
-      // We use "psuedo-extensions" to force a rename of the file. Basically, we
-      // add an extra extension to the "file_validate_extensions" validator
-      // settings. This is not actually a relevant extension (in fact,
-      // we should never get a file with this extension, given that it is a long
-      // random hexadecimal string), but we include it to signal that we want to
-      // rename the file. We associate this extension with the new bare
-      // (extension-less)filename we wish to use.
+      // We use a "psuedo-extension" to force a rename of the file. Basically,
+      // we add an extra extension to the "file_validate_extensions" validator
+      // settings. This is not actually a relevant extension (in fact, we should
+      // never get a file with this extension, given that it is a long random
+      // hexadecimal string), but we include it to signal that we want to rename
+      // the file. We associate this extension with the new bare
+      // (extension-less) filename we wish to use.
       // @see \Drupal\sermon_audio\FileRenamePseudoExtensionRepository
       // If we already determined this "pseudo-extension" earlier, go ahead and
       // use it. Otherwise, calculate and cache a new pseudo-extension.
@@ -453,7 +452,7 @@ class SermonAudioWidget extends WidgetBase {
     // canonical fashion.
     $fid = (int) reset($fileElementValue['fids']);
     // We know we are working with an unprocessed file, as the only way a
-    // processed file can be attached is if the default value is returned (as
+    // processed file can be attached is if the default value is returned (see
     // above).
     $value = ['fids' => [$fid], 'processed' => FALSE];
     // Now we must determine the sermon audio ID. First, we check to see if we
@@ -485,8 +484,8 @@ class SermonAudioWidget extends WidgetBase {
       // Record the FID associated with this AID.
       $cachedFid = $fid;
     }
-    assert(isset($aid));
 
+    assert(isset($aid));
     $value['aid'] = $aid;
     return $value;
   }
@@ -544,13 +543,13 @@ class SermonAudioWidget extends WidgetBase {
     ];
 
     // Grab the render array associated with displaying the filename.
-    // @see \Drupal\file\Element\ManagedFile::processManagedFile().
+    // @see \Drupal\file\Element\ManagedFile::processManagedFile()
     $fids = $element['#value']['fids'];
     $fid = (int) reset($fids);
     $filenameElement =& $element['file_' . $fid]['filename'];
     // If we have an unprocessed audio file, we don't want to show a link to the
-    // file (we just want plain text). Also, add something indicating whether or
-    // not the audio is processed or not.
+    // file (we just want plain text). Also, add something indicating that the
+    // audio is unprocessed.
     if (!$element['#value']['processed']) {
       // The newlines are to ensure there is whitespace (one space) on either
       // side of the text.
@@ -611,6 +610,9 @@ class SermonAudioWidget extends WidgetBase {
   /**
    * Gets a reference to cache object for a particular widget element and key.
    *
+   * A reference is returned even if none presently exists. In this case, a
+   * value is created and set to NULL, and a reference to that value returned.
+   *
    * @param array $element
    *   Widget element.
    * @param string $key
@@ -622,11 +624,11 @@ class SermonAudioWidget extends WidgetBase {
    *   Can be thrown if $element contains a bad #parent value.
    */
   private static function &getCacheReferenceForElement(array $element, string $key, FormStateInterface $formState) : mixed {
-    $key = 'sermon_audio.widget.' . static::getElementKey($element) . '.' . $key;
-    if (!$formState->hasTemporaryValue($key)) {
-      $formState->setTemporaryValue($key, NULL);
+    $fullKey = 'sermon_audio.' . static::getElementKey($element) . '.' . $key;
+    if (!$formState->hasTemporaryValue($fullKey)) {
+      $formState->setTemporaryValue($fullKey, NULL);
     }
-    return $formState->getTemporaryValue($key);
+    return $formState->getTemporaryValue($fullKey);
   }
 
   /**
@@ -644,18 +646,20 @@ class SermonAudioWidget extends WidgetBase {
   private static function getElementKey(array $element) : string {
     $key = '';
     if (!isset($element['#parents'])) {
+      // Assume we are at the root level.
       return $key;
     }
     if (!is_array($element['#parents'])) {
       throw new \RuntimeException('A widget element had invalid an invalid #parents key.');
     }
-    $firstTime = FALSE;
+    $firstTime = TRUE;
     $escapeChars = [StringHelpers::ASCII_UNIT_SEPARATOR];
     foreach ($element['#parents'] as $parent) {
       if (!$firstTime) {
         $key .= StringHelpers::ASCII_UNIT_SEPARATOR;
       }
       $key .= StringHelpers::escape((string) $parent, $escapeChars);
+      $firstTime = FALSE;
     }
 
     return $key;
@@ -688,12 +692,13 @@ class SermonAudioWidget extends WidgetBase {
    *   Sermon audio ID.
    * @param int $expiry
    *   The number of seconds for which the sermon ID / token combination should
-   *   be valid. Should be positive.
+   *   be valid. Should be positive. Defaults to 24 hours = 60 * 60 * 24
+   *   seconds.
    *
    * @return string
    *   Associated token.
    */
-  private static function tokenizeAid(int $aid, int $expiry = 3600) : string {
+  private static function tokenizeAid(int $aid, int $expiry = 86400) : string {
     assert($expiry > 0);
 
     $token = base64_encode(random_bytes(12));

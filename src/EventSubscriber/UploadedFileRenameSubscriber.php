@@ -14,7 +14,7 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
  * Uploaded files are renamed by checking the allowed extension list against
  * pseudo-extensions registered in
  * @see \Drupal\sermon_audio\FileRenamePseudoExtensionRepository,
- * and using a matching psuedo-extension to generate a new filename.
+ * and using a matching psuedo-extension to create a new filename.
  */
 class UploadedFileRenameSubscriber implements EventSubscriberInterface {
 
