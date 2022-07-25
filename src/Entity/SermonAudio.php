@@ -224,8 +224,8 @@ class SermonAudio extends ContentEntityBase {
     $inputSubKey = static::getUnprocessedAudioSubKey($unprocessedAudio);
 
     // Create an ouput sub-key from 1) this entity's ID, 2) a random hex
-    // sequence to ensure uniqueness, and 3) the 'm4a' extension.
-    $outputSubKey = $this->id() . '-' . bin2hex(random_bytes(8)) . '.m4a';
+    // sequence to ensure uniqueness, and 3) the 'mp4' extension.
+    $outputSubKey = $this->id() . '-' . bin2hex(random_bytes(8)) . '.mp4';
 
     // Track changes to the entity, so we don't save it unnecessarily.
     $didChangeEntity = FALSE;
@@ -538,7 +538,7 @@ class SermonAudio extends ContentEntityBase {
       'uri' => $processedAudioUri,
       'uid' => $owner,
       'filename' => $outputDisplayFilename,
-      'filemime' => 'audio/m4a',
+      'filemime' => 'audio/mp4',
       'status' => TRUE,
     ])->enforceIsNew();
     $newProcessedAudioFile->save();

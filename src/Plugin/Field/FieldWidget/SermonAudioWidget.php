@@ -16,6 +16,8 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Render\ElementInfoManagerInterface;
 use Drupal\Core\StringTranslation\TranslationInterface;
 use Drupal\file\Element\ManagedFile;
+use Drupal\file\FileInterface;
+use Drupal\file\FileStorageInterface;
 use Drupal\sermon_audio\Entity\SermonAudio;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
 use Drupal\sermon_audio\FileRenamePseudoExtensionRepository;
@@ -146,13 +148,13 @@ class SermonAudioWidget extends WidgetBase {
       ];
     }
 
-    $entity = $items->getEntity();
+    $fieldDefinition = $items->getFieldDefinition();
     $element = [
-      // getWidgetValue() uses the entity type and bundle, so we pass that
-      // through.
+      // getWidgetValue() uses the info below.
       '#custom' => [
-        'entity_type' => $entity->getEntityTypeId(),
-        'bundle' => $entity->bundle(),
+        'entity_type' => $fieldDefinition->getTargetEntityTypeId(),
+        'bundle' => $fieldDefinition->getTargetBundle(),
+        'field_name' => $fieldDefinition->getName(),
       ],
       // We use the built-in managed_file widget to handle the actual file
       // uploads/removals.
@@ -344,6 +346,9 @@ class SermonAudioWidget extends WidgetBase {
    *   Thrown in some cases if $input or $element is invalid (we don't throw an
    *   \InvalidArgumentException because of how this function is typically
    *   called...).
+   * @throws \RuntimeException
+   *   Thrown if an error occurs when attempting to load a newly uploaded file
+   *   entity.
    */
   public static function getWidgetValue(array &$element, $input, FormStateInterface $formState, bool $autoRenameUploads = TRUE) : array {
     $entityFieldManager = \Drupal::service('entity_field.manager');
@@ -357,7 +362,7 @@ class SermonAudioWidget extends WidgetBase {
     }
     $fieldSettings = $entityFieldManager
       ->getFieldDefinitions((string) $element['#custom']['entity_type'], (string) $element['#custom']['bundle'])
-      ['sermon_audio']
+      [(string) $element['#custom']['field_name']]
       ->getSettings();
 
     // Re-compute the form element's upload location & validators. This is done
@@ -479,6 +484,25 @@ class SermonAudioWidget extends WidgetBase {
         }
       }
       else {
+        // Also, assume an "mp4" extension means an audio mp4 file, not a video
+        // mp4 (as Drupal seems to assume). We also fix the MIME type for "m4a",
+        // which Drupal incorrectly sets to "audio/mpeg".
+        $file = static::getFileStorage()->load($fid);
+        if ($file === NULL) {
+          throw new \RuntimeException('Entity for newly uploaded file could not be loaded.');
+        }
+        assert($file instanceof FileInterface);
+        $filename = (string) $file->getFilename();
+        if ($filename === '') $extension = pathinfo($file->getFileUri(), PATHINFO_EXTENSION);
+        else $extension = pathinfo($filename, PATHINFO_EXTENSION);
+        
+        if (strcasecmp($extension, 'm4a') === 0 || strcasecmp($extension, 'mp4') === 0) {
+          if ($file->getMimeType() !== 'audio/mp4') {
+            $file->setMimeType('audio/mp4');
+            $file->save();
+          }
+        }
+
         $aid = static::createSermonAudioFromUnprocessedFid($fid);
       }
       // Record the FID associated with this AID.
@@ -663,6 +687,13 @@ class SermonAudioWidget extends WidgetBase {
     }
 
     return $key;
+  }
+
+  /**
+   * Gets the file entity storage using the global service container.
+   */
+  private static function getFileStorage() : FileStorageInterface {
+    return \Drupal::entityTypeManager()->getStorage('file');
   }
 
   /**
