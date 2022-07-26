@@ -6,6 +6,7 @@ namespace Drupal\sermon_audio\Entity;
 
 use Aws\DynamoDb\DynamoDbClient;
 use Aws\DynamoDb\Exception\DynamoDbException;
+use Drupal\Component\Utility\Unicode;
 use Drupal\Core\Entity\ContentEntityBase;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeInterface;
@@ -213,10 +214,7 @@ class SermonAudio extends ContentEntityBase {
 
     $unprocessedAudio = $this->getUnprocessedAudio() ?? throw static::getUnprocessedAudioFieldException();
     $inputSubKey = static::getUnprocessedAudioSubKey($unprocessedAudio);
-
-    // Create an ouput sub-key from 1) this entity's ID, 2) a random hex
-    // sequence to ensure uniqueness, and 3) the 'mp4' extension.
-    $outputSubKey = $this->id() . '-' . bin2hex(random_bytes(8)) . '.mp4';
+    $outputSubKey = static::getOutputSubKey($sermonSpeaker, $sermonYear, $outputAudioDisplayFilename);
 
     // Track changes to the entity, so we don't save it unnecessarily.
     $didChangeEntity = FALSE;
@@ -679,12 +677,30 @@ class SermonAudio extends ContentEntityBase {
     }
     return $tableName;
   }
-  
+
   /**
-   * Gets the media entity storage.
+   * Gets the output sub-key for the given sermon audio parameters.
+   *
+   * @param string $sermonSpeaker
+   *   Sermon speaker (non-empty).
+   * @param string $sermonYear
+   *   Sermon year (non-empty).
+   * @param string $outputDisplayFilename
+   *   Output display filename (non-empty).
    */
-  private static function getMediaStorage() : MediaStorage {
-    return \Drupal::entityTypeManager()->getStorage('media');
+  private static function getOutputSubKey(string $sermonSpeaker, string $sermonYear, string $outputDisplayFilename) : string {
+    assert($sermonSpeaker !== '');
+    assert($sermonYear !== '');
+    assert($outputDisplayFilename !== '');
+
+    $processedSermonYear = str_replace('/', '-', static::replaceUtf8Whitespace(mb_strtolower(Unicode::truncate($sermonYear, 16)), '-'));
+    $processedSermonSpeaker = str_replace('/', '-', static::replaceUtf8Whitespace(mb_strtolower(Unicode::truncate($sermonSpeaker, 128)), '-'));
+    return $processedSermonYear . '/'
+      . $processedSermonSpeaker . '/'
+      . $outputDisplayFilename . '-'
+      // Include a random hexadecimal sequence for uniqueness.
+      . bin2hex(random_bytes(8)) . '/'
+      . $outputDisplayFilename;
   }
 
   /**
@@ -734,6 +750,22 @@ class SermonAudio extends ContentEntityBase {
     }
 
     return $inputSubKey;
+  }
+
+  /**
+   * Replaces each UTF-8 whitespace character in $target with $replacement.
+   *
+   * @return string
+   *   Resulting string.
+   *
+   * @throws \RuntimeException
+   *   Thrown if a regex error occurs.
+   */
+  private static function replaceUtf8Whitespace(string $target, string $replacement = '') : string {
+    if ($target === '') return '';
+    $result = preg_replace('/[\pZ\pC]/u', $replacement, $target);
+    if ($result === NULL) throw new \RuntimeException('A regex error occurred.');
+    return $result;
   }
 
   /**
