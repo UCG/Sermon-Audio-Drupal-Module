@@ -29,10 +29,9 @@ class SermonAudioFormatter extends EntityReferenceFormatterBase {
       assert($sermonAudio instanceof SermonAudio);
 
       // Output the processed audio field if it's set. Force the use of the
-      // "rendered entity" view type (with no label), because otherwise a link
-      // and a label will instead be shown.
+      // audio file formatter (with no label).
       $output[$delta] = $sermonAudio->get('processed_audio')->view([
-        'type' => 'entity_reference_entity_view',
+        'type' => 'mp4_enabled_audio_file',
         'label' => 'hidden',
         'weight' => 0,
       ]);

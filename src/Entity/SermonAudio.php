@@ -16,8 +16,6 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\file\FileInterface;
 use Drupal\file\FileStorageInterface;
 use Drupal\file\FileUsage\FileUsageInterface;
-use Drupal\media\MediaInterface;
-use Drupal\media\MediaStorage;
 use Drupal\sermon_audio\Exception\EntityValidationException;
 use Drupal\sermon_audio\Exception\InvalidInputAudioFileException;
 use Drupal\sermon_audio\Settings;
@@ -40,7 +38,7 @@ use Ranine\Iteration\ExtendableIterable;
  * see if processing_intiated is set. If the field is set and the processed
  * audio field is not set, a check is made to see if the AWS audio processing
  * job has finished. If it has, the entity's "processed audio" field is updated
- * with a new media entity referencing the processed audio file, and the entity
+ * with a new file entity corresponding to the processed audio, and the entity
  * is saved. The AWS audio processing job check and subsequent processed audio
  * field update can also be forced by calling refreshProcessedAudio().
  *
@@ -99,35 +97,29 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Gets the processed audio media entity, or NULL if it is not set.
+   * Gets the processed audio file entity, or NULL if it is not set.
    *
    * @throws \RuntimeException
-   *   Thrown if there is a reference to a processed audio media entity, but the
+   *   Thrown if there is a reference to a processed audio file, but the entity
    *   entity was not found.
    */
-  public function getProcessedAudio() : ?MediaInterface {
-    $item = $this->get('processed_audio')->get(0)?->getValue();
-    if (empty($item) || $item['target_id'] === NULL) return NULL;
-    $targetId = (int) $item['target_id'];
-    $media = $this->getMediaStorage()->load($targetId);
-    if ($media === NULL) {
-      throw new \RuntimeException('Could not load media entity with ID "' . $targetId . '".');
+  public function getProcessedAudio() : ?FileInterface {
+    $targetId = $this->getProcessedAudioId();
+    if ($targetId === NULL) return NULL;
+    $file = $this->getFileStorage()->load($targetId);
+    if ($file === NULL) {
+      throw new \RuntimeException('Could not load file entity with ID "' . $targetId . '".');
     }
-    return $media;
+    return $file;
   }
 
   /**
-   * Gets the file ID associated with the processed audio, or NULL if not set.
-   *
-   * @throws \RuntimeException
-   *   Thrown if there is a reference to a processed audio media entity, but the
-   *   entity was not found.
+   * Gets the processed audio file ID, or NULL if not set.
    */
-  public function getProcessedAudioFid() : ?int {
-    $processedAudio = $this->getProcessedAudio();
-    $targetId = $processedAudio?->getSource()->getSourceFieldValue($processedAudio);
-    if ($targetId === NULL) return NULL;
-    else return (int) $targetId;
+  public function getProcessedAudioId() : ?int {
+    $item = $this->get('processed_audio')->get(0)?->getValue();
+    if (empty($item) || $item['target_id'] === NULL) return NULL;
+    else return (int) $item['target_id'];
   }
 
   /**
@@ -182,8 +174,7 @@ class SermonAudio extends ContentEntityBase {
    * @param string $outputAudioDisplayFilename
    *   Display filename to use for processed audio (this is the filename that a
    *   user who downloads the audio file will see) -- this is also used later
-   *   as the name of the processed audio media entity and the filename for the
-   *   processed audio file entity.
+   *   as the filename for the processed audio file entity.
    *
    * @throws \Aws\DynamoDb\Exception\DynamoDbException
    *   Thrown if an error occurs when attempting to interface with the AWS audio
@@ -435,7 +426,7 @@ class SermonAudio extends ContentEntityBase {
    *   Thrown if an error occurs when attempting to interface with the AWS audio
    *   processing jobs database.
    * @throws \Drupal\Core\Entity\EntityStorageException
-   *   Thrown if an error occurs when trying to save a new file or media entity.
+   *   Thrown if an error occurs when trying to save a new file entity.
    * @throws \Drupal\sermon_audio\Exception\EntityValidationException
    *   Thrown if the unprocessed audio file field is not set.
    * @throws \Drupal\sermon_audio\Exception\InvalidInputAudioFileException
@@ -444,7 +435,7 @@ class SermonAudio extends ContentEntityBase {
    * @throws \RuntimeException
    *   Thrown if something is wrong with the DynamoDB record returned.
    * @throws \RuntimeException
-   *   Thrown if a referenced file or media entity does not exist.
+   *   Thrown if a referenced file entity does not exist.
    */
   public function refreshProcessedAudio() : bool {
     $unprocessedAudio = $this->getUnprocessedAudio() ?? throw static::getUnprocessedAudioFieldException();
@@ -462,8 +453,8 @@ class SermonAudio extends ContentEntityBase {
         '#odf' => 'output-display-filename',
         '#d' => 'audio-duration',
       ],
-      // Grab the output display filename also, because we use it as the media
-      // name.
+      // Grab the output display filename also, because we use it as the file
+      // entity's filename.
       'ProjectionExpression' => '#js, #osk, #d, #odf',
       'TableName' => $jobsTableName,
     ]);
@@ -516,41 +507,25 @@ class SermonAudio extends ContentEntityBase {
 
     $processedAudioUri = Settings::getProcessedAudioUriPrefix() . $outputSubKey;
 
-    // Before creating the media and file entities, check to see if the current
-    // processed audio entity already references the correct URI.
-    $processedAudioFid = $this->getProcessedAudioFid();
-    if ($processedAudioFid !== NULL) {
-      $fileStorage = static::getFileStorage();
-      $processedAudioFile = $fileStorage->load($processedAudioFid);
-      if ($processedAudioFile === NULL) {
-        throw new \RuntimeException('Could not load processed audio file with FID "' . $processedAudioFid . '".');
-      }
-      assert($processedAudioFile instanceof FileInterface);
-      if ($processedAudioFile->getFileUri() === $processedAudioUri) return FALSE;
+    // Before creating a new file entity, check to see if the current processed
+    // audio entity already references the correct URI.
+    $processedAudio = $this->getProcessedAudio();
+    if ($processedAudio !== NULL && $processedAudio->getFileUri() === $processedAudioUri) {
+      return FALSE;
     }
-    if (!isset($fileStorage)) $fileStorage = static::getFileStorage();
 
-    // Create the new processed audio file entity, and then create a new
-    // corresponding media entity. Set the owner of the two new entities to the
+    // Create the new processed audio file entity, setting its owner to the
     // owner of the unprocessed audio file.
     $owner = $unprocessedAudio->getOwnerId();
-    $newProcessedAudioFile = $fileStorage->create([
+    $newProcessedAudio = static::getFileStorage()->create([
       'uri' => $processedAudioUri,
       'uid' => $owner,
       'filename' => $outputDisplayFilename,
       'filemime' => 'audio/mp4',
       'status' => TRUE,
     ])->enforceIsNew();
-    $newProcessedAudioFile->save();
-    $newProcessedAudio = static::getMediaStorage()->create([
-      'bundle' => 'audio',
-      'uid' => $owner,
-      'name' => $outputDisplayFilename,
-      'field_media_audio_file' => [['target_id' => (int) $newProcessedAudioFile->id()]],
-    ])->enforceIsNew();
     $newProcessedAudio->save();
 
-    // Link the new file to this media entity.
     $processedAudioField = $this->get('processed_audio');
     // Get the first item, or create it if necessary.
     if ($processedAudioField->count() === 0) {
@@ -601,22 +576,18 @@ class SermonAudio extends ContentEntityBase {
       ->setDefaultValue(FALSE)
       ->setSetting('on_label', 'On')
       ->setSetting('off_label', 'Off');
-    $fields['processed_audio'] = BaseFieldDefinition::create('entity_reference')
+    $fields['processed_audio'] = BaseFieldDefinition::create('file')
       ->setLabel(new TranslatableMarkup('Processed Audio'))
-      ->setDescription(new TranslatableMarkup('Processed audio media.'))
+      ->setDescription(new TranslatableMarkup('Processed audio file.'))
       ->setCardinality(1)
       ->setRequired(TRUE)
       ->setTranslatable(TRUE)
-      ->setSetting('target_type', 'media')
-      // Per https://www.drupal.org/project/commerce/issues/3137225 and
-      // https://www.drupal.org/node/2576151, it seems the target bundles array
-      // should have identical keys and values.
-      ->setSetting('handler_settings', ['target_bundles' => ['audio' => 'audio']]);
+      ->setSetting('file_extensions', 'mp4');
     // We use an entity reference instead of a file field because 1) we do not
     // need the extra features provided by the file field type, and 2) we would
     // rather not have restrictions on the possible file extensions (these can
     // instead be imposed on sermon audio fields), and the file field does not
-    // permit one to allow all extensions. However, our way of doing it does
+    // permit one to allow all extensions. However, this way of doing it does
     // have its costs -- for instance, we have to implement file usage updates
     // manually (see delete() and postSave()).
     $fields['unprocessed_audio'] = BaseFieldDefinition::create('entity_reference')

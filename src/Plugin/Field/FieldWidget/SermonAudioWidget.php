@@ -138,7 +138,7 @@ class SermonAudioWidget extends WidgetBase {
       $sermonAudio = $this->sermonAudioStorage->load($sermonAudioId);
       assert($sermonAudio instanceof SermonAudio);
       $hasProcessedAudio = $sermonAudio->hasProcessedAudio();
-      $fid = $hasProcessedAudio ? $sermonAudio->getProcessedAudioFid() : $sermonAudio->getUnprocessedAudioId();
+      $fid = $hasProcessedAudio ? $sermonAudio->getProcessedAudioId() : $sermonAudio->getUnprocessedAudioId();
       $defaultValue = [
         'aid' => $sermonAudioId,
         // We use the "fids" array to be compatible with the managed_file form
