@@ -33,7 +33,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *
  * @FieldWidget(
  *   id = "sermon_unprocessed_audio",
- *   label = @Translation("Sermon Unprocessed Audio"),
+ *   label = @Translation("Unprocessed Audio Uploader"),
  *   field_types = { "sermon_audio" },
  * )
  */

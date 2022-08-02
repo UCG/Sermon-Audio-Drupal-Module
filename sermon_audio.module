@@ -11,17 +11,6 @@ use Drupal\Component\Utility\Html;
 use Drupal\file\FileInterface;
 
 /**
- * Implements hook_theme_registry_alter().
- */
-function sermon_audio_theme_registry_alter(array &$registry) : void {
-  // Add a "sermon_audio_suppress_link" variable to the set of "file_link" theme
-  // hook variables.
-  if (!empty($registry['file_link'])) {
-    $registry['file_link']['variables']['sermon_audio_suppress_link'] = NULL;
-  }
-}
-
-/**
  * Implements hook_preprocess_HOOK().
  */
 function sermon_audio_preprocess_file_link(array &$variables) : void {
@@ -35,5 +24,28 @@ function sermon_audio_preprocess_file_link(array &$variables) : void {
     // should be sanitized by Twig automatically, but we do so here just in case
     // a template is used which suppresses this sanitization, etc).
     $variables['link'] = Html::escape($file->getFilename());
+  }
+}
+
+/**
+ * Implements hook_theme().
+ */
+function sermon_audio_theme() : array {
+  return [
+    'sermon_audio_player_no_processed_audio' => [
+      'variables' => ['was_processing_initiated' => NULL],
+      'template' => 'sermon-audio-player-no-processed-audio',
+    ],
+  ];
+}
+
+/**
+ * Implements hook_theme_registry_alter().
+ */
+function sermon_audio_theme_registry_alter(array &$registry) : void {
+  // Add a "sermon_audio_suppress_link" variable to the set of "file_link" theme
+  // hook variables.
+  if (!empty($registry['file_link'])) {
+    $registry['file_link']['variables']['sermon_audio_suppress_link'] = NULL;
   }
 }
