@@ -36,6 +36,10 @@ function sermon_audio_theme() : array {
       'variables' => ['was_processing_initiated' => NULL],
       'template' => 'sermon-audio-player-no-processed-audio',
     ],
+    'sermon_audio_link_no_processed_audio' => [
+      'variables' => ['was_processing_initiated' => NULL],
+      'template' => 'sermon-audio-link-no-processed-audio',
+    ],
   ];
 }
 
