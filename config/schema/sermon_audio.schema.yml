@@ -5,15 +5,24 @@ sermon_audio.settings:
     aws_credentials_file_path:
       type: string
       label: 'Full path to JSON file where AWS credentials are stored, if applicable (else leave empty)'
+    audio_s3_aws_region:
+      type: string
+      label: 'AWS region wherein S3 audio files reside'
     jobs_db_aws_region:
       type: string
       label: 'AWS region wherein DynamoDB audio processing jobs table resides'
     jobs_table_name:
       type: string
       label: 'Name of AWS DynamoDB audio processing jobs table'
+    audio_bucket_name:
+      type: string
+      label: 'Name of AWS S3 bucket where processed and unprocessed audio is stored'
     unprocessed_audio_uri_prefix:
       type: string
       label: 'Prefix, including scheme, for unprocessed audio file URIs'
     processed_audio_uri_prefix:
       type: string
       label: 'Prefix, including scheme, for processed audio file URIs'
+    processed_audio_key_prefix:
+      type: string
+      label: 'Prefix for S3 processed audio keys'

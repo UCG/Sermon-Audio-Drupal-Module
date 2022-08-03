@@ -23,6 +23,20 @@ final class Settings {
   }
 
   /**
+   * Gets the name of the S3 audio bucket.
+   */
+  public static function getAudioBucketName() : string {
+    return (string) static::getSettings()->get('audio_bucket_name');
+  }
+
+  /**
+   * Gets the audio storage AWS S3 region.
+   */
+  public static function getAudioS3Region() : string {
+    return (string) static::getSettings()->get('audio_s3_aws_region');
+  }
+
+  /**
    * Gets the audio processing jobs AWS region setting.
    */
   public static function getJobsDbAwsRegion() : string {
@@ -35,7 +49,14 @@ final class Settings {
   public static function getJobsTableName() : string {
     return (string) static::getSettings()->get('jobs_table_name');
   }
-  
+
+  /**
+   * Gets the S3 key prefix for processed audio.
+   */
+  public static function getProcessedAudioKeyPrefix() : string {
+    return (string) static::getSettings()->get('processed_audio_key_prefix');
+  }
+
     /**
      * Gets the processed audio file URI prefix.
      */

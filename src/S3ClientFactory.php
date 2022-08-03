@@ -4,20 +4,20 @@ declare (strict_types = 1);
 
 namespace Drupal\sermon_audio;
 
-use Aws\DynamoDb\DynamoDbClient;
+use Aws\S3\S3Client;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ImmutableConfig;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
 
 /**
- * Returns/creates AWS DynamoDB client objects.
+ * Returns/creates AWS S3 client objects.
  */
-class DynamoDbClientFactory extends AwsClientFactoryBase {
+class S3ClientFactory extends AwsClientFactoryBase {
 
   /**
-   * DynamoDB client instance.
+   * S3 client instance.
    */
-  private DynamoDbClient $client;
+  private S3Client $client;
 
   /**
    * Module configuration.
@@ -25,7 +25,7 @@ class DynamoDbClientFactory extends AwsClientFactoryBase {
   private ImmutableConfig $configuration;
 
   /**
-   * Creates a new DynamoDB client factory.
+   * Creates a new S3 client factory.
    *
    * @param \Drupal\Core\Config\ConfigFactoryInterface $configFactory
    *   Configuration factory.
@@ -35,7 +35,7 @@ class DynamoDbClientFactory extends AwsClientFactoryBase {
   }
 
   /**
-   * Gets an AWS DynamoDB client.
+   * Gets an AWS S3 client.
    *
    * May create a new instance, or re-use an existing instance. When a new
    * instance is created, note that if the "aws_credentials_file_path" setting
@@ -49,9 +49,9 @@ class DynamoDbClientFactory extends AwsClientFactoryBase {
    *   missing credentials file.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if a new client instance is needed, and the module's
-   *   "jobs_db_aws_region" configuration setting is missing or empty.
+   *   "audio_s3_aws_region" configuration setting is missing or empty.
    */
-  public function getClient() : DynamoDbClient {
+  public function getClient() : S3Client {
     if (!isset($this->client)) {
       $this->createClient();
       assert(isset($this->client));
@@ -124,7 +124,7 @@ class DynamoDbClientFactory extends AwsClientFactoryBase {
    *   missing credentials file.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if a new client instance is needed, and the module's
-   *   "jobs_db_aws_region" configuration setting is missing or empty.
+   *   "audio_s3_aws_region" configuration setting is missing or empty.
    */
   private function createClient() : void {
     $credentialsFilePath = trim((string) $this->configuration->get('aws_credentials_file_path'));
@@ -132,20 +132,20 @@ class DynamoDbClientFactory extends AwsClientFactoryBase {
       $credentials = static::getCredentials($credentialsFilePath);
     }
 
-    $region = (string) $this->configuration->get('jobs_db_aws_region');
+    $region = (string) $this->configuration->get('audio_s3_aws_region');
     if ($region === '') {
-      throw new ModuleConfigurationException('The jobs_db_aws_region setting is missing or empty.');
+      throw new ModuleConfigurationException('The audio_s3_aws_region setting is missing or empty.');
     }
 
     if (isset($credentials)) {
-      $this->client = new DynamoDbClient([
+      $this->client = new S3Client([
         'region' => $region,
         'version' => 'latest',
         'credentials' => $credentials,
       ]);
     }
     else {
-      $this->client = new DynamoDbClient([
+      $this->client = new S3Client([
         'region' => $region,
         'version' => 'latest',
       ]);

@@ -6,6 +6,7 @@ namespace Drupal\sermon_audio\Entity;
 
 use Aws\DynamoDb\DynamoDbClient;
 use Aws\DynamoDb\Exception\DynamoDbException;
+use Aws\S3\S3Client;
 use Drupal\Component\Utility\Unicode;
 use Drupal\Core\Entity\ContentEntityBase;
 use Drupal\Core\Entity\EntityStorageInterface;
@@ -22,8 +23,10 @@ use Drupal\sermon_audio\Exception\InvalidInputAudioFileException;
 use Drupal\sermon_audio\Settings;
 use Drupal\sermon_audio\DynamoDbClientFactory;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
+use Drupal\sermon_audio\S3ClientFactory;
 use Ranine\Exception\AggregateException;
 use Ranine\Exception\InvalidOperationException;
+use Ranine\Helper\ParseHelpers;
 use Ranine\Helper\ThrowHelpers;
 use Ranine\Iteration\ExtendableIterable;
 
@@ -188,7 +191,8 @@ class SermonAudio extends ContentEntityBase {
    *   Thrown if the input audio file URI does not have the correct prefix (as
    *   defined in the module settings) or is otherwise invalid.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   *   Thrown if the jobs table name module setting is empty.
+   *   Can be thrown if this module's "aws_credentials_file_path" or
+   *   "jobs_db_aws_region" configuration setting is empty or invalid.
    * @throws \InvalidArgumentException
    *   Thrown if $sermonName, $sermonSpeaker, $sermonYear, $sermonCongregation,
    *   or $outputAudioDisplayFilename is empty.
@@ -423,6 +427,9 @@ class SermonAudio extends ContentEntityBase {
    * @throws \Aws\DynamoDb\Exception\DynamoDbException
    *   Thrown if an error occurs when attempting to interface with the AWS audio
    *   processing jobs database.
+   * @throws \Aws\S3\Exception\S3Exception
+   *   Thrown if an error occurs when attempting to make/receive a HEAD request
+   *   for a new processed audio file.
    * @throws \Drupal\Core\Entity\EntityStorageException
    *   Thrown if an error occurs when trying to save a new file entity.
    * @throws \Drupal\sermon_audio\Exception\EntityValidationException
@@ -430,10 +437,20 @@ class SermonAudio extends ContentEntityBase {
    * @throws \Drupal\sermon_audio\Exception\InvalidInputAudioFileException
    *   Thrown if the input audio file URI does not have the correct prefix (as
    *   defined in the module settings) or is otherwise invalid.
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
+   *   Can be thrown if this module's "aws_credentials_file_path",
+   *   "jobs_db_aws_region", or "audio_s3_aws_region" configuration setting is
+   *   empty or invalid.
+   * @throws \Ranine\Exception\ParseException
+   *   Thrown if the file size of the processsed audio file could not be parsed.
    * @throws \RuntimeException
    *   Thrown if something is wrong with the DynamoDB record returned.
    * @throws \RuntimeException
    *   Thrown if a referenced file entity does not exist.
+   * @throws \RuntimeException
+   *   Thrown if a new processed audio file referenced by a returned DynamoDB
+   *   record did not exist when a HEAD query was made for it, or if the HEAD
+   *   query response is invalid in some way.
    */
   public function refreshProcessedAudio() : bool {
     $unprocessedAudio = $this->getUnprocessedAudio() ?? throw static::getUnprocessedAudioFieldException();
@@ -512,6 +529,19 @@ class SermonAudio extends ContentEntityBase {
       return FALSE;
     }
 
+    // Get the size of the new processed audio file (the stream wrapper the
+    // module consumer is using may not handle this; see, e.g., the s3fs
+    // module). We do this by making a HEAD request for the file.
+    $s3Client = static::getS3Client();
+    $result = $s3Client->headObject(['Bucket' => static::getAudioBucket(), 'Key' => static::getS3ProcessedAudioKeyPrefix() . $outputSubKey]);
+    if (!isset($result['ContentLength'])) {
+      throw new \RuntimeException('Could not retrieve file size for processed audio file.');
+    }
+    $fileSize = ParseHelpers::parseInt($result['ContentLength']);
+    if ($fileSize < 0) {
+      throw new \RuntimeException('Invalid file size for processed audio file.');
+    }
+
     // Create the new processed audio file entity, setting its owner to the
     // owner of the unprocessed audio file.
     $owner = $unprocessedAudio->getOwnerId();
@@ -519,6 +549,7 @@ class SermonAudio extends ContentEntityBase {
       'uri' => $processedAudioUri,
       'uid' => $owner,
       'filename' => $outputDisplayFilename,
+      'filesize' => $fileSize,
       'filemime' => 'audio/mp4',
       'status' => TRUE,
     ])->enforceIsNew();
@@ -646,6 +677,23 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
+   * Gets the S3 bucket for processed and unprocessed audio.
+   *
+   * @return string
+   *   Non-empty bucket name.
+   *
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
+   *   Thrown if the bucket name module setting is empty.
+   */
+  private static function getAudioBucket() : string {
+    $bucketName = Settings::getAudioBucketName();
+    if ($bucketName === '') {
+      throw new ModuleConfigurationException('The audio bucket name module setting is empty.');
+    }
+    return $bucketName;
+  }
+
+  /**
    * Gets a DynamoDB client.
    */
   private static function getDynamoDbClient() : DynamoDbClient {
@@ -701,6 +749,32 @@ class SermonAudio extends ContentEntityBase {
       // Include a random hexadecimal sequence for uniqueness.
       . bin2hex(random_bytes(8)) . '/'
       . $outputDisplayFilename;
+  }
+
+  /**
+   * Gets an S3 client.
+   */
+  private static function getS3Client() : S3Client {
+    $dynamoDbClientFactory = \Drupal::service('sermon_audio.s3_client_factory');
+    assert($dynamoDbClientFactory instanceof S3ClientFactory);
+    return $dynamoDbClientFactory->getClient();
+  }
+
+  /**
+   * Gets the S3 key prefix for processed audio.
+   *
+   * @return string
+   *   Non-empty key prefix.
+   *
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
+   *   Thrown if the processed audio key prefix module setting is empty.
+   */
+  private static function getS3ProcessedAudioKeyPrefix() : string {
+    $prefix = Settings::getProcessedAudioKeyPrefix();
+    if ($prefix === '') {
+      throw new ModuleConfigurationException('The processed audio key prefix module setting is empty.');
+    }
+    return $prefix;
   }
 
   /**
