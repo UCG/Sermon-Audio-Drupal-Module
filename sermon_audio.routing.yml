@@ -1,0 +1,7 @@
+sermon_audio.settings:
+  path: /admin/config/media/sermon-audio
+  defaults:
+    _form: \Drupal\sermon_audio\Form\SettingsForm
+    _title: Sermon Audio Settings
+  requirements:
+    _permission: administer sermon audio module

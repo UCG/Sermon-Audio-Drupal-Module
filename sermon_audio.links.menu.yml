@@ -1,0 +1,5 @@
+sermon_audio.settings:
+  title: Sermon Audio
+  description: 'Configure the Sermon Audio module.'
+  route_name: sermon_audio.settings
+  parent: system.admin_config_media

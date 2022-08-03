@@ -2,3 +2,4 @@ name: Sermon Audio
 type: module
 description: 'Provides an entity for storing unprocessed and processed sermon audio, and for initiating the processing of such unprocessed audio.'
 core_version_requirement: ^9.3
+configure: sermon_audio.settings
