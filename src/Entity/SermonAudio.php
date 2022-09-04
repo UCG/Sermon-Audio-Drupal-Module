@@ -19,6 +19,7 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\file\FileInterface;
 use Drupal\file\FileStorageInterface;
 use Drupal\file\FileUsage\FileUsageInterface;
+use Drupal\s3fs\StreamWrapper\S3fsStream;
 use Drupal\sermon_audio\Exception\EntityValidationException;
 use Drupal\sermon_audio\Exception\InvalidInputAudioFileException;
 use Drupal\sermon_audio\Settings;
@@ -463,6 +464,10 @@ class SermonAudio extends ContentEntityBase {
    *   Thrown if a new processed audio file referenced by a returned DynamoDB
    *   record did not exist when a HEAD query was made for it, or if the HEAD
    *   query response is invalid in some way.
+   * @throws \RuntimeException
+   *   Thrown if the "s3fs" module was enabled, but a class from that module is
+   *   missing or a service from that module is missing or of the incorrect
+   *   type.
    */
   public function refreshProcessedAudio() : bool {
     if (static::getModuleSettings()->get('debug_mode')) {
@@ -551,31 +556,54 @@ class SermonAudio extends ContentEntityBase {
       if ($processedAudio !== NULL && $processedAudio->getFileUri() === $processedAudioUri) {
         return FALSE;
       }
-  
-      // Get the size of the new processed audio file (the stream wrapper the
-      // module consumer is using may not handle this; see, e.g., the s3fs
-      // module). We do this by making a HEAD request for the file.
-      $s3Client = static::getS3Client();
-      $result = $s3Client->headObject(['Bucket' => static::getAudioBucket(), 'Key' => static::getS3ProcessedAudioKeyPrefix() . $outputSubKey]);
-      if (!isset($result['ContentLength'])) {
-        throw new \RuntimeException('Could not retrieve file size for processed audio file.');
+
+      // If the s3fs module is enabled, we will go ahead and cache metadata for
+      // the processed audio file. This will also allow the file size to be
+      // automatically set when the processed audio file entity is created.
+      // Otherwise, we'll have to grab the file size separately.
+      if (\Drupal::moduleHandler()->isLoaded('s3fs')) {
+        $s3fsStreamWrapper = \Drupal::service('stream_wrapper.s3fs');
+        if (!class_exists('Drupal\\s3fs\\StreamWrapper\\S3fsStream')) {
+          throw new \RuntimeException('The "s3fs" module was enabled, but the \\Drupal\\s3fs\\StreamWrapper\\S3fsStream class does not exist.');
+        }
+        if(!($s3fsStreamWrapper instanceof S3fsStream)) {
+          throw new \RuntimeException('The "s3fs" module was enabled, but the "stream_wrapper.s3fs" is not of the expected type.');
+        }
+        $s3fsStreamWrapper->writeUriToCache($processedAudioUri);
       }
-      $fileSize = ParseHelpers::parseInt($result['ContentLength']);
-      if ($fileSize < 0) {
-        throw new \RuntimeException('Invalid file size for processed audio file.');
+      else {
+        // Get the size of the new processed audio file. We do this by making a
+        // HEAD request for the file.
+        $s3Client = static::getS3Client();
+        $result = $s3Client->headObject(['Bucket' => static::getAudioBucket(), 'Key' => static::getS3ProcessedAudioKeyPrefix() . $outputSubKey]);
+        if (!isset($result['ContentLength'])) {
+          throw new \RuntimeException('Could not retrieve file size for processed audio file.');
+        }
+        $fileSize = ParseHelpers::parseInt($result['ContentLength']);
+        if ($fileSize < 0) {
+          throw new \RuntimeException('Invalid file size for processed audio file.');
+        }
       }
   
       // Create the new processed audio file entity, setting its owner to the
       // owner of the unprocessed audio file.
       $owner = $unprocessedAudio->getOwnerId();
-      $newProcessedAudio = static::getFileStorage()->create([
+      $newProcessedAudioFieldInitValues = [
         'uri' => $processedAudioUri,
         'uid' => $owner,
         'filename' => $outputDisplayFilename,
-        'filesize' => $fileSize,
         'filemime' => 'audio/mp4',
         'status' => TRUE,
-      ])->enforceIsNew();
+      ];
+      if (isset($fileSize)) {
+        // If the file size was captured above, set it. Otherwise, it should be
+        // automatically set when the entity creation/save process is executed
+        // below.
+        $newProcessedAudioFieldInitValues['filesize'] = $fileSize;
+      }
+      $newProcessedAudio = static::getFileStorage()
+        ->create($newProcessedAudioFieldInitValues)
+        ->enforceIsNew();
       $newProcessedAudio->save();
       $newProcessedAudioId = $newProcessedAudio->id();
     }
