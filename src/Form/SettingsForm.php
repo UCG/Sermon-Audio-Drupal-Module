@@ -85,6 +85,18 @@ class SettingsForm extends ConfigFormBase {
       '#description' => $this->t('The prefix, including any trailing slash, for processed sermon audio S3 keys.'),
       '#required' => TRUE,
     ];
+    $form['debug_mode'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Debug Mode'),
+      '#default_value' => (bool) $configuration->get('debug_mode'),
+      '#description' => $this->t(<<<'EOS'
+Whether to enable "debug mode": when enabled, the processed audio field will
+simply be made the same as the unprocessed audio field when
+\\Drupal\\sermon_audio\\Entity\\SermonAudio::refreshProcessedAudio() is called.
+No actual audio processing or AWS API calls take place if this mode is enabled.
+EOS
+      ),
+    ];
 
     return parent::buildForm($form, $form_state);
   }
@@ -117,6 +129,7 @@ class SettingsForm extends ConfigFormBase {
     $configuration->set('unprocessed_audio_uri_prefix', (string) $form_state->getValue('unprocessed_audio_uri_prefix'));
     $configuration->set('processed_audio_uri_prefix', (string) $form_state->getValue('processed_audio_uri_prefix'));
     $configuration->set('processed_audio_key_prefix', (string) $form_state->getValue('processed_audio_key_prefix'));
+    $configuration->set('debug_mode', (bool) $form_state->getValue('debug_mode'));
 
     $configuration->save();
     parent::submitForm($form, $form_state);

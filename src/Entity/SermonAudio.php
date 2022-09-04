@@ -8,6 +8,7 @@ use Aws\DynamoDb\DynamoDbClient;
 use Aws\DynamoDb\Exception\DynamoDbException;
 use Aws\S3\S3Client;
 use Drupal\Component\Utility\Unicode;
+use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\Entity\ContentEntityBase;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeInterface;
@@ -410,10 +411,15 @@ class SermonAudio extends ContentEntityBase {
   /**
    * Attempts to correctly set the processed audio field.
    *
-   * The processed audio field is set to point to the audio file, indicated by
-   * the AWS DynamoDB database, that corresponds to the unprocessed audio field.
-   * Nothing is changed if the URI computed from the DynamoDB query response is
-   * the same as that currently associated with the processed audio field.
+   * If the "debug_mode" module setting is active, then, if the processed audio
+   * field is not already set to the unprocessed audio field value, it is thus
+   * set, and the duration field set to zero.
+   *
+   * Otherwise, the processed audio field is set to point to the audio file,
+   * indicated by the AWS DynamoDB database, that corresponds to the unprocessed
+   * audio field. Nothing is changed if the URI computed from the DynamoDB query
+   * response is the same as that currently associated with the processed audio
+   * field.
    * 
    * Note that this method performs its function even if the current processed
    * audio field value is non-NULL, and even if processing_initiated is not
@@ -453,107 +459,122 @@ class SermonAudio extends ContentEntityBase {
    *   query response is invalid in some way.
    */
   public function refreshProcessedAudio() : bool {
-    $unprocessedAudio = $this->getUnprocessedAudio() ?? throw static::getUnprocessedAudioFieldException();
-    $inputSubKey = static::getUnprocessedAudioSubKey($unprocessedAudio);
-
-    $dynamoDb = static::getDynamoDbClient();
-    $jobsTableName = static::getJobsTableName();
-    $dbResponse = $dynamoDb->getItem([
-      'Key' => [
-        'input-sub-key' => ['S' => $inputSubKey],
-      ],
-      'ExpressionAttributeNames' => [
-        '#js' => 'job-status',
-        '#osk' => 'output-sub-key',
-        '#odf' => 'output-display-filename',
-        '#d' => 'audio-duration',
-      ],
-      // Grab the output display filename also, because we use it as the file
-      // entity's filename.
-      'ProjectionExpression' => '#js, #osk, #d, #odf',
-      'TableName' => $jobsTableName,
-    ]);
-    if (isset($dbResponse['Item'])) {
-      $item = $dbResponse['Item'];
-      if (!is_array($item)) {
-        throw new \RuntimeException('Jobs DB response "Item" property is of the wrong type.');
-      }
-      if (!isset($item['job-status']['N'])) {
-        throw new \RuntimeException('Jobs DB item found does not contain valid "job-status" attribute.');
-      }
-      if (((int) $item['job-status']['N']) !== 2) {
-        // The job has not finished.
+    if (static::getModuleSettings()->get('debug_mode')) {
+      $unprocessedAudioId = $this->getUnprocessedAudioId() ?? throw static::getUnprocessedAudioFieldException();
+      if ($this->getProcessedAudioId() === $unprocessedAudioId) {
         return FALSE;
       }
-
-      if (!isset($item['output-sub-key']['S'])) {
-        throw new \RuntimeException('Jobs DB item found does not contain valid "output-sub-key" attribute.');
-      }
-      $outputSubKey = (string) $item['output-sub-key']['S'];
-      if ($outputSubKey === '') {
-        throw new \RuntimeException('The output sub-key found seems to be empty.');
-      }
-
-      if (!isset($item['output-display-filename']['S'])) {
-        throw new \RuntimeException('Jobs DB item found does not contain valid "output-display-filename" attribute.');
-      }
-      $outputDisplayFilename = (string) $item['output-display-filename']['S'];
-      if ($outputDisplayFilename === '') {
-        throw new \RuntimeException('The output display filename found seemed to be empty.');
-      }
-
-      if (!isset($item['audio-duration']['N'])) {
-        throw new \RuntimeException('Jobs DB items found does not contain valid "audio-duration" attribute.');
-      }
-      $audioDuration = (float) $item['audio-duration']['N'];
-      if (!is_finite($audioDuration) || $audioDuration < 0) {
-        throw new \RuntimeException('The audio duration was not finite or was negative.');
+      else {
+        $newProcessedAudioId = $unprocessedAudioId;
+        $audioDuration = 0;
       }
     }
-    // Otherwise, there is no job with the given input sub-key.
-    else return FALSE;
-
-    assert(isset($outputSubKey));
+    else {
+      $unprocessedAudio = $this->getUnprocessedAudio() ?? throw static::getUnprocessedAudioFieldException();
+      $inputSubKey = static::getUnprocessedAudioSubKey($unprocessedAudio);
+  
+      $dynamoDb = static::getDynamoDbClient();
+      $jobsTableName = static::getJobsTableName();
+      $dbResponse = $dynamoDb->getItem([
+        'Key' => [
+          'input-sub-key' => ['S' => $inputSubKey],
+        ],
+        'ExpressionAttributeNames' => [
+          '#js' => 'job-status',
+          '#osk' => 'output-sub-key',
+          '#odf' => 'output-display-filename',
+          '#d' => 'audio-duration',
+        ],
+        // Grab the output display filename also, because we use it as the file
+        // entity's filename.
+        'ProjectionExpression' => '#js, #osk, #d, #odf',
+        'TableName' => $jobsTableName,
+      ]);
+      if (isset($dbResponse['Item'])) {
+        $item = $dbResponse['Item'];
+        if (!is_array($item)) {
+          throw new \RuntimeException('Jobs DB response "Item" property is of the wrong type.');
+        }
+        if (!isset($item['job-status']['N'])) {
+          throw new \RuntimeException('Jobs DB item found does not contain valid "job-status" attribute.');
+        }
+        if (((int) $item['job-status']['N']) !== 2) {
+          // The job has not finished.
+          return FALSE;
+        }
+  
+        if (!isset($item['output-sub-key']['S'])) {
+          throw new \RuntimeException('Jobs DB item found does not contain valid "output-sub-key" attribute.');
+        }
+        $outputSubKey = (string) $item['output-sub-key']['S'];
+        if ($outputSubKey === '') {
+          throw new \RuntimeException('The output sub-key found seems to be empty.');
+        }
+  
+        if (!isset($item['output-display-filename']['S'])) {
+          throw new \RuntimeException('Jobs DB item found does not contain valid "output-display-filename" attribute.');
+        }
+        $outputDisplayFilename = (string) $item['output-display-filename']['S'];
+        if ($outputDisplayFilename === '') {
+          throw new \RuntimeException('The output display filename found seemed to be empty.');
+        }
+  
+        if (!isset($item['audio-duration']['N'])) {
+          throw new \RuntimeException('Jobs DB items found does not contain valid "audio-duration" attribute.');
+        }
+        $audioDuration = (float) $item['audio-duration']['N'];
+        if (!is_finite($audioDuration) || $audioDuration < 0) {
+          throw new \RuntimeException('The audio duration was not finite or was negative.');
+        }
+      }
+      // Otherwise, there is no job with the given input sub-key.
+      else return FALSE;
+  
+      assert(isset($outputSubKey));
+      assert(isset($audioDuration));
+      assert(isset($outputDisplayFilename));
+      assert($outputSubKey != "");
+      assert($outputDisplayFilename != "");
+      assert(is_finite($audioDuration) && $audioDuration >= 0);
+  
+      $processedAudioUri = Settings::getProcessedAudioUriPrefix() . $outputSubKey;
+  
+      // Before creating a new file entity, check to see if the current processed
+      // audio entity already references the correct URI.
+      $processedAudio = $this->getProcessedAudio();
+      if ($processedAudio !== NULL && $processedAudio->getFileUri() === $processedAudioUri) {
+        return FALSE;
+      }
+  
+      // Get the size of the new processed audio file (the stream wrapper the
+      // module consumer is using may not handle this; see, e.g., the s3fs
+      // module). We do this by making a HEAD request for the file.
+      $s3Client = static::getS3Client();
+      $result = $s3Client->headObject(['Bucket' => static::getAudioBucket(), 'Key' => static::getS3ProcessedAudioKeyPrefix() . $outputSubKey]);
+      if (!isset($result['ContentLength'])) {
+        throw new \RuntimeException('Could not retrieve file size for processed audio file.');
+      }
+      $fileSize = ParseHelpers::parseInt($result['ContentLength']);
+      if ($fileSize < 0) {
+        throw new \RuntimeException('Invalid file size for processed audio file.');
+      }
+  
+      // Create the new processed audio file entity, setting its owner to the
+      // owner of the unprocessed audio file.
+      $owner = $unprocessedAudio->getOwnerId();
+      $newProcessedAudio = static::getFileStorage()->create([
+        'uri' => $processedAudioUri,
+        'uid' => $owner,
+        'filename' => $outputDisplayFilename,
+        'filesize' => $fileSize,
+        'filemime' => 'audio/mp4',
+        'status' => TRUE,
+      ])->enforceIsNew();
+      $newProcessedAudio->save();
+      $newProcessedAudioId = $newProcessedAudio->id();
+    }
+    assert(isset($newProcessedAudioId));
     assert(isset($audioDuration));
-    assert(isset($outputDisplayFilename));
-    assert($outputSubKey != "");
-    assert($outputDisplayFilename != "");
-    assert(is_finite($audioDuration) && $audioDuration >= 0);
-
-    $processedAudioUri = Settings::getProcessedAudioUriPrefix() . $outputSubKey;
-
-    // Before creating a new file entity, check to see if the current processed
-    // audio entity already references the correct URI.
-    $processedAudio = $this->getProcessedAudio();
-    if ($processedAudio !== NULL && $processedAudio->getFileUri() === $processedAudioUri) {
-      return FALSE;
-    }
-
-    // Get the size of the new processed audio file (the stream wrapper the
-    // module consumer is using may not handle this; see, e.g., the s3fs
-    // module). We do this by making a HEAD request for the file.
-    $s3Client = static::getS3Client();
-    $result = $s3Client->headObject(['Bucket' => static::getAudioBucket(), 'Key' => static::getS3ProcessedAudioKeyPrefix() . $outputSubKey]);
-    if (!isset($result['ContentLength'])) {
-      throw new \RuntimeException('Could not retrieve file size for processed audio file.');
-    }
-    $fileSize = ParseHelpers::parseInt($result['ContentLength']);
-    if ($fileSize < 0) {
-      throw new \RuntimeException('Invalid file size for processed audio file.');
-    }
-
-    // Create the new processed audio file entity, setting its owner to the
-    // owner of the unprocessed audio file.
-    $owner = $unprocessedAudio->getOwnerId();
-    $newProcessedAudio = static::getFileStorage()->create([
-      'uri' => $processedAudioUri,
-      'uid' => $owner,
-      'filename' => $outputDisplayFilename,
-      'filesize' => $fileSize,
-      'filemime' => 'audio/mp4',
-      'status' => TRUE,
-    ])->enforceIsNew();
-    $newProcessedAudio->save();
 
     $processedAudioField = $this->get('processed_audio');
     // Get the first item, or create it if necessary.
@@ -724,6 +745,13 @@ class SermonAudio extends ContentEntityBase {
       throw new ModuleConfigurationException('The jobs table name module setting is empty.');
     }
     return $tableName;
+  }
+
+  /**
+   * Gets this module's settings.
+   */
+  private static function getModuleSettings() : ImmutableConfig {
+    return \Drupal::config('sermon_audio.settings');
   }
 
   /**

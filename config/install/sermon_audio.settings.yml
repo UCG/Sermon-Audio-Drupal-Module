@@ -6,3 +6,4 @@ audio_bucket_name: audio-processing-test
 unprocessed_audio_uri_prefix: 's3://audio-uploads/'
 processed_audio_uri_prefix: 's3://processed-audio/'
 processed_audio_key_prefix: 'processed-audio/'
+debug_mode: FALSE
