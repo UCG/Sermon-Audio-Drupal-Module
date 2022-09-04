@@ -584,7 +584,7 @@ class SermonAudio extends ContentEntityBase {
           throw new \RuntimeException('Invalid file size for processed audio file.');
         }
       }
-  
+
       // Create the new processed audio file entity, setting its owner to the
       // owner of the unprocessed audio file.
       $owner = $unprocessedAudio->getOwnerId();
