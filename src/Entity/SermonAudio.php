@@ -166,7 +166,8 @@ class SermonAudio extends ContentEntityBase {
    *
    * Clears the "processed audio" and "duration" fields if they are set, and
    * sets the "processing intiated" field. If changes were made, this entity is
-   * saved.
+   * saved. Note that if the "debug_mode" module setting is set, no actual
+   * processing job is initiated.
    *
    * @param string $sermonName
    *   Sermon name to attach to processed audio.
@@ -250,6 +251,11 @@ class SermonAudio extends ContentEntityBase {
 
     if ($didChangeEntity) {
       $this->save();
+    }
+
+    // Don't actually start an audio processing job if we're in "debug mode."
+    if (static::getModuleSettings()->get('debug_mode')) {
+      return;
     }
 
     // We start a new job if one of the following conditions is met. Otherwise,
@@ -586,7 +592,7 @@ class SermonAudio extends ContentEntityBase {
     // Reset the item to its default value.
     $processedAudioItem->applyDefaultValue();
     // Finally, set the target entity ID.
-    $processedAudioItem->set('target_id', $newProcessedAudio->id());
+    $processedAudioItem->set('target_id', $newProcessedAudioId);
 
     // Set the audio duration.
     $durationField = $this->get('duration');

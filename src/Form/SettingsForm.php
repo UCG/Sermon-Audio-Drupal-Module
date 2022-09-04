@@ -92,7 +92,7 @@ class SettingsForm extends ConfigFormBase {
       '#description' => $this->t(<<<'EOS'
 Whether to enable "debug mode": when enabled, the processed audio field will
 simply be made the same as the unprocessed audio field when
-\\Drupal\\sermon_audio\\Entity\\SermonAudio::refreshProcessedAudio() is called.
+\Drupal\sermon_audio\Entity\SermonAudio::refreshProcessedAudio() is called.
 No actual audio processing or AWS API calls take place if this mode is enabled.
 EOS
       ),
