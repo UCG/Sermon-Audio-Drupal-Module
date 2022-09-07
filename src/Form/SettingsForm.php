@@ -75,7 +75,7 @@ class SettingsForm extends ConfigFormBase {
       '#type' => 'textfield',
       '#title' => $this->t('Processed Audio File URI Prefix'),
       '#default_value' => (string) $configuration->get('processed_audio_uri_prefix'),
-      '#description' => $this->t('The prefix, including the schema, for processed sermon audio files.'),
+      '#description' => $this->t('The prefix, including the schema, for processed sermon audio files. This is ignored in debug mode.'),
       '#required' => TRUE,
     ];
     $form['processed_audio_key_prefix'] = [
@@ -94,6 +94,9 @@ Whether to enable "debug mode": when enabled, the processed audio field will
 simply be made the same as the unprocessed audio field when
 \Drupal\sermon_audio\Entity\SermonAudio::refreshProcessedAudio() is called.
 No actual audio processing or AWS API calls take place if this mode is enabled.
+If you use this mode with the idea of not having to access S3, you will want to
+set the unprocessed audio URI prefix to the non-S3 location you use for
+debugging.
 EOS
       ),
     ];
