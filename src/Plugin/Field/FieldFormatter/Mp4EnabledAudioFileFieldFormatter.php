@@ -6,7 +6,6 @@ namespace Drupal\sermon_audio\Plugin\Field\FieldFormatter;
 
 use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Field\FieldItemListInterface;
-use Drupal\Core\Template\Attribute;
 use Drupal\file\Plugin\Field\FieldFormatter\FileMediaFormatterBase;
 use Ranine\Iteration\ExtendableIterable;
 
