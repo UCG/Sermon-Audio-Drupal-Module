@@ -22,10 +22,10 @@ sermon_audio.settings:
       label: 'Prefix, including scheme, for unprocessed audio file URIs'
     processed_audio_uri_prefix:
       type: string
-      label: 'Prefix, including scheme, for processed audio file URIs. This is ignored in debug mode.'
+      label: 'Prefix, including scheme, for newly processed audio file URIs. This is ignored in debug mode.'
     processed_audio_key_prefix:
       type: string
-      label: 'Prefix for S3 processed audio keys'
+      label: 'S3 prefix newly processed audio keys'
     debug_mode:
       type: boolean
       label: >-
