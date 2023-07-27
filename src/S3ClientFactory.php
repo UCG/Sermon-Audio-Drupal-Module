@@ -66,7 +66,7 @@ class S3ClientFactory extends AwsClientFactoryBase {
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    */
-  protected static function throwCredsFileInvalidJsonException() : never {
+  protected static function throwCredsFileInvalidJsonException(): void {
     throw new ModuleConfigurationException('File contents at aws_credentials_file_path was not valid JSON.');
   }
 
@@ -75,7 +75,7 @@ class S3ClientFactory extends AwsClientFactoryBase {
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    */
-  protected static function throwFailedToReadCredsFileException() : never {
+  protected static function throwFailedToReadCredsFileException(): void {
     throw new ModuleConfigurationException('Failed to read from credentials file specified by aws_credentials_file_path.');
   }
 
@@ -84,7 +84,7 @@ class S3ClientFactory extends AwsClientFactoryBase {
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    */
-  protected static function throwInvalidAccessKeyException() : never {
+  protected static function throwInvalidAccessKeyException(): void {
     throw new ModuleConfigurationException('Invalid or empty "access-key" setting in aws_credentials_file_path file.');
   }
 
@@ -93,7 +93,7 @@ class S3ClientFactory extends AwsClientFactoryBase {
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    */
-  protected static function throwInvalidSecretKeyException() : never {
+  protected static function throwInvalidSecretKeyException(): void {
     throw new ModuleConfigurationException('Invalid or empty "secret-key" setting in aws_credentials_file_path file.');
   }
 
@@ -102,7 +102,7 @@ class S3ClientFactory extends AwsClientFactoryBase {
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    */
-  protected static function throwMissingAccessKeyException() : never {
+  protected static function throwMissingAccessKeyException(): void {
     throw new ModuleConfigurationException('Missing "access-key" setting in aws_credentials_file_path file.');
   }
 
@@ -111,7 +111,7 @@ class S3ClientFactory extends AwsClientFactoryBase {
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    */
-  protected static function throwMissingSecretKeyException() : never {
+  protected static function throwMissingSecretKeyException(): void {
     throw new ModuleConfigurationException('Missing "secret-key" setting in aws_credentials_file_path file.');
   }
 

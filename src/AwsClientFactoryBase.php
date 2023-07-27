@@ -60,41 +60,41 @@ abstract class AwsClientFactoryBase {
    *
    * @throws \Exception
    */
-  protected static abstract function throwCredsFileInvalidJsonException() : never;
+  protected static abstract function throwCredsFileInvalidJsonException(): void;
 
   /**
    * Throws an exception for when the credentials JSON file cannot be read.
    *
    * @throws \Exception
    */
-  protected static abstract function throwFailedToReadCredsFileException() : never;
+  protected static abstract function throwFailedToReadCredsFileException(): void;
 
   /**
    * Throws an exception for when the access key is invalid or empty.
    *
    * @throws \Exception
    */
-  protected static abstract function throwInvalidAccessKeyException() : never;
+  protected static abstract function throwInvalidAccessKeyException(): void;
 
   /**
    * Throws an exception for when the secret key is invalid or empty.
    *
    * @throws \Exception
    */
-  protected static abstract function throwInvalidSecretKeyException() : never;
+  protected static abstract function throwInvalidSecretKeyException(): void;
 
   /**
    * Throws an exception for when the access key is missing in the JSON file.
    *
    * @throws \Exception
    */
-  protected static abstract function throwMissingAccessKeyException() : never;
+  protected static abstract function throwMissingAccessKeyException(): void;
 
   /**
    * Throws an exception for when the secret key is missing in the JSON file
    *
    * @throws \Exception
    */
-  protected static abstract function throwMissingSecretKeyException() : never;
+  protected static abstract function throwMissingSecretKeyException(): void;
 
 }

@@ -11,6 +11,6 @@
   "require": {
     "aws/aws-sdk-php": "^3.2",
     "ucg/ranine": "~1.0",
-    "php": "~8.1"
+    "php": "^8.0"
   }
 }
