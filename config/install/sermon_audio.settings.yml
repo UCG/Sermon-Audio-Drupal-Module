@@ -2,8 +2,8 @@ aws_credentials_file_path: ''
 audio_s3_aws_region: us-east-1
 jobs_db_aws_region: us-east-1
 jobs_table_name: audio-processing-jobs
-audio_bucket_name: audio-processing-test
-unprocessed_audio_uri_prefix: 's3://audio-uploads/'
-processed_audio_uri_prefix: 's3://processed-audio/'
-processed_audio_key_prefix: 'processed-audio/'
+audio_bucket_name: sermon-audio
+unprocessed_audio_uri_prefix: 's3://sermons/unprocessed/'
+processed_audio_uri_prefix: 's3://sermons/processed/'
+processed_audio_key_prefix: 'sermons/processed/'
 debug_mode: FALSE
