@@ -62,7 +62,8 @@ use Ranine\Iteration\ExtendableIterable;
  *     "access" = "Drupal\sermon_audio\SermonAudioAccessControlHandler",
  *   },
  *   constraints = {
- *     "ProcessedAudioAndDurationMatchingNullity" = {}
+ *     "SermonProcessedAudioAndDurationMatchingNullity" = {},
+ *     "SermonAudioRequired" = {},
  *   },
  *   translatable = TRUE,
  *   links = {},
@@ -107,7 +108,7 @@ class SermonAudio extends ContentEntityBase {
    *
    * @throws \RuntimeException
    *   Thrown if there is a reference to a processed audio file, but the entity
-   *   entity was not found.
+   *   was not found.
    */
   public function getProcessedAudio() : ?FileInterface {
     $targetId = $this->getProcessedAudioId();
@@ -159,6 +160,14 @@ class SermonAudio extends ContentEntityBase {
    */
   public function hasProcessedAudio() : bool {
     $item = $this->get('processed_audio')->get(0)?->getValue();
+    return (empty($item) || $item['target_id'] === NULL) ? FALSE : TRUE;
+  }
+
+  /**
+   * Tells whether there exists unprocessed audio associated with this entity.
+   */
+  public function hasUnprocessedAudio() : bool {
+    $item = $this->get('unprocessed_audio')->get(0)?->getValue();
     return (empty($item) || $item['target_id'] === NULL) ? FALSE : TRUE;
   }
 
@@ -664,7 +673,7 @@ class SermonAudio extends ContentEntityBase {
       ->setLabel(new TranslatableMarkup('Processed Audio'))
       ->setDescription(new TranslatableMarkup('Processed audio file.'))
       ->setCardinality(1)
-      ->setRequired(TRUE)
+      ->setRequired(FALSE)
       ->setTranslatable(TRUE)
       ->setSetting('file_extensions', 'mp4');
     // We use an entity reference instead of a file field because 1) we do not
@@ -678,7 +687,7 @@ class SermonAudio extends ContentEntityBase {
       ->setLabel(new TranslatableMarkup('Unprocessed Audio'))
       ->setDescription(new TranslatableMarkup('Unprocessed audio file.'))
       ->setCardinality(1)
-      ->setRequired(TRUE)
+      ->setRequired(FALSE)
       ->setTranslatable(TRUE)
       ->setSetting('target_type', 'file');
 

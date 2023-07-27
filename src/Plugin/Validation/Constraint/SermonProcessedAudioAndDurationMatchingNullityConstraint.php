@@ -12,10 +12,10 @@ use Symfony\Component\Validator\Constraint;
  * These fields can either be both NULL or both not NULL.
  *
  * @Constraint(
- *   id = "ProcessedAudioAndDurationMatchingNullity",
- *   label = @Translation("Processed Audio and Duration Fields Matching Nullity", context = "Validation"),
+ *   id = "SermonProcessedAudioAndDurationMatchingNullity",
+ *   label = @Translation("Sermon Processed Audio and Duration Fields Matching Nullity", context = "Validation"),
  *   type = "entity"
  * )
  */
-class ProcessedAudioAndDurationMatchingNullityConstraint extends Constraint {
+class SermonProcessedAudioAndDurationMatchingNullityConstraint extends Constraint {
 }

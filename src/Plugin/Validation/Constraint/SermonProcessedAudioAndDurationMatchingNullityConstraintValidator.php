@@ -9,9 +9,9 @@ use Symfony\Component\Validator\Constraint;
 use Symfony\Component\Validator\ConstraintValidator;
 
 /**
- * Handles validation for ProcessedAudioAndDurationMatchingNullity constraint.
+ * Validator for SermonProcessedAudioAndDurationMatchingNullity constraint.
  */
-class ProcessedAudioAndDurationMatchingNullityConstraintValidator extends ConstraintValidator {
+class SermonProcessedAudioAndDurationMatchingNullityConstraintValidator extends ConstraintValidator {
 
   /**
    * {@inheritdoc}
