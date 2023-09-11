@@ -310,6 +310,7 @@ class SermonAudio extends ContentEntityBase {
           'sermon-speaker' => ['S' => $sermonSpeaker],
           'sermon-year' => ['S' => $sermonYear],
           'sermon-congregation' => ['S' => $sermonCongregation],
+          'sermon-language' => ['S' => $this->language()->getId()],
           'output-display-filename' => ['S' => $outputAudioDisplayFilename],
         ],
         'TableName' => static::getJobsTableName(),
