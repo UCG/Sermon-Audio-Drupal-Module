@@ -191,6 +191,8 @@ class SermonAudio extends ContentEntityBase {
    *   Display filename to use for processed audio (this is the filename that a
    *   user who downloads the audio file will see) -- this is also used later
    *   as the filename for the processed audio file entity.
+   * @param string $sermonLanguageCode
+   *   Sermon language code.
    *
    * @throws \Aws\DynamoDb\Exception\DynamoDbException
    *   Thrown if an error occurs when attempting to interface with the AWS audio
@@ -207,7 +209,7 @@ class SermonAudio extends ContentEntityBase {
    *   "jobs_db_aws_region" configuration setting is empty or invalid.
    * @throws \InvalidArgumentException
    *   Thrown if $sermonName, $sermonSpeaker, $sermonYear, $sermonCongregation,
-   *   or $outputAudioDisplayFilename is empty.
+   *   $sermonLanguageCode, or $outputAudioDisplayFilename is empty.
    * @throws \Ranine\Exception\AggregateException
    *   Thrown if, after a DynamoDB error occurs, another error occurs in the
    *   process of setting a field value and subsequently saving the entity.
@@ -221,12 +223,14 @@ class SermonAudio extends ContentEntityBase {
     string $sermonSpeaker,
     string $sermonYear,
     string $sermonCongregation,
-    string $outputAudioDisplayFilename) : void {
+    string $outputAudioDisplayFilename,
+    string $sermonLanguageCode) : void {
     ThrowHelpers::throwIfEmptyString($sermonName, 'sermonName');
     ThrowHelpers::throwIfEmptyString($sermonSpeaker, 'sermonSpeaker');
     ThrowHelpers::throwIfEmptyString($sermonYear, 'sermonYear');
     ThrowHelpers::throwIfEmptyString($sermonCongregation, 'sermonCongregation');
     ThrowHelpers::throwIfEmptyString($outputAudioDisplayFilename, 'outputAudioDisplayFilename');
+    ThrowHelpers::throwIfEmptyString($sermonLanguageCode, 'sermonLanguageCode');
 
     $unprocessedAudio = $this->getUnprocessedAudio() ?? throw static::getUnprocessedAudioFieldException();
     $inputSubKey = static::getUnprocessedAudioSubKey($unprocessedAudio);
@@ -310,6 +314,7 @@ class SermonAudio extends ContentEntityBase {
           'sermon-speaker' => ['S' => $sermonSpeaker],
           'sermon-year' => ['S' => $sermonYear],
           'sermon-congregation' => ['S' => $sermonCongregation],
+          'sermon-language' => ['S' => $sermonLanguageCode],
           'output-display-filename' => ['S' => $outputAudioDisplayFilename],
         ],
         'TableName' => static::getJobsTableName(),

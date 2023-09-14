@@ -591,8 +591,8 @@ class SermonAudioWidget extends WidgetBase {
    * Creates/saves a new sermon audio entity from an unprocessed audio file ID.
    *
    * The new entity will have its unprocessed audio file field set in
-   * correspondence with $unprocessedFid, and will have its other fields set to
-   * default values.
+   * correspondence with $unprocessedFid, its language code set to "und", and
+   * its other fields set to default values.
    *
    * @param int $unprocessedFid
    *   Unprocessed file ID.
@@ -607,6 +607,7 @@ class SermonAudioWidget extends WidgetBase {
     $storage = \Drupal::entityTypeManager()->getStorage('sermon_audio');
     $entity = $storage->create([
       'unprocessed_audio' => ['target_id' => $unprocessedFid],
+      'langcode' => 'und',
     ])->enforceIsNew();
     $entity->save();
     return (int) $entity->id();
