@@ -187,10 +187,6 @@ class SermonAudio extends ContentEntityBase {
    *   Sermon year to attach to processed audio.
    * @param string $sermonCongregation
    *   Sermon congregation to attach to processed audio.
-   * @param string $outputAudioDisplayFilename
-   *   Display filename to use for processed audio (this is the filename that a
-   *   user who downloads the audio file will see) -- this is also used later
-   *   as the filename for the processed audio file entity.
    * @param string $sermonLanguageCode
    *   Sermon language code.
    *
@@ -209,7 +205,7 @@ class SermonAudio extends ContentEntityBase {
    *   "jobs_db_aws_region" configuration setting is empty or invalid.
    * @throws \InvalidArgumentException
    *   Thrown if $sermonName, $sermonSpeaker, $sermonYear, $sermonCongregation,
-   *   $sermonLanguageCode, or $outputAudioDisplayFilename is empty.
+   *   or $sermonLanguageCode is empty.
    * @throws \Ranine\Exception\AggregateException
    *   Thrown if, after a DynamoDB error occurs, another error occurs in the
    *   process of setting a field value and subsequently saving the entity.
@@ -218,23 +214,24 @@ class SermonAudio extends ContentEntityBase {
    *   already in the audio processing jobs table.
    * @throws \RuntimeException
    *   Thrown if the unprocessed audio file entity could not be loaded.
+   * @throws \RuntimeException
+   *   Thrown if a regex error occurs.
    */
   public function initiateAudioProcessing(string $sermonName,
     string $sermonSpeaker,
     string $sermonYear,
     string $sermonCongregation,
-    string $outputAudioDisplayFilename,
     string $sermonLanguageCode) : void {
     ThrowHelpers::throwIfEmptyString($sermonName, 'sermonName');
     ThrowHelpers::throwIfEmptyString($sermonSpeaker, 'sermonSpeaker');
     ThrowHelpers::throwIfEmptyString($sermonYear, 'sermonYear');
     ThrowHelpers::throwIfEmptyString($sermonCongregation, 'sermonCongregation');
-    ThrowHelpers::throwIfEmptyString($outputAudioDisplayFilename, 'outputAudioDisplayFilename');
     ThrowHelpers::throwIfEmptyString($sermonLanguageCode, 'sermonLanguageCode');
 
     $unprocessedAudio = $this->getUnprocessedAudio() ?? throw static::getUnprocessedAudioFieldException();
     $inputSubKey = static::getUnprocessedAudioSubKey($unprocessedAudio);
-    $outputSubKey = static::getOutputSubKey($sermonSpeaker, $sermonYear, $outputAudioDisplayFilename);
+    $filename = static::normalizeSubKeyPathSegment($sermonName, $sermonLanguageCode) . '.mp4';
+    $outputSubKey = static::getOutputSubKey($sermonSpeaker, $sermonYear, $filename, $sermonLanguageCode);
 
     // Track changes to the entity, so we don't save it unnecessarily.
     $didChangeEntity = FALSE;
@@ -315,7 +312,7 @@ class SermonAudio extends ContentEntityBase {
           'sermon-year' => ['S' => $sermonYear],
           'sermon-congregation' => ['S' => $sermonCongregation],
           'sermon-language' => ['S' => $sermonLanguageCode],
-          'output-display-filename' => ['S' => $outputAudioDisplayFilename],
+          'output-display-filename' => ['S' => $filename],
         ],
         'TableName' => static::getJobsTableName(),
       ]);
@@ -809,22 +806,28 @@ class SermonAudio extends ContentEntityBase {
    *   Sermon speaker (non-empty).
    * @param string $sermonYear
    *   Sermon year (non-empty).
-   * @param string $outputDisplayFilename
-   *   Output display filename (non-empty).
+   * @param string $outputFilename
+   *   Output filename (normalized and non-empty).
+   * @param string $sermonLanguage
+   *   Sermon language (non-empty).
+   *
+   * @throws \RuntimeException
+   *   Thrown if a regex error occurs.
    */
-  private static function getOutputSubKey(string $sermonSpeaker, string $sermonYear, string $outputDisplayFilename) : string {
+  private static function getOutputSubKey(string $sermonSpeaker, string $sermonYear, string $outputFilename, string $sermonLanguage) : string {
     assert($sermonSpeaker !== '');
     assert($sermonYear !== '');
-    assert($outputDisplayFilename !== '');
+    assert($outputFilename !== '');
+    assert($sermonLanguage !== '');
 
-    $processedSermonYear = str_replace('/', '-', static::replaceUtf8Whitespace(mb_strtolower(Unicode::truncate($sermonYear, 16)), '-'));
-    $processedSermonSpeaker = str_replace('/', '-', static::replaceUtf8Whitespace(mb_strtolower(Unicode::truncate($sermonSpeaker, 128)), '-'));
-    return $processedSermonYear . '/'
-      . $processedSermonSpeaker . '/'
-      . $outputDisplayFilename . '-'
+    $normalizedSermonYear = static::normalizeSubKeyParameter($sermonYear);
+    $normalizedSermonSpeaker = static::normalizeSubKeyParameter($sermonSpeaker);
+    return substr($normalizedSermonYear, 0, 16) . '/'
+      . substr($normalizedSermonSpeaker, 0, 128) . '/'
+      . $outputFilename . '-'
       // Include a random hexadecimal sequence for uniqueness.
       . bin2hex(random_bytes(8)) . '/'
-      . $outputDisplayFilename;
+      . $outputFilename;
   }
 
   /**
@@ -903,19 +906,43 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Replaces each UTF-8 whitespace character in $target with $replacement.
+   * Normalizes a path segment in an output sub-key.
+   *
+   * Converts the segment to ASCII, removes/replaces non-alaphnumeric
+   * characters, and makes everything lowercase.
+   *
+   * @param string $segment
+   * @param string $langcode
+   *   Language code of segment language.
    *
    * @return string
-   *   Resulting string.
+   *   Normalized segment.
    *
    * @throws \RuntimeException
    *   Thrown if a regex error occurs.
    */
-  private static function replaceUtf8Whitespace(string $target, string $replacement = '') : string {
-    if ($target === '') return '';
-    $result = preg_replace('/[\pZ\pC]/u', $replacement, $target);
-    if ($result === NULL) throw new \RuntimeException('A regex error occurred.');
-    return $result;
+  private static function normalizeSubKeyPathSegment(string $segment, string $langcode) : string {
+    // Try to "transliterate" the segment to get an approximate ASCII
+    // representation. It won't be perfect, but that's okay. Use "\" for unknown
+    // characters to ensure these characters don't get merged with whitespace,
+    // etc. in the processing below (and are instead later replaced with "-").
+    $normalizedSegment = \Drupal::transliteration()->transliterate($segment, $langcode, '\\');
+    // Now, merge together sequences of spaces and certain punctuation/special
+    // characters ((space)-_!?.,;"/@~*()'$%), and replace them with empty
+    // strings on the ends of the string, and dashes in the middle.
+    $normalizedSegment = preg_replace([
+      // Beginning of string.
+      '/^(?:[-_!?.,;"\/@~*()\'#$%]|\s)+/',
+      // End.
+      '/(?:[-_!?.,;"\/@~*()\'#$%]|\s)+$/',
+      // Middle.
+      '/(?:[-_!?.,;"\/@~*()\'#$%]|\s)+/',
+    ], ['', '', '-'], $normalizedSegment) ?? throw new \RuntimeException('A regex error occurred.');
+    // Now convert remaining non-alphanumeric characters to "-", and make
+    // everything lowercase.
+    $normalizedSegment = preg_replace('/[^-a-z0-9]/i', '-', $normalizedSegment)
+      ?? throw new \RuntimeException('A regex error occurred.');
+    return strtolower($normalizedSegment);
   }
 
   /**
