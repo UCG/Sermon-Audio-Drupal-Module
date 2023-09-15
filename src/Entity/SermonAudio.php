@@ -820,8 +820,8 @@ class SermonAudio extends ContentEntityBase {
     assert($outputFilename !== '');
     assert($sermonLanguage !== '');
 
-    $normalizedSermonYear = static::normalizeSubKeyPathSegment($sermonYear);
-    $normalizedSermonSpeaker = static::normalizeSubKeyPathSegment($sermonSpeaker);
+    $normalizedSermonYear = static::normalizeSubKeyPathSegment($sermonYear, $sermonLanguage);
+    $normalizedSermonSpeaker = static::normalizeSubKeyPathSegment($sermonSpeaker, $sermonLanguage);
     return substr($normalizedSermonYear, 0, 16) . '/'
       . substr($normalizedSermonSpeaker, 0, 128) . '/'
       . $outputFilename . '-'
