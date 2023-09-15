@@ -230,7 +230,7 @@ class SermonAudio extends ContentEntityBase {
 
     $unprocessedAudio = $this->getUnprocessedAudio() ?? throw static::getUnprocessedAudioFieldException();
     $inputSubKey = static::getUnprocessedAudioSubKey($unprocessedAudio);
-    $filename = static::normalizeSubKeyPathSegment($sermonName, $sermonLanguageCode) . '.mp4';
+    $filename = substr(static::normalizeSubKeyPathSegment($sermonName, $sermonLanguageCode), 0, 128) . '.mp4';
     $outputSubKey = static::getOutputSubKey($sermonSpeaker, $sermonYear, $filename, $sermonLanguageCode);
 
     // Track changes to the entity, so we don't save it unnecessarily.
