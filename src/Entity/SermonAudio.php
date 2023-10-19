@@ -7,7 +7,6 @@ namespace Drupal\sermon_audio\Entity;
 use Aws\DynamoDb\DynamoDbClient;
 use Aws\DynamoDb\Exception\DynamoDbException;
 use Aws\S3\S3Client;
-use Drupal\Component\Utility\Unicode;
 use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\Entity\ContentEntityBase;
 use Drupal\Core\Entity\EntityStorageInterface;
