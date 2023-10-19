@@ -54,17 +54,27 @@ class SermonAudioPlayerFormatter extends EntityReferenceFormatterBase {
       assert($sermonAudio instanceof SermonAudio);
 
       if ($sermonAudio->hasProcessedAudio()) {
-        // Force the use of the MP4 audio file formatter (with no label).
-        $output[$delta] = $sermonAudio->get('processed_audio')->view([
-          'type' => 'mp4_enabled_audio_file',
-          'settings' => [
-            'controls' => (bool) $this->getSetting('controls'),
-            'autoplay' => (bool) $this->getSetting('autoplay'),
-            'loop' => (bool) $this->getSetting('loop'),
-          ],
-          'label' => 'hidden',
-          'weight' => 0,
-        ]);
+        // Pre-load the processed audio entity, if possible, so that it gets
+        // loaded into the cache and we don't get a broken-reference race
+        // condition later (which wouldn't be a big deal, but anyway...).
+        if ($sermonAudio->getProcessedAudio(TRUE) === NULL) {
+          $output[$delta] = [
+            '#theme' => 'sermon_audio_player_broken_processed_audio',
+          ];
+        }
+        else {
+          // Force the use of the MP4 audio file formatter (with no label).
+          $output[$delta] = $sermonAudio->get('processed_audio')->view([
+            'type' => 'mp4_enabled_audio_file',
+            'settings' => [
+              'controls' => (bool) $this->getSetting('controls'),
+              'autoplay' => (bool) $this->getSetting('autoplay'),
+              'loop' => (bool) $this->getSetting('loop'),
+            ],
+            'label' => 'hidden',
+            'weight' => 0,
+          ]);
+        }
       }
       else {
         $wasProcessingInitiated = $sermonAudio->wasAudioProcessingInitiated();
