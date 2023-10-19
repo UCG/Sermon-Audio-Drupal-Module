@@ -104,18 +104,23 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Gets the processed audio file entity, or NULL if it is not set.
+   * Gets the processed audio file entity.
+   *
+   * Returns NULL if processed audio file ID is not set. Also returns NULL if
+   * $ignoreMissingReference is TRUE and the corresponding file entity does not
+   * exist.
    *
    * @throws \RuntimeException
-   *   Thrown if there is a reference to a processed audio file, but the entity
-   *   was not found.
+   *   Thrown if $ignoreMissingReference is FALSE, and there is a reference to a
+   *   processed audio file but the entity was not found.
    */
-  public function getProcessedAudio() : ?FileInterface {
+  public function getProcessedAudio(bool $ignoreMissingReference = FALSE) : ?FileInterface {
     $targetId = $this->getProcessedAudioId();
     if ($targetId === NULL) return NULL;
     $file = $this->getFileStorage()->load($targetId);
     if ($file === NULL) {
-      throw new \RuntimeException('Could not load file entity with ID "' . $targetId . '".');
+      if ($ignoreMissingReference) return NULL;
+      else throw new \RuntimeException('Could not load file entity with ID "' . $targetId . '".');
     }
     return $file;
   }
@@ -130,18 +135,23 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Gets the unprocessed audio file entity, or NULL if it is not set.
+   * Gets the unprocessed audio file entity.
+   *
+   * Returns NULL if unprocessed audio file ID is not set. Also returns NULL if
+   * $ignoreMissingReference is TRUE and the corresponding file entity does not
+   * exist.
    *
    * @throws \RuntimeException
-   *   Thrown if there is a reference to an unprocessed audio file, but the
-   *   entity was not found.
+   *   Thrown if $ignoreMissingReference is FALSE, and there is a reference to
+   *   an unprocessed audio file but the entity was not found.
    */
-  public function getUnprocessedAudio() : ?FileInterface {
+  public function getUnprocessedAudio(bool $ignoreMissingReference = FALSE) : ?FileInterface {
     $targetId = $this->getUnprocessedAudioId();
     if ($targetId === NULL) return NULL;
     $file = $this->getFileStorage()->load($targetId);
     if ($file === NULL) {
-      throw new \RuntimeException('Could not load file entity with ID "' . $targetId . '".');
+      if ($ignoreMissingReference) return NULL;
+      else throw new \RuntimeException('Could not load file entity with ID "' . $targetId . '".');
     }
     return $file;
   }
@@ -156,7 +166,7 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Tells whether there exists processed audio associated with this entity.
+   * Tells if there is a processed audio file ID associated with this entity.
    */
   public function hasProcessedAudio() : bool {
     $item = $this->get('processed_audio')->get(0)?->getValue();
@@ -164,7 +174,7 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Tells whether there exists unprocessed audio associated with this entity.
+   * Tells if there is an unprocessed audio file ID associated with this entity.
    */
   public function hasUnprocessedAudio() : bool {
     $item = $this->get('unprocessed_audio')->get(0)?->getValue();
@@ -726,6 +736,9 @@ class SermonAudio extends ContentEntityBase {
         // entity.
         if ($translation->hasProcessedAudio()) continue;
         if (!$translation->wasAudioProcessingInitiated()) continue;
+        // Don't try to refresh the processed audio if the unprocessed audio
+        // does not exist.
+        if ($translation->getUnprocessedAudio(TRUE) === NULL) continue;
         if ($translation->refreshProcessedAudio()) $requiresSave = TRUE;
       }
 

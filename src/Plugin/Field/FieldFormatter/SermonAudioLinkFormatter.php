@@ -43,13 +43,21 @@ class SermonAudioLinkFormatter extends EntityReferenceFormatterBase {
       assert($sermonAudio instanceof SermonAudio);
 
       if ($sermonAudio->hasProcessedAudio()) {
-        $forcedLinkText = (string) $this->getSetting('download_link_text');
-        if ($forcedLinkText === '') $forcedLinkText = NULL;
-        $output[$delta] = [
-          '#theme' => 'file_link',
-          '#file' => $sermonAudio->getProcessedAudio(),
-          '#description' => $forcedLinkText,
-        ];
+        $processedAudio = $sermonAudio->getProcessedAudio(TRUE);
+        if ($processedAudio === NULL) {
+          $output[$delta] = [
+            '#theme' => 'sermon_audio_link_broken_processed_audio',
+          ];
+        }
+        else {
+          $forcedLinkText = (string) $this->getSetting('download_link_text');
+          if ($forcedLinkText === '') $forcedLinkText = NULL;
+          $output[$delta] = [
+            '#theme' => 'file_link',
+            '#file' => $processedAudio,
+            '#description' => $forcedLinkText,
+          ];
+        }
       }
       else {
         $wasProcessingInitiated = $sermonAudio->wasAudioProcessingInitiated();
