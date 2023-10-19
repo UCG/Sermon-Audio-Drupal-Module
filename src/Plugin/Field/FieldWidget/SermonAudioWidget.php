@@ -136,16 +136,19 @@ class SermonAudioWidget extends WidgetBase {
     else {
       $sermonAudioId = (int) $targetId;
       $sermonAudio = $this->sermonAudioStorage->load($sermonAudioId);
-      assert($sermonAudio instanceof SermonAudio);
-      $hasProcessedAudio = $sermonAudio->hasProcessedAudio();
-      $fid = $hasProcessedAudio ? $sermonAudio->getProcessedAudioId() : $sermonAudio->getUnprocessedAudioId();
-      $defaultValue = [
-        'aid' => $sermonAudioId,
-        // We use the "fids" array to be compatible with the managed_file form
-        // element type.
-        'fids' => [$fid],
-        'processed' => $hasProcessedAudio,
-      ];
+      if ($sermonAudio === NULL) $defaultValue = NULL;
+      else {
+        assert($sermonAudio instanceof SermonAudio);
+        $hasProcessedAudio = $sermonAudio->hasProcessedAudio();
+        $fid = $hasProcessedAudio ? $sermonAudio->getProcessedAudioId() : $sermonAudio->getUnprocessedAudioId();
+        $defaultValue = [
+          'aid' => $sermonAudioId,
+          // We use the "fids" array to be compatible with the managed_file form
+          // element type.
+          'fids' => [$fid],
+          'processed' => $hasProcessedAudio,
+        ];
+      }
     }
 
     $fieldDefinition = $items->getFieldDefinition();
