@@ -34,3 +34,9 @@ sermon_audio.settings:
         \Drupal\sermon_audio\Entity\SermonAudio::refreshProcessedAudio() is
         called. No actual audio processing or AWS API calls take place if this
         mode is enabled.
+    connect_timeout:
+      type: integer
+      label: 'Timeout in seconds when attempting to connect to a server while making AWS calls'
+    dynamodb_timeout:
+      type: integer
+      label: 'Timeout in seconds when making AWS DynamoDB requests (whose responses should return relatively quickly)'

@@ -212,6 +212,9 @@ class SermonAudio extends ContentEntityBase {
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Can be thrown if this module's "aws_credentials_file_path" or
    *   "jobs_db_aws_region" configuration setting is empty or invalid.
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
+   *   Can be thrown if module's "connect_timeout" or "dynamodb_timeout"
+   *   configuration setting is invalid.
    * @throws \InvalidArgumentException
    *   Thrown if $sermonName, $sermonSpeaker, $sermonYear, $sermonCongregation,
    *   or $sermonLanguageCode is empty.
@@ -474,6 +477,9 @@ class SermonAudio extends ContentEntityBase {
    *   Can be thrown if this module's "aws_credentials_file_path",
    *   "jobs_db_aws_region", or "audio_s3_aws_region" configuration setting is
    *   empty or invalid.
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
+   *   Can be thrown if module's "connect_timeout" or "dynamodb_timeout"
+   *   configuration setting is invalid.
    * @throws \Ranine\Exception\ParseException
    *   Thrown if the file size of the processsed audio file could not be parsed.
    * @throws \RuntimeException
