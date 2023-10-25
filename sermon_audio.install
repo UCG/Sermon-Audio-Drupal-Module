@@ -10,7 +10,7 @@ declare (strict_types = 1);
 /**
  * Implements hook_update_N().
  */
-function sermon_audio_update_9101() : void {
+function sermon_audio_update_9201() : void {
   $config = \Drupal::configFactory()->getEditable('sermon_audio.configuration');
   $config->set('connect_timeout', 5);
   $config->set('dynamodb_timeout', 10);
