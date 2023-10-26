@@ -24,6 +24,7 @@ use Drupal\sermon_audio\Exception\InvalidInputAudioFileException;
 use Drupal\sermon_audio\Settings;
 use Drupal\sermon_audio\DynamoDbClientFactory;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
+use Drupal\sermon_audio\Helper\AudioHelper;
 use Drupal\sermon_audio\S3ClientFactory;
 use Ranine\Exception\AggregateException;
 use Ranine\Exception\InvalidOperationException;
@@ -731,23 +732,9 @@ class SermonAudio extends ContentEntityBase {
       // when the entity is saved).
       if (array_key_exists($entityId, $finishedEntityIds)) continue;
 
-      $requiresSave = FALSE;
-
-      // We'll have to loop through the translations, as postLoad() is only
+      // We'll have to refresh for all translations, as postLoad() is only
       // called once for all translations.
-      foreach ($entity->iterateTranslations() as $translation) {
-        // If the processed audio field isn't already set, and
-        // processing_initiated is set, we call refreshProcessedAudio() on the
-        // entity.
-        if ($translation->hasProcessedAudio()) continue;
-        if (!$translation->wasAudioProcessingInitiated()) continue;
-        // Don't try to refresh the processed audio if the unprocessed audio
-        // does not exist.
-        if ($translation->getUnprocessedAudio(TRUE) === NULL) continue;
-        if ($translation->refreshProcessedAudio()) $requiresSave = TRUE;
-      }
-
-      if ($requiresSave) {
+      if (AudioHelper::refreshProcessedAudioAllTranslations($entity)) {
         // We add the entity ID to the $finishedEntityIds set before saving.
         // This is because the save process will invoke postLoad() again (when
         // loading the unchanged entity).
