@@ -161,7 +161,7 @@ class DynamoDbClientFactory extends AwsClientFactoryBase {
     }
     if (isset($credentials)) $connectionOptions['credentials'] = $credentials;
 
-    $this->client = new S3Client($connectionOptions);
+    $this->client = new DynamoDbClient($connectionOptions);
   }
 
 }
