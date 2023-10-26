@@ -8,6 +8,7 @@ use Aws\DynamoDb\DynamoDbClient;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ImmutableConfig;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
+use Drupal\sermon_audio\Helper\SettingsHelper;
 
 /**
  * Returns/creates AWS DynamoDB client objects.
@@ -50,6 +51,10 @@ class DynamoDbClientFactory extends AwsClientFactoryBase {
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if a new client instance is needed, and the module's
    *   "jobs_db_aws_region" configuration setting is missing or empty.
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
+   *   Thrown if the module's "connect_timeout" or "dynamodb_timeout"
+   *   configuration setting is neither empty nor castable to a positive
+   *   integer.
    */
   public function getClient() : DynamoDbClient {
     if (!isset($this->client)) {
@@ -125,6 +130,10 @@ class DynamoDbClientFactory extends AwsClientFactoryBase {
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if a new client instance is needed, and the module's
    *   "jobs_db_aws_region" configuration setting is missing or empty.
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
+   *   Thrown if the module's "connect_timeout" or "dynamodb_timeout"
+   *   configuration setting is neither empty nor castable to a positive
+   *   integer.
    */
   private function createClient() : void {
     $credentialsFilePath = trim((string) $this->configuration->get('aws_credentials_file_path'));
@@ -137,19 +146,22 @@ class DynamoDbClientFactory extends AwsClientFactoryBase {
       throw new ModuleConfigurationException('The jobs_db_aws_region setting is missing or empty.');
     }
 
-    if (isset($credentials)) {
-      $this->client = new DynamoDbClient([
-        'region' => $region,
-        'version' => 'latest',
-        'credentials' => $credentials,
-      ]);
+    $connectTimeout = SettingsHelper::getConnectionTimeout($this->configuration);
+    $timeout = SettingsHelper::getDynamoDbTimeout($this->configuration);
+
+    $connectionOptions = [
+      'region' => $region,
+      'version' => 'latest',
+    ];
+    if ($connectTimeout !== NULL) {
+      $connectionOptions['http']['connect_timeout'] = $connectTimeout;
     }
-    else {
-      $this->client = new DynamoDbClient([
-        'region' => $region,
-        'version' => 'latest',
-      ]);
+    if ($timeout !== NULL) {
+      $connectionOptions['http']['timeout'] = $timeout;
     }
+    if (isset($credentials)) $connectionOptions['credentials'] = $credentials;
+
+    $this->client = new S3Client($connectionOptions);
   }
 
 }

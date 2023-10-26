@@ -7,6 +7,7 @@ namespace Drupal\sermon_audio\Form;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\sermon_audio\Helper\SettingsHelper;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -100,6 +101,24 @@ debugging.
 EOS
       ),
     ];
+    $form['connect_timeout'] = [
+      '#type' => 'number',
+      '#title' => $this->t('Connect Timeout'),
+      '#min' => 1,
+      '#step' => 1,
+      '#default_value' => SettingsHelper::getConnectionTimeout($configuration),
+      '#description' => $this->t('Timeout in seconds when attempting to connect to a server while making AWS calls.'),
+      '#required' => FALSE,
+    ];
+    $form['dynamodb_timeout'] = [
+      '#type' => 'number',
+      '#title' => $this->t('DynamoDB Timeout'),
+      '#min' => 1,
+      '#step' => 1,
+      '#default_value' => SettingsHelper::getDynamoDbTimeout($configuration),
+      '#description' => $this->t('Timeout in seconds when making AWS DynamoDB requests (whose responses should return relatively quickly).'),
+      '#required' => FALSE,
+    ];
 
     return parent::buildForm($form, $form_state);
   }
@@ -133,6 +152,11 @@ EOS
     $configuration->set('processed_audio_uri_prefix', (string) $form_state->getValue('processed_audio_uri_prefix'));
     $configuration->set('processed_audio_key_prefix', (string) $form_state->getValue('processed_audio_key_prefix'));
     $configuration->set('debug_mode', (bool) $form_state->getValue('debug_mode'));
+
+    $connectTimeout = (int) $form_state->getValue('connect_timeout');
+    $dynamoDbTimeout = (int) $form_state->getValue('dynamodb_timeout');
+    $configuration->set('connect_timeout', $connectTimeout > 0 ? $connectTimeout : NULL);
+    $configuration->set('dynamodb_timeout', $dynamoDbTimeout > 0 ? $dynamoDbTimeout : NULL);
 
     $configuration->save();
     parent::submitForm($form, $form_state);

@@ -24,6 +24,7 @@ use Drupal\sermon_audio\Exception\InvalidInputAudioFileException;
 use Drupal\sermon_audio\Settings;
 use Drupal\sermon_audio\DynamoDbClientFactory;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
+use Drupal\sermon_audio\Helper\AudioHelper;
 use Drupal\sermon_audio\S3ClientFactory;
 use Ranine\Exception\AggregateException;
 use Ranine\Exception\InvalidOperationException;
@@ -212,6 +213,9 @@ class SermonAudio extends ContentEntityBase {
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Can be thrown if this module's "aws_credentials_file_path" or
    *   "jobs_db_aws_region" configuration setting is empty or invalid.
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
+   *   Can be thrown if module's "connect_timeout" or "dynamodb_timeout"
+   *   configuration setting is invalid.
    * @throws \InvalidArgumentException
    *   Thrown if $sermonName, $sermonSpeaker, $sermonYear, $sermonCongregation,
    *   or $sermonLanguageCode is empty.
@@ -474,6 +478,9 @@ class SermonAudio extends ContentEntityBase {
    *   Can be thrown if this module's "aws_credentials_file_path",
    *   "jobs_db_aws_region", or "audio_s3_aws_region" configuration setting is
    *   empty or invalid.
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
+   *   Can be thrown if module's "connect_timeout" or "dynamodb_timeout"
+   *   configuration setting is invalid.
    * @throws \Ranine\Exception\ParseException
    *   Thrown if the file size of the processsed audio file could not be parsed.
    * @throws \RuntimeException
@@ -725,23 +732,9 @@ class SermonAudio extends ContentEntityBase {
       // when the entity is saved).
       if (array_key_exists($entityId, $finishedEntityIds)) continue;
 
-      $requiresSave = FALSE;
-
-      // We'll have to loop through the translations, as postLoad() is only
+      // We'll have to refresh for all translations, as postLoad() is only
       // called once for all translations.
-      foreach ($entity->iterateTranslations() as $translation) {
-        // If the processed audio field isn't already set, and
-        // processing_initiated is set, we call refreshProcessedAudio() on the
-        // entity.
-        if ($translation->hasProcessedAudio()) continue;
-        if (!$translation->wasAudioProcessingInitiated()) continue;
-        // Don't try to refresh the processed audio if the unprocessed audio
-        // does not exist.
-        if ($translation->getUnprocessedAudio(TRUE) === NULL) continue;
-        if ($translation->refreshProcessedAudio()) $requiresSave = TRUE;
-      }
-
-      if ($requiresSave) {
+      if (AudioHelper::refreshProcessedAudioAllTranslations($entity)) {
         // We add the entity ID to the $finishedEntityIds set before saving.
         // This is because the save process will invoke postLoad() again (when
         // loading the unchanged entity).

@@ -11,6 +11,22 @@ use Drupal\Component\Utility\Html;
 use Drupal\file\FileInterface;
 
 /**
+ * Implements hook_cron().
+ */
+function sermon_audio_cron() : void {
+  // Automatically refresh sermon audio wherever applicable.
+  $ids = \Drupal::entityTypeManager()->getStorage('sermon_audio')->getQuery()
+    ->condition('audio_processing_initiated', TRUE)
+    ->condition('processed_audio', NULL, 'IS NULL')
+    ->condition('unprocessed_audio.entity', NULL, 'IS NOT NULL')
+    ->execute();
+  $queue = \Drupal::queue('sermon_audio_refresher');
+  foreach ($ids as $id) {
+    $queue->createItem((int) $id);
+  }
+}
+
+/**
  * Implements hook_preprocess_HOOK().
  */
 function sermon_audio_preprocess_file_link(array &$variables) : void {

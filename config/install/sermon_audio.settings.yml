@@ -7,3 +7,5 @@ unprocessed_audio_uri_prefix: 's3://sermons/unprocessed/'
 processed_audio_uri_prefix: 's3://sermons/processed/'
 processed_audio_key_prefix: 'sermons/processed/'
 debug_mode: FALSE
+connect_timeout: 5
+dynamodb_timeout: 10

@@ -8,6 +8,7 @@ use Aws\S3\S3Client;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ImmutableConfig;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
+use Drupal\sermon_audio\Helper\SettingsHelper;
 
 /**
  * Returns/creates AWS S3 client objects.
@@ -50,6 +51,9 @@ class S3ClientFactory extends AwsClientFactoryBase {
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if a new client instance is needed, and the module's
    *   "audio_s3_aws_region" configuration setting is missing or empty.
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
+   *   Thrown if the module's "connect_timeout" configuration setting is neither
+   *   empty nor castable to a positive integer.
    */
   public function getClient() : S3Client {
     if (!isset($this->client)) {
@@ -125,6 +129,9 @@ class S3ClientFactory extends AwsClientFactoryBase {
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if a new client instance is needed, and the module's
    *   "audio_s3_aws_region" configuration setting is missing or empty.
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
+   *   Thrown if the module's "connect_timeout" configuration setting is neither
+   *   empty nor castable to a positive integer.
    */
   private function createClient() : void {
     $credentialsFilePath = trim((string) $this->configuration->get('aws_credentials_file_path'));
@@ -137,19 +144,18 @@ class S3ClientFactory extends AwsClientFactoryBase {
       throw new ModuleConfigurationException('The audio_s3_aws_region setting is missing or empty.');
     }
 
-    if (isset($credentials)) {
-      $this->client = new S3Client([
-        'region' => $region,
-        'version' => 'latest',
-        'credentials' => $credentials,
-      ]);
+    $connectTimeout = SettingsHelper::getConnectionTimeout($this->configuration);
+
+    $connectionOptions = [
+      'region' => $region,
+      'version' => 'latest',
+    ];
+    if ($connectTimeout !== NULL) {
+      $connectionOptions['http'] = ['connect_timeout' => $connectTimeout];
     }
-    else {
-      $this->client = new S3Client([
-        'region' => $region,
-        'version' => 'latest',
-      ]);
-    }
+    if (isset($credentials)) $connectionOptions['credentials'] = $credentials;
+
+    $this->client = new S3Client($connectionOptions);
   }
 
 }
