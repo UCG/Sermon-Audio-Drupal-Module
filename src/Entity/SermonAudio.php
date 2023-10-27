@@ -52,6 +52,7 @@ use Ranine\Iteration\ExtendableIterable;
  *   id = "sermon_audio",
  *   label = @Translation("Sermon Audio"),
  *   base_table = "sermon_audio",
+ *   data_table = "sermon_audio_field_data",
  *   entity_keys = {
  *     "id" = "id",
  *     "uuid" = "uuid",
