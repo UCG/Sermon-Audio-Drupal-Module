@@ -21,6 +21,11 @@ function sermon_audio_cron() : void {
     ->condition('unprocessed_audio.entity', NULL, 'IS NOT NULL')
     ->execute();
   $queue = \Drupal::queue('sermon_audio_refresher');
+  // Clean unused items from the queue, as there is no built-in mechanism to
+  // check if an entity ID already exists in the queue.
+  while ($item = $queue->claimItem()) {
+    $queue->deleteItem($item);
+  }
   foreach ($ids as $id) {
     $queue->createItem((int) $id);
   }
