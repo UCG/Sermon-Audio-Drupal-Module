@@ -11,8 +11,17 @@ declare (strict_types = 1);
  * Implements hook_update_N().
  */
 function sermon_audio_update_9201() : void {
+  // Set a couple of default values for new config settings.
   $config = \Drupal::configFactory()->getEditable('sermon_audio.configuration');
   $config->set('connect_timeout', 5);
   $config->set('dynamodb_timeout', 10);
   $config->save(TRUE);
+
+  // A new entity type property was set, so we have to update the installed
+  // entity type definition. So we grab the "last installed" entity type, make
+  // the appropriate change, and "update" the entity type to the changed object.
+  $updateManager = \Drupal::entityDefinitionUpdateManager();
+  $entityType = $updateManager->getEntityType('sermon_audio');
+  $entityType->set('data_table', 'sermon_audio_field_data');
+  $updateManager->updateEntityType($entityType);
 }
