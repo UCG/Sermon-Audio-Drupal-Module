@@ -7,6 +7,7 @@ namespace Drupal\sermon_audio\Plugin\QueueWorker;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Queue\QueueWorkerBase;
+use Drupal\Core\Queue\RequeueException;
 use Drupal\sermon_audio\Entity\SermonAudio;
 use Drupal\sermon_audio\Helper\AudioHelper;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -48,17 +49,24 @@ class AudioRefresherQueueWorker extends QueueWorkerBase implements ContainerFact
    * {@inheritdoc}
    */
   public function processItem($data) {
-    if (!is_int($data) || $data < 0) {
-      throw new \InvalidArgumentException('Queue data is not a nonnegative integer.');
+    try {
+      if (!is_int($data) || $data < 0) {
+        throw new \InvalidArgumentException('Queue data is not a nonnegative integer.');
+      }
+
+      // $data is the entity ID.
+      $entity = $this->sermonAudioStorage->load($data);
+      if ($entity === NULL) return;
+      assert($entity instanceof SermonAudio);
+
+      if (AudioHelper::refreshProcessedAudioAllTranslations($entity)) {
+        $entity->save();
+      }
     }
-
-    // $data is the entity ID.
-    $entity = $this->sermonAudioStorage->load($data);
-    if ($entity === NULL) return;
-    assert($entity instanceof SermonAudio);
-
-    if (AudioHelper::refreshProcessedAudioAllTranslations($entity)) {
-      $entity->save();
+    catch (\Exception $e) {
+      // Mark the item for immediate re-queing, because we want to make sure
+      // our hook_cron() implementation can delete it later.
+      throw new RequeueException($e->getMessage(), $e->getCode(), $e);
     }
   }
 
