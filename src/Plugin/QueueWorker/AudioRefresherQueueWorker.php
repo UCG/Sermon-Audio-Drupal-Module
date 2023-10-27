@@ -59,6 +59,8 @@ class AudioRefresherQueueWorker extends QueueWorkerBase implements ContainerFact
       if ($entity === NULL) return;
       assert($entity instanceof SermonAudio);
 
+      // The refresh process probably happened after the load, but if for
+      // whatever reason it didn't:
       if (AudioHelper::refreshProcessedAudioAllTranslations($entity)) {
         $entity->save();
       }

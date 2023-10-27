@@ -821,7 +821,7 @@ class SermonAudio extends ContentEntityBase {
 
       // We'll have to refresh for all translations, as postLoad() is only
       // called once for all translations.
-      foreach ($this->iterateTranslations() as $translation) {
+      foreach ($entity->iterateTranslations() as $translation) {
         if (!AudioHelper::isProcessedAudioRefreshable($translation)) continue;
 
         $newProcessedAudioId = 0;
