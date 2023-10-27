@@ -6,9 +6,11 @@ namespace Drupal\sermon_audio\Entity;
 
 use Aws\DynamoDb\DynamoDbClient;
 use Aws\DynamoDb\Exception\DynamoDbException;
+use Aws\S3\Exception\S3Exception;
 use Aws\S3\S3Client;
 use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\Entity\ContentEntityBase;
+use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeInterface;
 use Drupal\Core\Field\BaseFieldDefinition;
@@ -28,6 +30,7 @@ use Drupal\sermon_audio\Helper\AudioHelper;
 use Drupal\sermon_audio\S3ClientFactory;
 use Ranine\Exception\AggregateException;
 use Ranine\Exception\InvalidOperationException;
+use Ranine\Exception\ParseException;
 use Ranine\Helper\ParseHelpers;
 use Ranine\Helper\ThrowHelpers;
 use Ranine\Iteration\ExtendableIterable;
@@ -460,7 +463,7 @@ class SermonAudio extends ContentEntityBase {
    * This entity is not saved in this method -- that is up to the caller.
    *
    * @return bool
-   *   TRUE if the processed audio field was changed, else FALSE.
+   *   TRUE if the processed audio or duration field was changed, else FALSE.
    *
    * @throws \Aws\DynamoDb\Exception\DynamoDbException
    *   Thrown if an error occurs when attempting to interface with the AWS audio
@@ -498,6 +501,85 @@ class SermonAudio extends ContentEntityBase {
    *   type.
    */
   public function refreshProcessedAudio() : bool {
+    $newProcessedAudioId = 0;
+    $newAudioDuration = 0.0;
+    if ($this->prepareToRefreshProcessedAudio($newProcessedAudioId, $newAudioDuration)) {
+      $this->setProcessedAudioTargetId($newProcessedAudioId);
+      $this->setDuration($newAudioDuration);
+      return TRUE;
+    }
+    else return FALSE;
+  }
+
+  /**
+   * Tells whether the audio processing was initiated by reading field value.
+   */
+  public function wasAudioProcessingInitiated() : bool {
+    return (bool) static::getScalarValueFromFieldItem($this->get('processing_initiated')->get(0));
+  }
+
+  /**
+   * Attempts to get a new processed audio ID & duration for this entity.
+   *
+   * If the "debug_mode" module setting is active, then, if the processed audio
+   * field is not already set to the unprocessed audio field value,
+   * $newProcessedAudioId is thus set, and the duration is set to zero.
+   *
+   * Otherwise, the $newProcessedAudioId is set to point to the audio file,
+   * indicated by the AWS DynamoDB database, that corresponds to the unprocessed
+   * audio field. Nothing is changed if the URI computed from the DynamoDB query
+   * response is the same as that currently associated with the processed audio
+   * field.
+   *
+   * Note that this method performs its function even if the current processed
+   * audio field value is non-NULL, and even if processing_initiated is not
+   * TRUE.
+   *
+   * @param int $newProcessedAudioId
+   *   (output) New processed audio ID.
+   * @param float $newAudioDuration
+   *   (output) New audio duration.
+   *
+   * @return bool
+   *   TRUE if a new value (not already set on the entity field) is present in
+   *   either of the output parameters, else FALSE.
+   *
+   * @throws \Aws\DynamoDb\Exception\DynamoDbException
+   *   Thrown if an error occurs when attempting to interface with the AWS audio
+   *   processing jobs database.
+   * @throws \Aws\S3\Exception\S3Exception
+   *   Thrown if an error occurs when attempting to make/receive a HEAD request
+   *   for a new processed audio file.
+   * @throws \Drupal\Core\Entity\EntityStorageException
+   *   Thrown if an error occurs when trying to save a new file entity.
+   * @throws \Drupal\sermon_audio\Exception\EntityValidationException
+   *   Thrown if the unprocessed audio file field is not set.
+   * @throws \Drupal\sermon_audio\Exception\InvalidInputAudioFileException
+   *   Thrown if the input audio file URI does not have the correct prefix (as
+   *   defined in the module settings) or is otherwise invalid.
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
+   *   Can be thrown if this module's "aws_credentials_file_path",
+   *   "jobs_db_aws_region", or "audio_s3_aws_region" configuration setting is
+   *   empty or invalid.
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
+   *   Can be thrown if module's "connect_timeout" or "dynamodb_timeout"
+   *   configuration setting is invalid.
+   * @throws \Ranine\Exception\ParseException
+   *   Thrown if the file size of the processsed audio file could not be parsed.
+   * @throws \RuntimeException
+   *   Thrown if something is wrong with the DynamoDB record returned.
+   * @throws \RuntimeException
+   *   Thrown if a referenced file entity does not exist.
+   * @throws \RuntimeException
+   *   Thrown if a new processed audio file referenced by a returned DynamoDB
+   *   record did not exist when a HEAD query was made for it, or if the HEAD
+   *   query response is invalid in some way.
+   * @throws \RuntimeException
+   *   Thrown if the "s3fs" module was enabled, but a class from that module is
+   *   missing or a service from that module is missing or of the incorrect
+   *   type.
+   */
+  private function prepareToRefreshProcessedAudio(int &$newProcessedAudioId, float &$newAudioDuration) : bool {
     if (static::getModuleSettings()->get('debug_mode')) {
       $unprocessedAudioId = $this->getUnprocessedAudioId() ?? throw static::getUnprocessedAudioFieldException();
       if ($this->getProcessedAudioId() === $unprocessedAudioId) {
@@ -505,7 +587,7 @@ class SermonAudio extends ContentEntityBase {
       }
       else {
         $newProcessedAudioId = $unprocessedAudioId;
-        $audioDuration = 0;
+        $newAudioDuration = 0;
       }
     }
     else {
@@ -561,8 +643,8 @@ class SermonAudio extends ContentEntityBase {
         if (!isset($item['audio-duration']['N'])) {
           throw new \RuntimeException('Jobs DB items found does not contain valid "audio-duration" attribute.');
         }
-        $audioDuration = (float) $item['audio-duration']['N'];
-        if (!is_finite($audioDuration) || $audioDuration < 0) {
+        $newAudioDuration = (float) $item['audio-duration']['N'];
+        if (!is_finite($newAudioDuration) || $newAudioDuration < 0) {
           throw new \RuntimeException('The audio duration was not finite or was negative.');
         }
       }
@@ -570,11 +652,11 @@ class SermonAudio extends ContentEntityBase {
       else return FALSE;
   
       assert(isset($outputSubKey));
-      assert(isset($audioDuration));
+      assert(isset($newAudioDuration));
       assert(isset($outputDisplayFilename));
       assert($outputSubKey != "");
       assert($outputDisplayFilename != "");
-      assert(is_finite($audioDuration) && $audioDuration >= 0);
+      assert(is_finite($newAudioDuration) && $newAudioDuration >= 0);
   
       $processedAudioUri = Settings::getProcessedAudioUriPrefix() . $outputSubKey;
   
@@ -635,9 +717,25 @@ class SermonAudio extends ContentEntityBase {
       $newProcessedAudio->save();
       $newProcessedAudioId = $newProcessedAudio->id();
     }
-    assert(isset($newProcessedAudioId));
-    assert(isset($audioDuration));
 
+    assert(isset($newProcessedAudioId));
+    assert(isset($newAudioDuration));
+    return TRUE;
+  }
+
+  /**
+   * Sets the audio duration to the given value.
+   */
+  private function setDuration(float $value) : void {
+    $durationField = $this->get('duration');
+    if ($durationField->count() === 0) $durationField->appendItem(['value' => $value]);
+    else static::setScalarValueOnFieldItem($durationField->get(0), $value);
+  }
+
+  /**
+   * Sets the processed audio target ID to the given value.
+   */
+  private function setProcessedAudioTargetId(int $id) : void {
     $processedAudioField = $this->get('processed_audio');
     // Get the first item, or create it if necessary.
     if ($processedAudioField->count() === 0) {
@@ -648,21 +746,7 @@ class SermonAudio extends ContentEntityBase {
     // Reset the item to its default value.
     $processedAudioItem->applyDefaultValue();
     // Finally, set the target entity ID.
-    $processedAudioItem->set('target_id', $newProcessedAudioId);
-
-    // Set the audio duration.
-    $durationField = $this->get('duration');
-    if ($durationField->count() === 0) $durationField->appendItem(['value' => $audioDuration]);
-    else static::setScalarValueOnFieldItem($durationField->get(0), $audioDuration);
-
-    return TRUE;
-  }
-
-  /**
-   * Tells whether the audio processing was initiated by reading field value.
-   */
-  public function wasAudioProcessingInitiated() : bool {
-    return (bool) static::getScalarValueFromFieldItem($this->get('processing_initiated')->get(0));
+    $processedAudioItem->set('target_id', $id);
   }
 
   /**
@@ -733,9 +817,42 @@ class SermonAudio extends ContentEntityBase {
       // when the entity is saved).
       if (array_key_exists($entityId, $finishedEntityIds)) continue;
 
+      $requiresSave = FALSE;
+
       // We'll have to refresh for all translations, as postLoad() is only
       // called once for all translations.
-      if (AudioHelper::refreshProcessedAudioAllTranslations($entity)) {
+      foreach ($this->iterateTranslations() as $translation) {
+        if (!AudioHelper::isProcessedAudioRefreshable($translation)) continue;
+
+        $newProcessedAudioId = 0;
+        $newAudioDuration = 0.0;
+        try {
+          $translationShouldBeRefreshed = $translation->prepareToRefreshProcessedAudio($newProcessedAudioId, $newAudioDuration);
+        }
+        catch (\Exception $e) {
+          if ($e instanceof DynamoDbException
+            || $e instanceof S3Exception
+            || $e instanceof EntityStorageException
+            || $e instanceof EntityValidationException
+            || $e instanceof InvalidInputAudioFileException
+            || $e instanceof ModuleConfigurationException
+            || $e instanceof ParseException) {
+            // For "expected exceptions," we don't want to blow up in
+            // postLoad(). Instead, we simply log the exception, and continue to
+            // the next translation.
+            watchdog_exception('sermon_audio', $e);
+            continue;
+          }
+          else throw $e;
+        }
+        if ($translationShouldBeRefreshed) {
+          $translation->setProcessedAudioTargetId($newProcessedAudioId);
+          $translation->setDuration($newAudioDuration);
+          $requiresSave = TRUE;
+        }
+      }
+
+      if ($requiresSave) {
         // We add the entity ID to the $finishedEntityIds set before saving.
         // This is because the save process will invoke postLoad() again (when
         // loading the unchanged entity).
