@@ -619,6 +619,7 @@ class SermonAudio extends ContentEntityBase {
         if (!isset($item['job-status']['N'])) {
           throw new \RuntimeException('Jobs DB item found does not contain valid "job-status" attribute.');
         }
+        // @todo Consider doing something w/ failed jobs.
         if (((int) $item['job-status']['N']) !== 2) {
           // The job has not finished.
           return FALSE;
@@ -652,7 +653,6 @@ class SermonAudio extends ContentEntityBase {
       else return FALSE;
   
       assert(isset($outputSubKey));
-      assert(isset($newAudioDuration));
       assert(isset($outputDisplayFilename));
       assert($outputSubKey != "");
       assert($outputDisplayFilename != "");
@@ -715,11 +715,9 @@ class SermonAudio extends ContentEntityBase {
         ->create($newProcessedAudioFieldInitValues)
         ->enforceIsNew();
       $newProcessedAudio->save();
-      $newProcessedAudioId = $newProcessedAudio->id();
+      $newProcessedAudioId = (int) $newProcessedAudio->id();
     }
 
-    assert(isset($newProcessedAudioId));
-    assert(isset($newAudioDuration));
     return TRUE;
   }
 
