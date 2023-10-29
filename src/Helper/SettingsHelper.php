@@ -4,6 +4,7 @@ declare (strict_types = 1);
 
 namespace Drupal\sermon_audio\Helper;
 
+use Drupal\Core\Config\Config;
 use Drupal\Core\Config\ImmutableConfig;
 
 /**
@@ -22,14 +23,14 @@ final class SettingsHelper {
   /**
    * Gets the connection timeout setting if it is properly set.
    *
-   * @param \Drupal\Core\Config\ImmutableConfig $moduleSettings
+   * @param \Drupal\Core\Config\Config|\Drupal\Core\Config\ImmutableConfig $moduleSettings
    *   Module settings.
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown the module's "connect_timeout" configuration setting is neither
    *   empty nor castable to a positive integer.
    */
-  public static function getConnectionTimeout(ImmutableConfig $moduleSettings) : ?int {
+  public static function getConnectionTimeout(Config|ImmutableConfig $moduleSettings) : ?int {
     $connectTimeout = $moduleSettings->get('connect_timeout');
     if (empty($connectTimeout)) return NULL;
     else {
@@ -44,14 +45,14 @@ final class SettingsHelper {
   /**
    * Gets the DynamoDB timeout setting if it is properly set.
    *
-   * @param \Drupal\Core\Config\ImmutableConfig $moduleSettings
+   * @param \Drupal\Core\Config\Config|\Drupal\Core\Config\ImmutableConfig $moduleSettings
    *   Module settings.
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown the module's "dynamodb_timeout" configuration setting is neither
    *   empty nor castable to a positive integer.
    */
-  public static function getDynamoDbTimeout(ImmutableConfig $moduleSettings) : ?int {
+  public static function getDynamoDbTimeout(Config|ImmutableConfig $moduleSettings) : ?int {
     $timeout = $moduleSettings->get('dynamodb_timeout');
     if (empty($timeout)) return NULL;
     else {
