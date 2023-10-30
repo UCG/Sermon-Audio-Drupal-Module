@@ -7,16 +7,12 @@
 
 declare (strict_types = 1);
 
+use Drupal\sermon_audio\Helper\SettingsHelper;
+
 /**
- * Implements hook_update_N().
+ * Implements hook_update_9201().
  */
 function sermon_audio_update_9201() : void {
-  // Set a couple of default values for new config settings.
-  $config = \Drupal::configFactory()->getEditable('sermon_audio.configuration');
-  $config->set('connect_timeout', 5);
-  $config->set('dynamodb_timeout', 10);
-  $config->save(TRUE);
-
   // A new entity type property was set, so we have to update the installed
   // entity type definition. So we grab the "last installed" entity type, make
   // the appropriate change, and "update" the entity type to the changed object.
@@ -24,4 +20,22 @@ function sermon_audio_update_9201() : void {
   $entityType = $updateManager->getEntityType('sermon_audio');
   $entityType->set('data_table', 'sermon_audio_field_data');
   $updateManager->updateEntityType($entityType);
+}
+
+/**
+ * Implements hook_update_9202().
+ */
+function sermon_audio_update_9202() : void {
+  // We used the wrong config name in the previous update hook, so let's fix
+  // that here.
+  \Drupal::configFactory()->getEditable('sermon_audio.configuration')->delete();
+  $config = \Drupal::configFactory()->getEditable('sermon_audio.settings');
+  // The values here match those in the default configuration YAML file.
+  if (SettingsHelper::getConnectionTimeout($config) === NULL) {
+    $config->set('connect_timeout', 5);
+  }
+  if (SettingsHelper::getDynamoDbTimeout($config) === NULL) {
+    $config->set('dynamodb_timeout', 10);
+  }
+  $config->save(TRUE);
 }
