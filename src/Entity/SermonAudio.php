@@ -203,6 +203,17 @@ class SermonAudio extends ContentEntityBase {
    *   Sermon congregation to attach to processed audio.
    * @param string $sermonLanguageCode
    *   Sermon language code.
+   * @param bool $throwOnFailure
+   *   TRUE if an exception should be thrown if the processing initiation fails
+   *   for certain "expected" (and recoverable; that is, execution of the caller
+   *   should continue without worrying about program state corruption) reasons:
+   *   that is, because of 1) AWS errors, 2) validation issues with this entity,
+   *   3) missing linked entiti(es), or 4) an existing (conflicting) processing
+   *   job.
+   * @param null|\Exception $failureException
+   *   (output) If $throwOnFailure is FALSE and an "expected" exception occurs
+   *   (see above), this parameter is set to the exception that occurred. This
+   *   is NULL if no error occurs, or if $throwOnFailure is TRUE.
    *
    * @throws \Aws\DynamoDb\Exception\DynamoDbException
    *   Thrown if an error occurs when attempting to interface with the AWS audio
@@ -238,15 +249,29 @@ class SermonAudio extends ContentEntityBase {
     string $sermonSpeaker,
     string $sermonYear,
     string $sermonCongregation,
-    string $sermonLanguageCode) : void {
+    string $sermonLanguageCode,
+    bool $throwOnFailure = TRUE,
+    \Exception &$failureException = NULL) : void {
     ThrowHelpers::throwIfEmptyString($sermonName, 'sermonName');
     ThrowHelpers::throwIfEmptyString($sermonSpeaker, 'sermonSpeaker');
     ThrowHelpers::throwIfEmptyString($sermonYear, 'sermonYear');
     ThrowHelpers::throwIfEmptyString($sermonCongregation, 'sermonCongregation');
     ThrowHelpers::throwIfEmptyString($sermonLanguageCode, 'sermonLanguageCode');
 
-    $unprocessedAudio = $this->getUnprocessedAudio() ?? throw static::getUnprocessedAudioFieldException();
-    $inputSubKey = static::getUnprocessedAudioSubKey($unprocessedAudio);
+    $throwIfDesired = function(\Exception $e, ?callable $alwaysThrowPredicate = NULL) use ($throwOnFailure, &$failureException) {
+      if ($throwOnFailure || ($alwaysThrowPredicate !== NULL && $alwaysThrowPredicate($e))) throw $e;
+      else $failureException = $e;
+    };
+
+    try {
+      $unprocessedAudio = $this->getUnprocessedAudio() ?? throw static::getUnprocessedAudioFieldException();
+      $inputSubKey = static::getUnprocessedAudioSubKey($unprocessedAudio);
+    }
+    catch (\Exception $e) {
+      $throwIfDesired($e, fn($e) => $e instanceof EntityValidationException || $e instanceof InvalidInputAudioFileException || $e instanceof \RuntimeException);
+      return;
+    }
+
     $filename = substr(static::normalizeSubKeyPathSegment($sermonName, $sermonLanguageCode), 0, 128) . '.mp4';
     $outputSubKey = static::getOutputSubKey($sermonSpeaker, $sermonYear, $filename, $sermonLanguageCode);
 
@@ -346,9 +371,10 @@ class SermonAudio extends ContentEntityBase {
           [$inner, $e]);
       }
       if ($e->getAwsErrorCode() === 'ConditionalCheckFailedException') {
-        throw new InvalidOperationException('The job cannot be queued because it conflicts with an existing job.', 0, $e);
+        $throwIfDesired(new InvalidOperationException('The job cannot be queued because it conflicts with an existing job.', 0, $e));
+        return;
       }
-      throw $e;
+      else $throwIfDesired($e);
     }
   }
 
