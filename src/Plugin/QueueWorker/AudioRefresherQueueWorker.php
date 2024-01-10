@@ -49,7 +49,7 @@ class AudioRefresherQueueWorker extends QueueWorkerBase implements ContainerFact
   /**
    * {@inheritdoc}
    */
-  public function processItem($data) {
+  public function processItem($data) : void {
     try {
       if (!is_int($data) || $data < 0) {
         throw new \InvalidArgumentException('Queue data is not a nonnegative integer.');

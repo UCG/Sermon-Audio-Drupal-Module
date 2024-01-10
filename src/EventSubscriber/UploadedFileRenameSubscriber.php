@@ -39,7 +39,7 @@ class UploadedFileRenameSubscriber implements EventSubscriberInterface {
    * @param \Drupal\Core\File\Event\FileUploadSanitizeNameEvent $event
    *   Event.
    */
-  public function handleSanitizeName(FileUploadSanitizeNameEvent $event) {
+  public function handleSanitizeName(FileUploadSanitizeNameEvent $event) : void {
     // Get the new extension-less filename, if applicable.
     $bareNewFilename = $this->newFilenamesRepository->tryGetBareFilename($event->getAllowedExtensions());
     if ($bareNewFilename !== NULL) {

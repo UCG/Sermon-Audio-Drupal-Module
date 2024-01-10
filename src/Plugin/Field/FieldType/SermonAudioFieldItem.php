@@ -204,6 +204,8 @@ class SermonAudioFieldItem extends EntityReferenceItem {
    * @param array $settings
    *   Field settings.
    *
+   * @phpstan-return non-empty-string
+   *
    * @throws \Drupal\sermon_audio\Exception\InvalidFieldConfigurationException
    *   Thrown if the upload_file_extensions field setting does not exist, or is
    *   empty after being converted to a string and trimmed.

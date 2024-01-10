@@ -32,6 +32,7 @@ class FileRenamePseudoExtensionRepository {
    * @return string
    *   New pseudo-extension (alphanumeric string of length 16 and with 64 bits
    *   of entropy) associated with bare filename.
+   * @phpstan-return non-empty-string
    */
   public function addBareFilename(string $bareFilename) : string {
     $extension = bin2hex(random_bytes(8));

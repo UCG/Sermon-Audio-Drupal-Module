@@ -20,7 +20,8 @@ abstract class AwsClientFactoryBase {
    * access key and secret key, respectively.
    *
    * @param string $credentialsFilePath
-   *   Non-empty path to JSON file.
+   *   Path to JSON file.
+   * @phpstan-param non-empty-string $credentialsFilePath
    *
    * @throws \Exception
    *   Thrown if something is wrong with the credentails (see the various

@@ -78,7 +78,7 @@ class SermonAudio extends ContentEntityBase {
   /**
    * {@inheritdoc}
    */
-  public function delete() {
+  public function delete() : void {
     parent::delete();
 
     // Delete usage information associated with unprocessed audio file entities.
@@ -195,14 +195,19 @@ class SermonAudio extends ContentEntityBase {
    *
    * @param string $sermonName
    *   Sermon name to attach to processed audio.
+   * @phpstan-param non-empty-string $sermonName
    * @param string $sermonSpeaker
    *   Sermon speaker to attach to processed audio.
+   * @phpstan-param non-empty-string $sermonSpeaker
    * @param string $sermonYear
    *   Sermon year to attach to processed audio.
+   * @phpstan-param non-empty-string $sermonYear
    * @param string $sermonCongregation
    *   Sermon congregation to attach to processed audio.
+   * @phpstan-param non-empty-string $sermonCongregation
    * @param string $sermonLanguageCode
    *   Sermon language code.
+   * @phpstan-param non-empty-string $sermonLanguageCode
    * @param bool $throwOnFailure
    *   TRUE if an exception should be thrown if the processing initiation fails
    *   for certain "expected" (and recoverable; that is, execution of the caller
@@ -893,7 +898,8 @@ class SermonAudio extends ContentEntityBase {
    * Gets the S3 bucket for processed and unprocessed audio.
    *
    * @return string
-   *   Non-empty bucket name.
+   *   Bucket name.
+   * @phpstan-return non-empty-string
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if the bucket name module setting is empty.
@@ -926,7 +932,8 @@ class SermonAudio extends ContentEntityBase {
    * Gets the audio processing jobs DynamoDB table name.
    *
    * @return string
-   *   Non-empty table name.
+   *   Table name.
+   * @phpstan-return non-empty-string
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if the jobs table name module setting is empty.
@@ -950,13 +957,17 @@ class SermonAudio extends ContentEntityBase {
    * Gets the output sub-key for the given sermon audio parameters.
    *
    * @param string $sermonSpeaker
-   *   Sermon speaker (non-empty).
+   *   Sermon speaker.
+   * @phpstan-param non-empty-string $sermonSpeaker
    * @param string $sermonYear
-   *   Sermon year (non-empty).
+   *   Sermon year.
+   * @phpstan-param non-empty-string $sermonYear
    * @param string $outputFilename
-   *   Output filename (normalized and non-empty).
+   *   Output filename (normalized).
+   * @phpstan-param non-empty-string $outputFilename
    * @param string $sermonLanguage
-   *   Sermon language (non-empty).
+   *   Sermon language.
+   * @phpstan-param non-empty-string $sermonLanguage
    *
    * @throws \RuntimeException
    *   Thrown if a regex error occurs.
@@ -991,6 +1002,7 @@ class SermonAudio extends ContentEntityBase {
    *
    * @return string
    *   Non-empty key prefix.
+   * @phpstan-return non-empty-string
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if the processed audio key prefix module setting is empty.
@@ -1061,6 +1073,7 @@ class SermonAudio extends ContentEntityBase {
    * @param string $segment
    * @param string $langcode
    *   Language code of segment language.
+   * @phpstan-param non-empty-string $langcode
    *
    * @return string
    *   Normalized segment.

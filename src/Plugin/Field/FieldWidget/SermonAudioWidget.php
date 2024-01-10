@@ -705,6 +705,8 @@ class SermonAudioWidget extends WidgetBase {
    *
    * Module settings are retrieved statically, not using DI.
    *
+   * @phpstan-return non-empty-string
+   *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if the upload location (pulled from the module configuration) is
    *   empty.
@@ -729,9 +731,11 @@ class SermonAudioWidget extends WidgetBase {
    *   The number of seconds for which the sermon ID / token combination should
    *   be valid. Should be positive. Defaults to 24 hours = 60 * 60 * 24
    *   seconds.
+   * @phpstan-param positive-int $expiry
    *
    * @return string
    *   Associated token.
+   * @hpstan-return non-empty-string
    */
   private static function tokenizeAid(int $aid, int $expiry = 86400) : string {
     assert($expiry > 0);

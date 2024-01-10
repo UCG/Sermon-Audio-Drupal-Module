@@ -28,7 +28,7 @@ class SettingsForm extends ConfigFormBase {
   /**
    * {@inheritdoc}
    */
-  public function buildForm(array $form, FormStateInterface $form_state) {
+  public function buildForm(array $form, FormStateInterface $form_state) : array {
     $configuration = $this->config('sermon_audio.settings');
 
     $form['aws_credentials_file_path'] = [
