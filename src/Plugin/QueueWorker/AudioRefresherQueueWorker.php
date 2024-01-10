@@ -27,7 +27,7 @@ class AudioRefresherQueueWorker extends QueueWorkerBase implements ContainerFact
   /**
    * Sermon audio entity storage.
    */
-  private EntityStorageInterface $sermonAudioStorage;
+  private readonly EntityStorageInterface $sermonAudioStorage;
 
   /**
    * Creates a new audio refresher queue worker.

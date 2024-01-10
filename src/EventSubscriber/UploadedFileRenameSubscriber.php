@@ -21,7 +21,7 @@ class UploadedFileRenameSubscriber implements EventSubscriberInterface {
   /**
    * Repository containing possible new (post-rename) extension-less filenames.
    */
-  private FileRenamePseudoExtensionRepository $newFilenamesRepository;
+  private readonly FileRenamePseudoExtensionRepository $newFilenamesRepository;
 
   /**
    * Creates a new upload file rename subscriber.

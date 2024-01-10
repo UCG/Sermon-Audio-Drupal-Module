@@ -68,17 +68,17 @@ class SermonAudioWidget extends WidgetBase {
    /**
     * Render array element info manager.
     */
-   private ElementInfoManagerInterface $elementInfoManager;
+   private readonly ElementInfoManagerInterface $elementInfoManager;
 
    /**
     * Module configuration.
     */
-   private ImmutableConfig $moduleConfiguration;
+   private readonly ImmutableConfig $moduleConfiguration;
 
    /**
     * Storage for sermon audio entities.
     */
-   private ContentEntityStorageInterface $sermonAudioStorage;
+   private readonly ContentEntityStorageInterface $sermonAudioStorage;
 
   /**
    * Creates a new sermon audio widget.

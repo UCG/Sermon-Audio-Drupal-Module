@@ -18,12 +18,12 @@ class DynamoDbClientFactory extends AwsClientFactoryBase {
   /**
    * DynamoDB client instance.
    */
-  private DynamoDbClient $client;
+  private readonly DynamoDbClient $client;
 
   /**
    * Module configuration.
    */
-  private ImmutableConfig $configuration;
+  private readonly ImmutableConfig $configuration;
 
   /**
    * Creates a new DynamoDB client factory.
@@ -71,7 +71,7 @@ class DynamoDbClientFactory extends AwsClientFactoryBase {
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    */
-  protected static function throwCredsFileInvalidJsonException(): void {
+  protected static function throwCredsFileInvalidJsonException() : never {
     throw new ModuleConfigurationException('File contents at aws_credentials_file_path was not valid JSON.');
   }
 
@@ -80,7 +80,7 @@ class DynamoDbClientFactory extends AwsClientFactoryBase {
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    */
-  protected static function throwFailedToReadCredsFileException(): void {
+  protected static function throwFailedToReadCredsFileException() : never {
     throw new ModuleConfigurationException('Failed to read from credentials file specified by aws_credentials_file_path.');
   }
 
@@ -89,7 +89,7 @@ class DynamoDbClientFactory extends AwsClientFactoryBase {
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    */
-  protected static function throwInvalidAccessKeyException(): void {
+  protected static function throwInvalidAccessKeyException() : never {
     throw new ModuleConfigurationException('Invalid or empty "access-key" setting in aws_credentials_file_path file.');
   }
 
@@ -98,7 +98,7 @@ class DynamoDbClientFactory extends AwsClientFactoryBase {
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    */
-  protected static function throwInvalidSecretKeyException(): void {
+  protected static function throwInvalidSecretKeyException() : never {
     throw new ModuleConfigurationException('Invalid or empty "secret-key" setting in aws_credentials_file_path file.');
   }
 
@@ -107,7 +107,7 @@ class DynamoDbClientFactory extends AwsClientFactoryBase {
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    */
-  protected static function throwMissingAccessKeyException(): void {
+  protected static function throwMissingAccessKeyException() : never {
     throw new ModuleConfigurationException('Missing "access-key" setting in aws_credentials_file_path file.');
   }
 
@@ -116,7 +116,7 @@ class DynamoDbClientFactory extends AwsClientFactoryBase {
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    */
-  protected static function throwMissingSecretKeyException(): void {
+  protected static function throwMissingSecretKeyException() : never {
     throw new ModuleConfigurationException('Missing "secret-key" setting in aws_credentials_file_path file.');
   }
 
