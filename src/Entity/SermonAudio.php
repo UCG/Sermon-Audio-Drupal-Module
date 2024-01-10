@@ -26,7 +26,7 @@ use Drupal\sermon_audio\Exception\InvalidInputAudioFileException;
 use Drupal\sermon_audio\Settings;
 use Drupal\sermon_audio\DynamoDbClientFactory;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
-use Drupal\sermon_audio\Helper\AudioHelper;
+use Drupal\sermon_audio\Helper\AudioHelpers;
 use Drupal\sermon_audio\S3ClientFactory;
 use Ranine\Exception\AggregateException;
 use Ranine\Exception\InvalidOperationException;
@@ -851,7 +851,7 @@ class SermonAudio extends ContentEntityBase {
       // We'll have to refresh for all translations, as postLoad() is only
       // called once for all translations.
       foreach ($entity->iterateTranslations() as $translation) {
-        if (!AudioHelper::isProcessedAudioRefreshable($translation)) continue;
+        if (!AudioHelpers::isProcessedAudioRefreshable($translation)) continue;
 
         $newProcessedAudioId = 0;
         $newAudioDuration = 0.0;

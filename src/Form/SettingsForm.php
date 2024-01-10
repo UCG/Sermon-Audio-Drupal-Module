@@ -7,7 +7,7 @@ namespace Drupal\sermon_audio\Form;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\sermon_audio\Helper\SettingsHelper;
+use Drupal\sermon_audio\Helper\SettingsHelpers;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -106,7 +106,7 @@ EOS
       '#title' => $this->t('Connect Timeout'),
       '#min' => 1,
       '#step' => 1,
-      '#default_value' => SettingsHelper::getConnectionTimeout($configuration),
+      '#default_value' => SettingsHelpers::getConnectionTimeout($configuration),
       '#description' => $this->t('Timeout in seconds when attempting to connect to a server while making AWS calls.'),
       '#required' => FALSE,
     ];
@@ -115,7 +115,7 @@ EOS
       '#title' => $this->t('DynamoDB Timeout'),
       '#min' => 1,
       '#step' => 1,
-      '#default_value' => SettingsHelper::getDynamoDbTimeout($configuration),
+      '#default_value' => SettingsHelpers::getDynamoDbTimeout($configuration),
       '#description' => $this->t('Timeout in seconds when making AWS DynamoDB requests (whose responses should return relatively quickly).'),
       '#required' => FALSE,
     ];

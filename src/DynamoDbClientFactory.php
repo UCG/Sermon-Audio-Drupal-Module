@@ -8,7 +8,7 @@ use Aws\DynamoDb\DynamoDbClient;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ImmutableConfig;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
-use Drupal\sermon_audio\Helper\SettingsHelper;
+use Drupal\sermon_audio\Helper\SettingsHelpers;
 
 /**
  * Returns/creates AWS DynamoDB client objects.
@@ -146,8 +146,8 @@ class DynamoDbClientFactory extends AwsClientFactoryBase {
       throw new ModuleConfigurationException('The jobs_db_aws_region setting is missing or empty.');
     }
 
-    $connectTimeout = SettingsHelper::getConnectionTimeout($this->configuration);
-    $timeout = SettingsHelper::getDynamoDbTimeout($this->configuration);
+    $connectTimeout = SettingsHelpers::getConnectionTimeout($this->configuration);
+    $timeout = SettingsHelpers::getDynamoDbTimeout($this->configuration);
 
     $connectionOptions = [
       'region' => $region,

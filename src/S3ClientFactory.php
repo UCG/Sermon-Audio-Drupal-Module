@@ -8,7 +8,7 @@ use Aws\S3\S3Client;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ImmutableConfig;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
-use Drupal\sermon_audio\Helper\SettingsHelper;
+use Drupal\sermon_audio\Helper\SettingsHelpers;
 
 /**
  * Returns/creates AWS S3 client objects.
@@ -144,7 +144,7 @@ class S3ClientFactory extends AwsClientFactoryBase {
       throw new ModuleConfigurationException('The audio_s3_aws_region setting is missing or empty.');
     }
 
-    $connectTimeout = SettingsHelper::getConnectionTimeout($this->configuration);
+    $connectTimeout = SettingsHelpers::getConnectionTimeout($this->configuration);
 
     $connectionOptions = [
       'region' => $region,

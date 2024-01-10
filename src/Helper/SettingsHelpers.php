@@ -12,7 +12,7 @@ use Drupal\Core\Config\ImmutableConfig;
  *
  * @static
  */
-final class SettingsHelper {
+final class SettingsHelpers {
 
   /**
    * Empty private constructor to ensure no one instantiates this class.

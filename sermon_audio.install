@@ -7,7 +7,7 @@
 
 declare (strict_types = 1);
 
-use Drupal\sermon_audio\Helper\SettingsHelper;
+use Drupal\sermon_audio\Helper\SettingsHelpers;
 
 /**
  * Implements hook_update_9201().
@@ -31,10 +31,10 @@ function sermon_audio_update_9202() : void {
   \Drupal::configFactory()->getEditable('sermon_audio.configuration')->delete();
   $config = \Drupal::configFactory()->getEditable('sermon_audio.settings');
   // The values here match those in the default configuration YAML file.
-  if (SettingsHelper::getConnectionTimeout($config) === NULL) {
+  if (SettingsHelpers::getConnectionTimeout($config) === NULL) {
     $config->set('connect_timeout', 5);
   }
-  if (SettingsHelper::getDynamoDbTimeout($config) === NULL) {
+  if (SettingsHelpers::getDynamoDbTimeout($config) === NULL) {
     $config->set('dynamodb_timeout', 10);
   }
   $config->save(TRUE);

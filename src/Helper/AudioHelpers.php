@@ -11,7 +11,7 @@ use Drupal\sermon_audio\Entity\SermonAudio;
  *
  * @static
  */
-final class AudioHelper {
+final class AudioHelpers {
 
   /**
    * Empty private constructor to ensure no one instantiates this class.
