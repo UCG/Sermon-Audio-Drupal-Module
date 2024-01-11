@@ -122,8 +122,8 @@ class SermonAudioFieldItem extends EntityReferenceItem {
   public static function getUploadValidatorsForSettings(array $settings) : array {
     $validators = [];
 
-    $validators['file_validate_size'] = [static::getMaxUploadFileUploadSize($settings)];
-    $validators['file_validate_extensions'] = [static::getAllowedUploadFileExtensions($settings)];
+    $validators['file_validate_size'] = [self::getMaxUploadFileUploadSize($settings)];
+    $validators['file_validate_extensions'] = [self::getAllowedUploadFileExtensions($settings)];
 
     return $validators;
   }

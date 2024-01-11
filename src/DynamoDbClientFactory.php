@@ -8,6 +8,7 @@ use Aws\DynamoDb\DynamoDbClient;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ImmutableConfig;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
+use Drupal\sermon_audio\Helper\CastHelpers;
 use Drupal\sermon_audio\Helper\SettingsHelpers;
 
 /**
@@ -18,7 +19,7 @@ class DynamoDbClientFactory extends AwsClientFactoryBase {
   /**
    * DynamoDB client instance.
    */
-  private readonly DynamoDbClient $client;
+  private DynamoDbClient $client;
 
   /**
    * Module configuration.
@@ -136,12 +137,12 @@ class DynamoDbClientFactory extends AwsClientFactoryBase {
    *   integer.
    */
   private function createClient() : void {
-    $credentialsFilePath = trim((string) $this->configuration->get('aws_credentials_file_path'));
+    $credentialsFilePath = trim(CastHelpers::stringyToString($this->configuration->get('aws_credentials_file_path')));
     if ($credentialsFilePath !== '') {
       $credentials = static::getCredentials($credentialsFilePath);
     }
 
-    $region = (string) $this->configuration->get('jobs_db_aws_region');
+    $region = CastHelpers::stringyToString($this->configuration->get('jobs_db_aws_region'));
     if ($region === '') {
       throw new ModuleConfigurationException('The jobs_db_aws_region setting is missing or empty.');
     }

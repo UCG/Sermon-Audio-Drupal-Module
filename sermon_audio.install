@@ -18,6 +18,7 @@ function sermon_audio_update_9201() : void {
   // the appropriate change, and "update" the entity type to the changed object.
   $updateManager = \Drupal::entityDefinitionUpdateManager();
   $entityType = $updateManager->getEntityType('sermon_audio');
+  assert($entityType !== NULL);
   $entityType->set('data_table', 'sermon_audio_field_data');
   $updateManager->updateEntityType($entityType);
 }

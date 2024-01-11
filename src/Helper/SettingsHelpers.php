@@ -6,6 +6,7 @@ namespace Drupal\sermon_audio\Helper;
 
 use Drupal\Core\Config\Config;
 use Drupal\Core\Config\ImmutableConfig;
+use Drupal\sermon_audio\Exception\ModuleConfigurationException;
 
 /**
  * Parses values from certain of this module's settings.

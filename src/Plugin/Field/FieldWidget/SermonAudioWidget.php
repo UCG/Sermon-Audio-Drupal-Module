@@ -276,7 +276,7 @@ class SermonAudioWidget extends WidgetBase {
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) : static {
-    return new static($plugin_id,
+    return new self($plugin_id,
       $plugin_definition,
       $configuration['field_definition'],
       $configuration['settings'],
@@ -373,7 +373,7 @@ class SermonAudioWidget extends WidgetBase {
     // fired during this request cycle. In turn, this could lead to a stale
     // upload location and validators, which seems a bit risky from a security
     // perspective.
-    $element['#upload_location'] = static::getUploadLocationStatically();
+    $element['#upload_location'] = self::getUploadLocationStatically();
     $element['#upload_validators'] = SermonAudioFieldItem::getUploadValidatorsForSettings($fieldSettings);
 
     // To start, we let the managed_file form element compute a value. This will
@@ -405,7 +405,7 @@ class SermonAudioWidget extends WidgetBase {
       // @see \Drupal\sermon_audio\FileRenamePseudoExtensionRepository
       // If we already determined this "pseudo-extension" earlier, go ahead and
       // use it. Otherwise, calculate and cache a new pseudo-extension.
-      $pseudoExtension =& static::getCacheReferenceForElement($element, 'pseudo_extension', $formState);
+      $pseudoExtension =& self::getCacheReferenceForElement($element, 'pseudo_extension', $formState);
 
       if ($pseudoExtension === NULL) {
         // Use a random bare filename to ensure uniqueness.
@@ -426,7 +426,6 @@ class SermonAudioWidget extends WidgetBase {
     if ($autoRenameUploads) {
       // Remove the fake extension from the validator settings. We don't want
       // this extension to be shown to the user!
-      assert(isset($extensionValidatorSettings));
       assert(isset($pseudoExtension));
       assert(isset($extensionList));
 
@@ -466,8 +465,8 @@ class SermonAudioWidget extends WidgetBase {
     // Now we must determine the sermon audio ID. First, we check to see if we
     // have an appropriate cached audio ID from earlier on in this request
     // cycle. If so, we may use it.
-    $aid =& static::getCacheReferenceForElement($element, 'aid', $formState);
-    $cachedFid =& static::getCacheReferenceForElement($element, 'fid', $formState);
+    $aid =& self::getCacheReferenceForElement($element, 'aid', $formState);
+    $cachedFid =& self::getCacheReferenceForElement($element, 'fid', $formState);
     if ($aid === NULL || $cachedFid !== $fid) {
       // But if not, we have to determine whether we need to create a new sermon
       // audio entity or if we can re-use an existing one.
@@ -480,17 +479,17 @@ class SermonAudioWidget extends WidgetBase {
         if (!isset($input['aid_token'])) {
           throw new \RuntimeException('The audio ID token was missing from the form input.');
         }
-        $aid = static::getAidFromToken((string) $input['aid_token']);
+        $aid = self::getAidFromToken((string) $input['aid_token']);
         if ($aid === NULL) {
           // It looks like we'll just have to create a new entity.
-          $aid = static::createSermonAudioFromUnprocessedFid($fid);
+          $aid = self::createSermonAudioFromUnprocessedFid($fid);
         }
       }
       else {
         // Also, assume an "mp4" extension means an audio mp4 file, not a video
         // mp4 (as Drupal seems to assume). We also fix the MIME type for "m4a",
         // which Drupal incorrectly sets to "audio/mpeg".
-        $file = static::getFileStorage()->load($fid);
+        $file = self::getFileStorage()->load($fid);
         if ($file === NULL) {
           throw new \RuntimeException('Entity for newly uploaded file could not be loaded.');
         }
@@ -506,13 +505,12 @@ class SermonAudioWidget extends WidgetBase {
           }
         }
 
-        $aid = static::createSermonAudioFromUnprocessedFid($fid);
+        $aid = self::createSermonAudioFromUnprocessedFid($fid);
       }
       // Record the FID associated with this AID.
       $cachedFid = $fid;
     }
 
-    assert(isset($aid));
     $value['aid'] = $aid;
     return $value;
   }
@@ -553,13 +551,13 @@ class SermonAudioWidget extends WidgetBase {
     // submits the form later, we can re-use that sermon audio ID.
     $aid = (int) $element['#value']['aid'];
     // See if we already have a token in the cache.
-    $cachedAid =& static::getCacheReferenceForElement($element, 'aid', $formState);
+    $cachedAid =& self::getCacheReferenceForElement($element, 'aid', $formState);
     if ($cachedAid !== NULL && $cachedAid !== $aid) {
       throw new \RuntimeException('Sermon audio ID does not match cached value.');
     }
-    $token =& static::getCacheReferenceForElement($element, 'aid_token', $formState);
+    $token =& self::getCacheReferenceForElement($element, 'aid_token', $formState);
     if ($token === NULL || $cachedAid === NULL) {
-      $token = static::tokenizeAid($aid);
+      $token = self::tokenizeAid($aid);
       if ($cachedAid === NULL) {
         $cachedAid = $aid;
       }
@@ -652,7 +650,7 @@ class SermonAudioWidget extends WidgetBase {
    *   Can be thrown if $element contains a bad #parent value.
    */
   private static function &getCacheReferenceForElement(array $element, string $key, FormStateInterface $formState) : mixed {
-    $fullKey = 'sermon_audio.' . static::getElementKey($element) . '.' . $key;
+    $fullKey = 'sermon_audio.' . self::getElementKey($element) . '.' . $key;
     if (!$formState->hasTemporaryValue($fullKey)) {
       $formState->setTemporaryValue($fullKey, NULL);
     }

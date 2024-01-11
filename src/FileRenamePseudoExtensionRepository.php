@@ -36,7 +36,7 @@ class FileRenamePseudoExtensionRepository {
    */
   public function addBareFilename(string $bareFilename) : string {
     $extension = bin2hex(random_bytes(8));
-    static::getNewBareFilenames()[$extension] = $bareFilename;
+    self::getNewBareFilenames()[$extension] = $bareFilename;
     return $extension;
   }
 
@@ -51,7 +51,7 @@ class FileRenamePseudoExtensionRepository {
    *   the extension was not found.
    */
   public function removePseudoExtension(string $pseudoExtension) : bool {
-    $filenames =& static::getNewBareFilenames();
+    $filenames =& self::getNewBareFilenames();
     if (array_key_exists($pseudoExtension, $filenames)) {
       unset($filenames[$pseudoExtension]);
       return TRUE;
@@ -74,7 +74,7 @@ class FileRenamePseudoExtensionRepository {
    *   Thrown if an element in $extensions is not a string.
    */
   public function tryGetBareFilename(iterable $extensions) : ?string {
-    $filenames =& static::getNewBareFilenames();
+    $filenames =& self::getNewBareFilenames();
     foreach ($extensions as $extension) {
       if (!is_string($extension)) {
         throw new \InvalidArgumentException('An extension in $extensions is not a string.');
@@ -95,7 +95,9 @@ class FileRenamePseudoExtensionRepository {
    *   values are the corresponding new bare filenames.
    */
   private static function &getNewBareFilenames() : array {
-    return drupal_static('sermon_audio_new_bare_filenames_table', []);
+    $var =& drupal_static('sermon_audio_new_bare_filenames_table', []);
+    assert(is_array($var));
+    return $var;
   }
 
 }

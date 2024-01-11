@@ -21,6 +21,7 @@ function sermon_audio_cron() : void {
     ->condition('processed_audio', NULL, 'IS NULL')
     ->condition('unprocessed_audio.entity', NULL, 'IS NOT NULL')
     ->execute();
+  assert(is_array($ids));
   $queue = \Drupal::queue('sermon_audio_refresher');
   // Clean unused items from the queue, as there is no built-in mechanism to
   // check if an entity ID already exists in the queue.

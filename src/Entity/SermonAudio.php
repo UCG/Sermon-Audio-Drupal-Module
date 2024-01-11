@@ -86,14 +86,15 @@ class SermonAudio extends ContentEntityBase {
     assert($fileUsageManager instanceof FileUsageInterface);
     $entityTypeId = $this->getEntityTypeId();
     $entityId = (int) $this->id();
-    $fileStorage = static::getFileStorage();
+    $fileStorage = self::getFileStorage();
     foreach ($this->iterateTranslations() as $translation) {
       $fid = $translation->getUnprocessedAudioId();
       if ($fid !== NULL) {
         $file = $fileStorage->load($fid);
         if ($file !== NULL) {
+          assert($file instanceof FileInterface);
           // Remove all usage information for this FID.
-          $fileUsageManager->delete($file, 'sermon_audio', $entityTypeId, $entityId, 0);
+          $fileUsageManager->delete($file, 'sermon_audio', $entityTypeId, (string) $entityId, 0);
         }
       }
     }
@@ -103,7 +104,10 @@ class SermonAudio extends ContentEntityBase {
    * Gets the processed audio duration, or NULL if it is not set.
    */
   public function getDuration() : ?float {
-    $value = static::getScalarValueFromFieldItem($this->get('duration')->get(0));
+    $item = $this->get('duration')->get(0);
+    assert($item === NULL || $item instanceof FieldItemInterface);
+    $value = self::getScalarValueFromFieldItem($item);
+    assert(is_scalar($value) || $value === NULL);
     return $value === NULL ? NULL : (float) $value;
   }
 
@@ -126,7 +130,10 @@ class SermonAudio extends ContentEntityBase {
       if ($ignoreMissingReference) return NULL;
       else throw new \RuntimeException('Could not load file entity with ID "' . $targetId . '".');
     }
-    return $file;
+    else {
+      assert($file instanceof FileInterface);
+      return $file;
+    }
   }
 
   /**
@@ -134,8 +141,12 @@ class SermonAudio extends ContentEntityBase {
    */
   public function getProcessedAudioId() : ?int {
     $item = $this->get('processed_audio')->get(0)?->getValue();
+    assert(empty($item) || is_array($item));
     if (empty($item) || $item['target_id'] === NULL) return NULL;
-    else return (int) $item['target_id'];
+    else {
+      assert(is_scalar($item['target_id']));
+      return (int) $item['target_id'];
+    }
   }
 
   /**
@@ -157,7 +168,10 @@ class SermonAudio extends ContentEntityBase {
       if ($ignoreMissingReference) return NULL;
       else throw new \RuntimeException('Could not load file entity with ID "' . $targetId . '".');
     }
-    return $file;
+    else {
+      assert($file instanceof FileInterface);
+      return $file;
+    }
   }
 
   /**
@@ -165,8 +179,12 @@ class SermonAudio extends ContentEntityBase {
    */
   public function getUnprocessedAudioId() : ?int {
     $item = $this->get('unprocessed_audio')->get(0)?->getValue();
+    assert(empty($item) || is_array($item));
     if (empty($item) || $item['target_id'] === NULL) return NULL;
-    else return (int) $item['target_id'];
+    else {
+      assert(is_scalar($item['target_id']));
+      return (int) $item['target_id'];
+    }
   }
 
   /**
@@ -174,6 +192,7 @@ class SermonAudio extends ContentEntityBase {
    */
   public function hasProcessedAudio() : bool {
     $item = $this->get('processed_audio')->get(0)?->getValue();
+    assert(empty($item) || is_array($item));
     return (empty($item) || $item['target_id'] === NULL) ? FALSE : TRUE;
   }
 
@@ -182,6 +201,7 @@ class SermonAudio extends ContentEntityBase {
    */
   public function hasUnprocessedAudio() : bool {
     $item = $this->get('unprocessed_audio')->get(0)?->getValue();
+    assert(empty($item) || is_array($item));
     return (empty($item) || $item['target_id'] === NULL) ? FALSE : TRUE;
   }
 
@@ -269,16 +289,16 @@ class SermonAudio extends ContentEntityBase {
     };
 
     try {
-      $unprocessedAudio = $this->getUnprocessedAudio() ?? throw static::getUnprocessedAudioFieldException();
-      $inputSubKey = static::getUnprocessedAudioSubKey($unprocessedAudio);
+      $unprocessedAudio = $this->getUnprocessedAudio() ?? throw self::getUnprocessedAudioFieldException();
+      $inputSubKey = self::getUnprocessedAudioSubKey($unprocessedAudio);
     }
     catch (\Exception $e) {
       $throwIfDesired($e, fn($e) => $e instanceof EntityValidationException || $e instanceof InvalidInputAudioFileException || $e instanceof \RuntimeException);
       return;
     }
 
-    $filename = substr(static::normalizeSubKeyPathSegment($sermonName, $sermonLanguageCode), 0, 128) . '.mp4';
-    $outputSubKey = static::getOutputSubKey($sermonSpeaker, $sermonYear, $filename, $sermonLanguageCode);
+    $filename = substr(self::normalizeSubKeyPathSegment($sermonName, $sermonLanguageCode), 0, 128) . '.mp4';
+    $outputSubKey = self::getOutputSubKey($sermonSpeaker, $sermonYear, $filename, $sermonLanguageCode);
 
     // Track changes to the entity, so we don't save it unnecessarily.
     $didChangeEntity = FALSE;
@@ -298,12 +318,14 @@ class SermonAudio extends ContentEntityBase {
     // Indicate that we have initiated the audio processing.
     $processingInitiatedField = $this->get('processing_initiated');
     $processingInitiatedFieldItem = $processingInitiatedField->get(0);
+    assert($processingInitiatedFieldItem instanceof FieldItemInterface || $processingInitiatedFieldItem === NULL);
     if ($processingInitiatedFieldItem === NULL) {
       $processingInitiatedFieldItem = $processingInitiatedField->appendItem(['value' => TRUE]);
+      assert($processingInitiatedFieldItem instanceof FieldItemInterface);
       $didChangeEntity = TRUE;
     }
-    elseif (!static::getScalarValueFromFieldItem($processingInitiatedFieldItem)) {
-      static::setScalarValueOnFieldItem($processingInitiatedFieldItem, TRUE);
+    elseif (!self::getScalarValueFromFieldItem($processingInitiatedFieldItem)) {
+      self::setScalarValueOnFieldItem($processingInitiatedFieldItem, TRUE);
       $didChangeEntity = TRUE;
     }
 
@@ -312,7 +334,7 @@ class SermonAudio extends ContentEntityBase {
     }
 
     // Don't actually start an audio processing job if we're in "debug mode."
-    if (static::getModuleSettings()->get('debug_mode')) {
+    if (self::getModuleSettings()->get('debug_mode')) {
       return;
     }
 
@@ -325,7 +347,7 @@ class SermonAudio extends ContentEntityBase {
     // progress," but the start timestamp of the job indicates that the Lambda
     // function that was responsible for executing the job has already timed
     // out. In this case, we also may re-queue the job.
-    $dynamoDb = static::getDynamoDbClient();
+    $dynamoDb = self::getDynamoDbClient();
     $currentTime = \Drupal::time()->getCurrentTime();
     // Lambda jobs time out after 15 minutes; make our threshold 20 to be safe.
     $thresholdRestartTime = $currentTime - (20 * 60);
@@ -361,14 +383,14 @@ class SermonAudio extends ContentEntityBase {
           'sermon-language' => ['S' => $sermonLanguageCode],
           'output-display-filename' => ['S' => $filename],
         ],
-        'TableName' => static::getJobsTableName(),
+        'TableName' => self::getJobsTableName(),
       ]);
     }
     catch (DynamoDbException $e) {
       // Indicate that the audio processing job has not actually successfully
       // been initiated.
       try {
-        static::setScalarValueOnFieldItem($processingInitiatedFieldItem, FALSE);
+        self::setScalarValueOnFieldItem($processingInitiatedFieldItem, FALSE);
         $this->save();
       }
       catch (\Exception $inner) {
@@ -386,7 +408,7 @@ class SermonAudio extends ContentEntityBase {
   /**
    * Iterates over all translations of this entity.
    *
-   * @return iterable<\Drupal\sermon_audio\Entity\SermonAudio>&\Ranine\Iteration\ExtendableIterable
+   * @return \Ranine\Iteration\ExtendableIterable<string, \Drupal\sermon_audio\Entity\SermonAudio>
    *   Iterable, whose keys are the langcodes, and whose values are the
    *   translated entities.
    */
@@ -422,6 +444,7 @@ class SermonAudio extends ContentEntityBase {
         ->map(fn() => NULL)
         ->toArray();
       foreach ($langcodesToScanAsKeys as $langcode => $n) {
+        $langcode = (string) $langcode;
         $originalFid = NULL;
         if ($originalEntity->hasTranslation($langcode)) {
           $originalTranslation = $originalEntity->getTranslation($langcode);
@@ -461,16 +484,17 @@ class SermonAudio extends ContentEntityBase {
 
     $fileUsageManager = \Drupal::service('file.usage');
     assert($fileUsageManager instanceof FileUsageInterface);
-    $fileStorage = static::getFileStorage();
+    $fileStorage = self::getFileStorage();
     $entityTypeId = $this->getEntityTypeId();
     $entityId = (int) $this->id();
     foreach ($usageChanges as $fid => $change) {
       if ($change === 0) continue;
       $file = $fileStorage->load($fid);
       if ($file === NULL) continue;
+      assert($file instanceof FileInterface);
 
-      if ($change > 0) $fileUsageManager->add($file, 'sermon_audio', $entityTypeId, $entityId, $change);
-      else $fileUsageManager->delete($file, 'sermon_audio', $entityTypeId, $entityId, -$change);
+      if ($change > 0) $fileUsageManager->add($file, 'sermon_audio', $entityTypeId, (string) $entityId, $change);
+      else $fileUsageManager->delete($file, 'sermon_audio', $entityTypeId, (string) $entityId, -$change);
     }
   }
 
@@ -546,7 +570,9 @@ class SermonAudio extends ContentEntityBase {
    * Tells whether the audio processing was initiated by reading field value.
    */
   public function wasAudioProcessingInitiated() : bool {
-    return (bool) static::getScalarValueFromFieldItem($this->get('processing_initiated')->get(0));
+    $item = $this->get('processing_initiated')->get(0);
+    assert($item instanceof FieldItemInterface || $item === NULL);
+    return (bool) self::getScalarValueFromFieldItem($item);
   }
 
   /**
@@ -611,8 +637,8 @@ class SermonAudio extends ContentEntityBase {
    *   type.
    */
   private function prepareToRefreshProcessedAudio(int &$newProcessedAudioId, float &$newAudioDuration) : bool {
-    if (static::getModuleSettings()->get('debug_mode')) {
-      $unprocessedAudioId = $this->getUnprocessedAudioId() ?? throw static::getUnprocessedAudioFieldException();
+    if (self::getModuleSettings()->get('debug_mode')) {
+      $unprocessedAudioId = $this->getUnprocessedAudioId() ?? throw self::getUnprocessedAudioFieldException();
       if ($this->getProcessedAudioId() === $unprocessedAudioId) {
         return FALSE;
       }
@@ -622,11 +648,11 @@ class SermonAudio extends ContentEntityBase {
       }
     }
     else {
-      $unprocessedAudio = $this->getUnprocessedAudio() ?? throw static::getUnprocessedAudioFieldException();
-      $inputSubKey = static::getUnprocessedAudioSubKey($unprocessedAudio);
+      $unprocessedAudio = $this->getUnprocessedAudio() ?? throw self::getUnprocessedAudioFieldException();
+      $inputSubKey = self::getUnprocessedAudioSubKey($unprocessedAudio);
   
-      $dynamoDb = static::getDynamoDbClient();
-      $jobsTableName = static::getJobsTableName();
+      $dynamoDb = self::getDynamoDbClient();
+      $jobsTableName = self::getJobsTableName();
       $dbResponse = $dynamoDb->getItem([
         'Key' => [
           'input-sub-key' => ['S' => $inputSubKey],
@@ -683,11 +709,9 @@ class SermonAudio extends ContentEntityBase {
       // Otherwise, there is no job with the given input sub-key.
       else return FALSE;
   
-      assert(isset($outputSubKey));
-      assert(isset($outputDisplayFilename));
       assert($outputSubKey != "");
       assert($outputDisplayFilename != "");
-      assert(is_finite($newAudioDuration) && $newAudioDuration >= 0);
+      assert($newAudioDuration >= 0);
   
       $processedAudioUri = Settings::getProcessedAudioUriPrefix() . $outputSubKey;
   
@@ -702,7 +726,7 @@ class SermonAudio extends ContentEntityBase {
       // the processed audio file. This will also allow the file size to be
       // automatically set when the processed audio file entity is created.
       // Otherwise, we'll have to grab the file size separately.
-      if (\Drupal::moduleHandler()->isLoaded('s3fs')) {
+      if (\Drupal::moduleHandler()->moduleExists('s3fs')) {
         $s3fsStreamWrapper = \Drupal::service('stream_wrapper.s3fs');
         if (!class_exists('Drupal\\s3fs\\StreamWrapper\\S3fsStream')) {
           throw new \RuntimeException('The "s3fs" module was enabled, but the \\Drupal\\s3fs\\StreamWrapper\\S3fsStream class does not exist.');
@@ -715,8 +739,8 @@ class SermonAudio extends ContentEntityBase {
       else {
         // Get the size of the new processed audio file. We do this by making a
         // HEAD request for the file.
-        $s3Client = static::getS3Client();
-        $result = $s3Client->headObject(['Bucket' => static::getAudioBucket(), 'Key' => static::getS3ProcessedAudioKeyPrefix() . $outputSubKey]);
+        $s3Client = self::getS3Client();
+        $result = $s3Client->headObject(['Bucket' => self::getAudioBucket(), 'Key' => self::getS3ProcessedAudioKeyPrefix() . $outputSubKey]);
         if (!isset($result['ContentLength'])) {
           throw new \RuntimeException('Could not retrieve file size for processed audio file.');
         }
@@ -742,7 +766,7 @@ class SermonAudio extends ContentEntityBase {
         // below.
         $newProcessedAudioFieldInitValues['filesize'] = $fileSize;
       }
-      $newProcessedAudio = static::getFileStorage()
+      $newProcessedAudio = self::getFileStorage()
         ->create($newProcessedAudioFieldInitValues)
         ->enforceIsNew();
       $newProcessedAudio->save();
@@ -758,7 +782,11 @@ class SermonAudio extends ContentEntityBase {
   private function setDuration(float $value) : void {
     $durationField = $this->get('duration');
     if ($durationField->count() === 0) $durationField->appendItem(['value' => $value]);
-    else static::setScalarValueOnFieldItem($durationField->get(0), $value);
+    else {
+      $item = $durationField->get(0);
+      assert($item instanceof FieldItemInterface);
+      self::setScalarValueOnFieldItem($item, $value);
+    }
   }
 
   /**
@@ -838,6 +866,7 @@ class SermonAudio extends ContentEntityBase {
       }
 
       $entityId = $entity->id();
+      assert($entityId !== NULL);
 
       // Don't do anything if postLoad() has already been run for this entity.
       // This avoids various problems with the static entity cache being cleared
@@ -925,7 +954,9 @@ class SermonAudio extends ContentEntityBase {
    * Gets the file storage.
    */
   private static function getFileStorage() : FileStorageInterface {
-    return \Drupal::entityTypeManager()->getStorage('file');
+    $storage = \Drupal::entityTypeManager()->getStorage('file');
+    assert($storage instanceof FileStorageInterface);
+    return $storage;
   }
 
   /**
@@ -978,8 +1009,8 @@ class SermonAudio extends ContentEntityBase {
     assert($outputFilename !== '');
     assert($sermonLanguage !== '');
 
-    $normalizedSermonYear = static::normalizeSubKeyPathSegment($sermonYear, $sermonLanguage);
-    $normalizedSermonSpeaker = static::normalizeSubKeyPathSegment($sermonSpeaker, $sermonLanguage);
+    $normalizedSermonYear = self::normalizeSubKeyPathSegment($sermonYear, $sermonLanguage);
+    $normalizedSermonSpeaker = self::normalizeSubKeyPathSegment($sermonSpeaker, $sermonLanguage);
     return substr($normalizedSermonYear, 0, 16) . '/'
       . substr($normalizedSermonSpeaker, 0, 128) . '/'
       . $outputFilename . '-'
@@ -1028,6 +1059,7 @@ class SermonAudio extends ContentEntityBase {
   private static function getScalarValueFromFieldItem(?FieldItemInterface $item) : mixed {
     if ($item === NULL) return NULL;
     $fullValue = $item->getValue();
+    assert(is_array($fullValue) || !$fullValue);
     return $fullValue ? $fullValue['value'] : NULL;
   }
 

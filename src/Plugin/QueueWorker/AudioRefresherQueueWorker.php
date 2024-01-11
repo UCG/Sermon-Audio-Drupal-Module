@@ -76,7 +76,7 @@ class AudioRefresherQueueWorker extends QueueWorkerBase implements ContainerFact
   /**
    * {@inheritdoc}
    */
-  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) : static {
+  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) : self {
     $entityTypeManager = $container->get('entity_type.manager');
     assert($entityTypeManager instanceof EntityTypeManagerInterface);
     return new self($configuration,
