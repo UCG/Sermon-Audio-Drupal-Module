@@ -5,6 +5,7 @@ declare (strict_types = 1);
 namespace Drupal\sermon_audio\Plugin\Field\FieldFormatter;
 
 use Drupal\Core\Cache\Cache;
+use Drupal\Core\Field\EntityReferenceFieldItemListInterface;
 use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\Core\Field\Plugin\Field\FieldFormatter\EntityReferenceFormatterBase;
 use Drupal\Core\Form\FormStateInterface;
@@ -48,7 +49,8 @@ class SermonAudioPlayerFormatter extends EntityReferenceFormatterBase {
   /**
    * {@inheritdoc}
    */
-  public function viewElements(FieldItemListInterface $items, $langcode) : array {
+  public function viewElements(FieldItemListInterface $items, mixed $langcode) : array {
+    assert ($items instanceof EntityReferenceFieldItemListInterface);
     $output = [];
     foreach ($this->getEntitiesToView($items, $langcode) as $delta => $sermonAudio) {
       assert($sermonAudio instanceof SermonAudio);

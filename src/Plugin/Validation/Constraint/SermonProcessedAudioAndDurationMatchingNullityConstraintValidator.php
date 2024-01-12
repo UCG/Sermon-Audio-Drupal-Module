@@ -16,11 +16,11 @@ class SermonProcessedAudioAndDurationMatchingNullityConstraintValidator extends 
   /**
    * {@inheritdoc}
    */
-  public function validate($entity, Constraint $constraint) : void {
+  public function validate(mixed $entity, Constraint $constraint) : void {
     if (!($entity instanceof SermonAudio)) {
       throw new \InvalidArgumentException('$entity is not a sermon audio entity.');
     }
-    if (!($constraint instanceof ProcessedAudioAndDurationMatchingNullityConstraint)) {
+    if (!($constraint instanceof SermonProcessedAudioAndDurationMatchingNullityConstraint)) {
       throw new \InvalidArgumentException('$constraint is not of the expected type.');
     }
 

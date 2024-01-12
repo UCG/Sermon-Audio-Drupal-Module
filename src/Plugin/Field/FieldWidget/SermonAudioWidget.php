@@ -21,6 +21,7 @@ use Drupal\file\FileStorageInterface;
 use Drupal\sermon_audio\Entity\SermonAudio;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
 use Drupal\sermon_audio\FileRenamePseudoExtensionRepository;
+use Drupal\sermon_audio\Helper\CastHelpers;
 use Drupal\sermon_audio\Plugin\Field\FieldType\SermonAudioFieldItem;
 use Drupal\sermon_audio\Settings;
 use Ranine\Exception\InvalidOperationException;
@@ -97,7 +98,7 @@ class SermonAudioWidget extends WidgetBase {
    *   Translation manager.
    * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
    *   Entity type manager.
-   * @param \Drupal\Core\Render\ElementInfoManagerInterface
+   * @param \Drupal\Core\Render\ElementInfoManagerInterface $elementInfoManager
    *   Render array element info manager.
    */
   protected function __construct(string $pluginId,
@@ -112,14 +113,16 @@ class SermonAudioWidget extends WidgetBase {
     parent::__construct($pluginId, $pluginDefinition, $fieldDefinition, $settings, $thirdPartySettings);
     $this->elementInfoManager = $elementInfoManager;
     $this->moduleConfiguration = $configFactory->get('sermon_audio.settings');
-    $this->sermonAudioStorage = $entityTypeManager->getStorage('sermon_audio');
+    $sermonAudioStorage = $entityTypeManager->getStorage('sermon_audio');
+    assert($sermonAudioStorage instanceof ContentEntityStorageInterface);
+    $this->sermonAudioStorage = $sermonAudioStorage;
     $this->stringTranslation = $translationManager;
   }
 
   /**
    * {@inheritdoc}
    */
-  public function formElement(FieldItemListInterface $items, $delta, array $element, array &$form, FormStateInterface $form_state) : array {
+  public function formElement(FieldItemListInterface $items, mixed $delta, array $element, array &$form, FormStateInterface $form_state) : array {
     $fieldItem = $items[$delta];
     if (!($fieldItem instanceof SermonAudioFieldItem)) {
       throw new InvalidOperationException('This method was called for a field with an item of an invalid type.');
@@ -134,7 +137,7 @@ class SermonAudioWidget extends WidgetBase {
       $defaultValue = NULL;
     }
     else {
-      $sermonAudioId = (int) $targetId;
+      $sermonAudioId = CastHelpers::intyToInt($targetId);
       $sermonAudio = $this->sermonAudioStorage->load($sermonAudioId);
       if ($sermonAudio === NULL) $defaultValue = NULL;
       else {
@@ -265,7 +268,7 @@ class SermonAudioWidget extends WidgetBase {
    *   empty.
    */
   private function getUploadLocation() : string {
-    $uploadLocation = (string) $this->moduleConfiguration->get('unprocessed_audio_uri_prefix');
+    $uploadLocation = CastHelpers::stringyToString($this->moduleConfiguration->get('unprocessed_audio_uri_prefix'));
     if ($uploadLocation === '') {
       throw new ModuleConfigurationException('The unprocessed_audio_uri_prefix setting is empty.');
     }
@@ -275,16 +278,24 @@ class SermonAudioWidget extends WidgetBase {
   /**
    * {@inheritdoc}
    */
-  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) : static {
+  public static function create(ContainerInterface $container, array $configuration, mixed $plugin_id, mixed $plugin_definition) : self {
+    $translationManager = $container->get('string_translation');
+    assert($translationManager instanceof TranslationInterface);
+    $configFactory = $container->get('config.factory');
+    assert($configFactory instanceof ConfigFactoryInterface);
+    $entityTypeManager = $container->get('entity_type.manager');
+    assert($entityTypeManager instanceof EntityTypeManagerInterface);
+    $elementInfoManager = $container->get('element_info');
+    assert($elementInfoManager instanceof ElementInfoManagerInterface);
     return new self($plugin_id,
       $plugin_definition,
       $configuration['field_definition'],
       $configuration['settings'],
       $configuration['third_party_settings'],
-      $container->get('string_translation'),
-      $container->get('config.factory'),
-      $container->get('entity_type.manager'),
-      $container->get('element_info'),
+      $translationManager,
+      $configFactory,
+      $entityTypeManager,
+      $elementInfoManager,
     );
   }
 
@@ -353,7 +364,7 @@ class SermonAudioWidget extends WidgetBase {
    *   Thrown if an error occurs when attempting to load a newly uploaded file
    *   entity.
    */
-  public static function getWidgetValue(array &$element, $input, FormStateInterface $formState, bool $autoRenameUploads = TRUE) : array {
+  public static function getWidgetValue(array &$element, mixed $input, FormStateInterface $formState, bool $autoRenameUploads = TRUE) : array {
     $entityFieldManager = \Drupal::service('entity_field.manager');
     assert($entityFieldManager instanceof EntityFieldManagerInterface);
 
@@ -406,6 +417,7 @@ class SermonAudioWidget extends WidgetBase {
       // If we already determined this "pseudo-extension" earlier, go ahead and
       // use it. Otherwise, calculate and cache a new pseudo-extension.
       $pseudoExtension =& self::getCacheReferenceForElement($element, 'pseudo_extension', $formState);
+      assert($pseudoExtension === NULL || is_string($pseudoExtension));
 
       if ($pseudoExtension === NULL) {
         // Use a random bare filename to ensure uniqueness.
@@ -422,13 +434,11 @@ class SermonAudioWidget extends WidgetBase {
     }
 
     $fileElementValue = ManagedFile::valueCallback($element, $cleanInput, $formState);
+    assert(is_array($fileElementValue));
 
     if ($autoRenameUploads) {
       // Remove the fake extension from the validator settings. We don't want
       // this extension to be shown to the user!
-      assert(isset($pseudoExtension));
-      assert(isset($extensionList));
-
       $extensionListLength = strlen($extensionList);
       $pseudoExtensionLength = strlen($pseudoExtension);
       if ($extensionListLength > $pseudoExtensionLength) {
@@ -457,7 +467,7 @@ class SermonAudioWidget extends WidgetBase {
 
     // Otherwise, extract the FID, and ensure the $value is presented in our
     // canonical fashion.
-    $fid = (int) reset($fileElementValue['fids']);
+    $fid = CastHelpers::intyToInt(reset($fileElementValue['fids']));
     // We know we are working with an unprocessed file, as the only way a
     // processed file can be attached is if the default value is returned (see
     // above).
@@ -479,7 +489,7 @@ class SermonAudioWidget extends WidgetBase {
         if (!isset($input['aid_token'])) {
           throw new \RuntimeException('The audio ID token was missing from the form input.');
         }
-        $aid = self::getAidFromToken((string) $input['aid_token']);
+        $aid = self::getAidFromToken(CastHelpers::stringyToString($input['aid_token']));
         if ($aid === NULL) {
           // It looks like we'll just have to create a new entity.
           $aid = self::createSermonAudioFromUnprocessedFid($fid);
@@ -518,7 +528,7 @@ class SermonAudioWidget extends WidgetBase {
   /**
    * Calls static::getWidgetValue() with $autoRename = FALSE.
    */
-  public static function getWidgetValueNoAutoRename(array &$element, $input, FormStateInterface $formState) : array {
+  public static function getWidgetValueNoAutoRename(array &$element, mixed $input, FormStateInterface $formState) : array {
     return static::getWidgetValue($element, $input, $formState, FALSE);
   }
 
@@ -630,7 +640,9 @@ class SermonAudioWidget extends WidgetBase {
    */
   private static function getAidFromToken(string $token) : ?int {
     $store = \Drupal::keyValueExpirable('sermon_audio.sermon_audio_ids');
-    return $store->get($token);
+    $aid = $store->get($token);
+    assert($aid === NULL || is_int($aid));
+    return $aid;
   }
 
   /**
@@ -695,7 +707,9 @@ class SermonAudioWidget extends WidgetBase {
    * Gets the file entity storage using the global service container.
    */
   private static function getFileStorage() : FileStorageInterface {
-    return \Drupal::entityTypeManager()->getStorage('file');
+    $storage = \Drupal::entityTypeManager()->getStorage('file');
+    assert($storage instanceof FileStorageInterface);
+    return $storage;
   }
 
   /**
@@ -736,8 +750,6 @@ class SermonAudioWidget extends WidgetBase {
    * @hpstan-return non-empty-string
    */
   private static function tokenizeAid(int $aid, int $expiry = 86400) : string {
-    assert($expiry > 0);
-
     $token = base64_encode(random_bytes(12));
     $store = \Drupal::keyValueExpirable('sermon_audio.sermon_audio_ids');
     $store->setWithExpire($token, $aid, $expiry);

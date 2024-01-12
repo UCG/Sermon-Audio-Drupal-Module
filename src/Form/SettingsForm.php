@@ -154,8 +154,8 @@ EOS
     $configuration->set('processed_audio_key_prefix', CastHelpers::stringyToString($form_state->getValue('processed_audio_key_prefix')));
     $configuration->set('debug_mode', (bool) $form_state->getValue('debug_mode'));
 
-    $connectTimeout = (int) $form_state->getValue('connect_timeout');
-    $dynamoDbTimeout = (int) $form_state->getValue('dynamodb_timeout');
+    $connectTimeout = CastHelpers::intyToInt($form_state->getValue('connect_timeout'));
+    $dynamoDbTimeout = CastHelpers::intyToInt($form_state->getValue('dynamodb_timeout'));
     $configuration->set('connect_timeout', $connectTimeout > 0 ? $connectTimeout : NULL);
     $configuration->set('dynamodb_timeout', $dynamoDbTimeout > 0 ? $dynamoDbTimeout : NULL);
 
@@ -166,8 +166,10 @@ EOS
   /**
    * {@inheritdoc}
    */
-  public static function create(ContainerInterface $container) : static {
-    return new self($container->get('config.factory'));
+  public static function create(ContainerInterface $container) : self {
+    $configFactory = $container->get('config.factory');
+    assert($configFactory instanceof ConfigFactoryInterface);
+    return new self($configFactory);
   }
 
 }

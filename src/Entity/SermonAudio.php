@@ -27,6 +27,7 @@ use Drupal\sermon_audio\Settings;
 use Drupal\sermon_audio\DynamoDbClientFactory;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
 use Drupal\sermon_audio\Helper\AudioHelpers;
+use Drupal\sermon_audio\Helper\CastHelpers;
 use Drupal\sermon_audio\S3ClientFactory;
 use Ranine\Exception\AggregateException;
 use Ranine\Exception\InvalidOperationException;
@@ -143,10 +144,7 @@ class SermonAudio extends ContentEntityBase {
     $item = $this->get('processed_audio')->get(0)?->getValue();
     assert(empty($item) || is_array($item));
     if (empty($item) || $item['target_id'] === NULL) return NULL;
-    else {
-      assert(is_scalar($item['target_id']));
-      return (int) $item['target_id'];
-    }
+    else return CastHelpers::intyToInt($item['target_id']);
   }
 
   /**
@@ -181,10 +179,7 @@ class SermonAudio extends ContentEntityBase {
     $item = $this->get('unprocessed_audio')->get(0)?->getValue();
     assert(empty($item) || is_array($item));
     if (empty($item) || $item['target_id'] === NULL) return NULL;
-    else {
-      assert(is_scalar($item['target_id']));
-      return (int) $item['target_id'];
-    }
+    else return CastHelpers::intyToInt($item['target_id']);
   }
 
   /**
@@ -420,7 +415,7 @@ class SermonAudio extends ContentEntityBase {
   /**
    * {@inheritdoc}
    */
-  public function postSave(EntityStorageInterface $storage, $update = TRUE) : void {
+  public function postSave(EntityStorageInterface $storage, mixed $update = TRUE) : void {
     parent::postSave($storage, $update);
 
     // We have to announce file usage for the unprocessed audio field, since
@@ -1145,7 +1140,7 @@ class SermonAudio extends ContentEntityBase {
    * @param mixed $value
    *   Scalar value.
    */
-  private static function setScalarValueOnFieldItem(FieldItemInterface $item, $value) : void {
+  private static function setScalarValueOnFieldItem(FieldItemInterface $item, mixed $value) : void {
     $item->setValue(['value' => $value]);
   }
 

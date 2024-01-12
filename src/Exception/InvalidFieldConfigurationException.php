@@ -19,7 +19,7 @@ class InvalidFieldConfigurationException extends \RuntimeException {
    *   case a default message is used.
    * @param int $code
    *   Exception code.
-   * @param Throwable|null $previous
+   * @param \Throwable|null $previous
    *   Previous exception/error which triggered this exception. Can be NULL to
    *   indicate no such error.
    */

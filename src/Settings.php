@@ -5,6 +5,7 @@ declare (strict_types = 1);
 namespace Drupal\sermon_audio;
 
 use Drupal\Core\Config\ImmutableConfig;
+use Drupal\sermon_audio\Helper\CastHelpers;
 
 /**
  * Allows read-only access to this module's settings.
@@ -26,49 +27,49 @@ final class Settings {
    * Gets the name of the S3 audio bucket.
    */
   public static function getAudioBucketName() : string {
-    return (string) static::getSettings()->get('audio_bucket_name');
+    return CastHelpers::stringyToString(static::getSettings()->get('audio_bucket_name'));
   }
 
   /**
    * Gets the audio storage AWS S3 region.
    */
   public static function getAudioS3Region() : string {
-    return (string) static::getSettings()->get('audio_s3_aws_region');
+    return CastHelpers::stringyToString(static::getSettings()->get('audio_s3_aws_region'));
   }
 
   /**
    * Gets the audio processing jobs AWS region setting.
    */
   public static function getJobsDbAwsRegion() : string {
-    return (string) static::getSettings()->get('jobs_db_aws_region');
+    return CastHelpers::stringyToString(static::getSettings()->get('jobs_db_aws_region'));
   }
 
   /**
    * Gets the audio processing jobs table name.
    */
   public static function getJobsTableName() : string {
-    return (string) static::getSettings()->get('jobs_table_name');
+    return CastHelpers::stringyToString(static::getSettings()->get('jobs_table_name'));
   }
 
   /**
    * Gets the S3 key prefix for processed audio.
    */
   public static function getProcessedAudioKeyPrefix() : string {
-    return (string) static::getSettings()->get('processed_audio_key_prefix');
+    return CastHelpers::stringyToString(static::getSettings()->get('processed_audio_key_prefix'));
   }
 
     /**
      * Gets the processed audio file URI prefix.
      */
     public static function getProcessedAudioUriPrefix() : string {
-      return (string) static::getSettings()->get('processed_audio_uri_prefix');
+      return CastHelpers::stringyToString(static::getSettings()->get('processed_audio_uri_prefix'));
     }
 
   /**
    * Gets the unprocessed audio file URI prefix.
    */
   public static function getUnprocessedAudioUriPrefix() : string {
-    return (string) static::getSettings()->get('unprocessed_audio_uri_prefix');
+    return CastHelpers::stringyToString(static::getSettings()->get('unprocessed_audio_uri_prefix'));
   }
 
   /**

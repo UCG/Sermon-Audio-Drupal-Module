@@ -8,6 +8,7 @@ use Aws\S3\S3Client;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ImmutableConfig;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
+use Drupal\sermon_audio\Helper\CastHelpers;
 use Drupal\sermon_audio\Helper\SettingsHelpers;
 
 /**
@@ -18,7 +19,7 @@ class S3ClientFactory extends AwsClientFactoryBase {
   /**
    * S3 client instance.
    */
-  private readonly S3Client $client;
+  private S3Client $client;
 
   /**
    * Module configuration.
@@ -134,12 +135,12 @@ class S3ClientFactory extends AwsClientFactoryBase {
    *   empty nor castable to a positive integer.
    */
   private function createClient() : void {
-    $credentialsFilePath = trim((string) $this->configuration->get('aws_credentials_file_path'));
+    $credentialsFilePath = trim(CastHelpers::stringyToString($this->configuration->get('aws_credentials_file_path')));
     if ($credentialsFilePath !== '') {
       $credentials = static::getCredentials($credentialsFilePath);
     }
 
-    $region = (string) $this->configuration->get('audio_s3_aws_region');
+    $region = CastHelpers::stringyToString($this->configuration->get('audio_s3_aws_region'));
     if ($region === '') {
       throw new ModuleConfigurationException('The audio_s3_aws_region setting is missing or empty.');
     }

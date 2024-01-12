@@ -18,7 +18,7 @@ class SermonAudioAccessControlHandler extends EntityAccessControlHandler {
   /**
    * {@inheritdoc}
    */
-  protected function checkAccess(EntityInterface $entity, $operation, AccountInterface $account) : AccessResultInterface {
+  protected function checkAccess(EntityInterface $entity, mixed $operation, AccountInterface $account) : AccessResultInterface {
     switch ($operation) {
       case 'view':
         return AccessResult::allowedIfHasPermission($account, 'view sermon audio entity');
@@ -38,7 +38,7 @@ class SermonAudioAccessControlHandler extends EntityAccessControlHandler {
   /**
    * {@inheritdoc}
    */
-  protected function checkCreateAccess(AccountInterface $account, array $context, $entity_bundle = NULL) : AccessResultInterface {
+  protected function checkCreateAccess(AccountInterface $account, array $context, mixed $entity_bundle = NULL) : AccessResultInterface {
     return AccessResult::allowedIfHasPermission($account, 'add sermon audio entity');
   }
 

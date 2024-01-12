@@ -35,7 +35,7 @@ final class SettingsHelpers {
     $connectTimeout = $moduleSettings->get('connect_timeout');
     if (empty($connectTimeout)) return NULL;
     else {
-      $connectTimeout = (int) $connectTimeout;
+      $connectTimeout = CastHelpers::intyToInt($connectTimeout);
       if ($connectTimeout <= 0) {
         throw new ModuleConfigurationException('The connect_timeout module setting converts to a nonpositive integer.');
       }
@@ -57,7 +57,7 @@ final class SettingsHelpers {
     $timeout = $moduleSettings->get('dynamodb_timeout');
     if (empty($timeout)) return NULL;
     else {
-      $timeout = (int) $timeout;
+      $timeout = CastHelpers::intyToInt($timeout);
       if ($timeout <= 0) {
         throw new ModuleConfigurationException('The dynamodb_timeout module setting converts to a nonpositive integer.');
       }

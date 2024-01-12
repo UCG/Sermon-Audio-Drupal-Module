@@ -16,7 +16,7 @@ class SermonAudioRequiredConstraintValidator extends ConstraintValidator {
   /**
    * {@inheritdoc}
    */
-  public function validate($entity, Constraint $constraint) : void {
+  public function validate(mixed $entity, Constraint $constraint) : void {
     if (!($entity instanceof SermonAudio)) {
       throw new \InvalidArgumentException('$entity is not a sermon audio entity.');
     }

@@ -49,7 +49,7 @@ class AudioRefresherQueueWorker extends QueueWorkerBase implements ContainerFact
   /**
    * {@inheritdoc}
    */
-  public function processItem($data) : void {
+  public function processItem(mixed $data) : void {
     try {
       if (!is_int($data) || $data < 0) {
         throw new \InvalidArgumentException('Queue data is not a nonnegative integer.');
@@ -76,7 +76,7 @@ class AudioRefresherQueueWorker extends QueueWorkerBase implements ContainerFact
   /**
    * {@inheritdoc}
    */
-  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) : self {
+  public static function create(ContainerInterface $container, array $configuration, mixed $plugin_id, mixed $plugin_definition) : self {
     $entityTypeManager = $container->get('entity_type.manager');
     assert($entityTypeManager instanceof EntityTypeManagerInterface);
     return new self($configuration,

@@ -5,10 +5,12 @@ declare (strict_types = 1);
 namespace Drupal\sermon_audio\Plugin\Field\FieldFormatter;
 
 use Drupal\Core\Cache\Cache;
+use Drupal\Core\Field\EntityReferenceFieldItemListInterface;
 use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\Core\Field\Plugin\Field\FieldFormatter\EntityReferenceFormatterBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\sermon_audio\Entity\SermonAudio;
+use Drupal\sermon_audio\Helper\CastHelpers;
 
 /**
  * Formatter for sermon audio fields that displays a link to proc. audio file.
@@ -28,7 +30,7 @@ class SermonAudioLinkFormatter extends EntityReferenceFormatterBase {
     return ['download_link_text' => [
       '#type' => 'textfield',
       '#title' => $this->t('Download link text'),
-      '#default_value' => (string) $this->getSetting('download_link_text'),
+      '#default_value' => CastHelpers::stringyToString($this->getSetting('download_link_text')),
       '#description' => $this->t('Text of download link. Leave empty to use default link text.'),
       '#size' => 40,
     ]];
@@ -37,7 +39,8 @@ class SermonAudioLinkFormatter extends EntityReferenceFormatterBase {
   /**
    * {@inheritdoc}
    */
-  public function viewElements(FieldItemListInterface $items, $langcode) : array {
+  public function viewElements(FieldItemListInterface $items, mixed $langcode) : array {
+    assert ($items instanceof EntityReferenceFieldItemListInterface);
     $output = [];
     foreach ($this->getEntitiesToView($items, $langcode) as $delta => $sermonAudio) {
       assert($sermonAudio instanceof SermonAudio);
@@ -50,7 +53,7 @@ class SermonAudioLinkFormatter extends EntityReferenceFormatterBase {
           ];
         }
         else {
-          $forcedLinkText = (string) $this->getSetting('download_link_text');
+          $forcedLinkText = CastHelpers::stringyToString($this->getSetting('download_link_text'));
           if ($forcedLinkText === '') $forcedLinkText = NULL;
           $output[$delta] = [
             '#theme' => 'file_link',
