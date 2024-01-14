@@ -148,6 +148,19 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
+   * {@inheritdoc}
+   *
+   * @return static
+   */
+  public function getTranslation(mixed $langcode) : static {
+    // This method simply provides PHPStan / the IDE with correct type
+    // information.
+    $translation = parent::getTranslation($langcode);
+    assert($translation instanceof static);
+    return $translation;
+  }
+
+  /**
    * Gets the unprocessed audio file entity.
    *
    * Returns NULL if unprocessed audio file ID is not set. Also returns NULL if
@@ -403,7 +416,7 @@ class SermonAudio extends ContentEntityBase {
   /**
    * Iterates over all translations of this entity.
    *
-   * @return \Ranine\Iteration\ExtendableIterable<string, \Drupal\sermon_audio\Entity\SermonAudio>
+   * @return \Ranine\Iteration\ExtendableIterable<string|int, static>
    *   Iterable, whose keys are the langcodes, and whose values are the
    *   translated entities.
    */

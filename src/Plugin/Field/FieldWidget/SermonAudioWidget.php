@@ -484,6 +484,7 @@ class SermonAudioWidget extends WidgetBase {
       // file was uploaded. In that case, we'll create a new sermon audio
       // entity.
       if ($originalFid === $fid) {
+        assert(is_array($input));
         // ...But otherwise, we'll re-use the existing sermon audio entity,
         // provided the user has authorization to use it.
         if (!isset($input['aid_token'])) {

@@ -48,7 +48,7 @@ class Mp4EnabledAudioFileFieldFormatter extends FileMediaFormatterBase {
   public static function isApplicable(FieldDefinitionInterface $fieldDefinition) : bool {
     $fileExtensions = CastHelpers::stringyToString($fieldDefinition->getSetting('file_extensions'));
     return ExtendableIterable::from(explode(' ', $fileExtensions))
-      ->map(fn($k, $v) => trim((string) $v))
+      ->map(fn($k, $v) => trim($v))
       ->any(fn($k, $v) => strcasecmp($v, 'mp4') === 0)
       || parent::isApplicable($fieldDefinition);
   }
