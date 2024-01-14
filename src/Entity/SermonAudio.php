@@ -820,6 +820,37 @@ class SermonAudio extends ContentEntityBase {
   public static function baseFieldDefinitions(EntityTypeInterface $entity_type) : array {
     $fields = parent::baseFieldDefinitions($entity_type);
 
+    // @todo Add field indices.
+    $fields['transcription_job_failed'] = BaseFieldDefinition::create('boolean')
+      ->setLabel(new TranslatableMarkup('Transcription Job Failed?'))
+      ->setDescription(new TranslatableMarkup('Tells whether there is a confirmed failure of the audio transcription job.'))
+      ->setCardinality(1)
+      ->setTranslatable(TRUE)
+      ->setDefaultValue(FALSE);
+    $fields['transcription_uri'] = BaseFieldDefinition::create('string')
+      ->setLabel(new TranslatableMarkup('Transcription URI'))
+      ->setDescription(new TranslatableMarkup('URI of transcription XML file.'))
+      ->setCardinality(1)
+      ->setTranslatable(TRUE)
+      ->setRequired(FALSE);
+    $fields['transcription_job_id'] = BaseFieldDefinition::create('string')
+      ->setLabel(new TranslatableMarkup('Transcription Job ID'))
+      ->setDescription(new TranslatableMarkup('Audio transcription job ID.'))
+      ->setCardinality(1)
+      ->setTranslatable(TRUE)
+      ->setRequired(FALSE);
+    $fields['cleaning_job_id'] = BaseFieldDefinition::create('string')
+      ->setLabel(new TranslatableMarkup('Cleaning Job ID'))
+      ->setDescription(new TranslatableMarkup('Audio cleaning job ID.'))
+      ->setCardinality(1)
+      ->setTranslatable(TRUE)
+      ->setRequired(FALSE);
+    $fields['cleaning_job_failed'] = BaseFieldDefinition::create('boolean')
+      ->setLabel(new TranslatableMarkup('Cleaning Job Failed?'))
+      ->setDescription(new TranslatableMarkup('Tells whether there is a confirmed failure of the audio cleaning job.'))
+      ->setCardinality(1)
+      ->setTranslatable(TRUE)
+      ->setDefaultValue(FALSE);
     $fields['duration'] = BaseFieldDefinition::create('float')
       ->setLabel(new TranslatableMarkup('Duration'))
       ->setDescription(new TranslatableMarkup('Duration of processed sermon audio.'))
