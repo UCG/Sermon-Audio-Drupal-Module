@@ -56,14 +56,12 @@ function sermon_audio_preprocess_file_link(array &$variables) : void {
 function sermon_audio_theme() : array {
   return [
     'sermon_audio_player_no_processed_audio' => [
-      'variables' => ['was_processing_initiated' => NULL],
       'template' => 'sermon-audio-player-no-processed-audio',
     ],
     'sermon_audio_player_broken_processed_audio' => [
       'template' => 'sermon-audio-player-broken-processed-audio',
     ],
     'sermon_audio_link_no_processed_audio' => [
-      'variables' => ['was_processing_initiated' => NULL],
       'template' => 'sermon-audio-link-no-processed-audio',
     ],
     'sermon_audio_link_broken_processed_audio' => [

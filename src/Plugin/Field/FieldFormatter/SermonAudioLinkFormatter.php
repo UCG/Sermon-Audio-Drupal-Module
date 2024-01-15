@@ -63,12 +63,8 @@ class SermonAudioLinkFormatter extends EntityReferenceFormatterBase {
         }
       }
       else {
-        $wasProcessingInitiated = $sermonAudio->wasAudioProcessingInitiated();
-        $output[$delta] = [
-          '#theme' => 'sermon_audio_link_no_processed_audio',
-          '#was_processing_initiated' => $wasProcessingInitiated,
-        ];
-        if ($wasProcessingInitiated) {
+        $output[$delta] = ['#theme' => 'sermon_audio_link_no_processed_audio'];
+        if ($sermonAudio->hasAudioCleaningJob()) {
           // @see \Drupal\sermon_audio\Plugin\Field\FieldFormatter\SermonAudioPlayerFormatter::viewElements
           $output[$delta]['#cache']['max-age'] = 0;
         }

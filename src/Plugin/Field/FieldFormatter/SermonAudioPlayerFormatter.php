@@ -79,15 +79,10 @@ class SermonAudioPlayerFormatter extends EntityReferenceFormatterBase {
         }
       }
       else {
-        $wasProcessingInitiated = $sermonAudio->wasAudioProcessingInitiated();
-        $output[$delta] = [
-          '#theme' => 'sermon_audio_player_no_processed_audio',
-          '#was_processing_initiated' => $wasProcessingInitiated,
-        ];
-        if ($wasProcessingInitiated) {
-          // Since audio processing has been initiated but we have no processed
-          // audio yet, we don't want to cache the output, as processing could
-          // be finished at any time.
+        $output[$delta] = ['#theme' => 'sermon_audio_player_no_processed_audio'];
+        if ($sermonAudio->hasAudioCleaningJob()) {
+          // Since the processed audio field could be updated with new audio at
+          // any time, we don't want to cache the output.
           $output[$delta]['#cache']['max-age'] = 0;
         }
       }
