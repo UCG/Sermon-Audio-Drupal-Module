@@ -65,6 +65,7 @@ use Ranine\Iteration\ExtendableIterable;
  *   admin_permission = "administer sermon audio",
  *   handlers = {
  *     "access" = "Drupal\sermon_audio\SermonAudioAccessControlHandler",
+ *     "storage_schema" = "Drupal\sermon_audio\SermonAudioStorageSchema",
  *   },
  *   constraints = {
  *     "SermonProcessedAudioAndDurationMatchingNullity" = {},
@@ -820,7 +821,6 @@ class SermonAudio extends ContentEntityBase {
   public static function baseFieldDefinitions(EntityTypeInterface $entity_type) : array {
     $fields = parent::baseFieldDefinitions($entity_type);
 
-    // @todo Add field indices.
     $fields['transcription_job_failed'] = BaseFieldDefinition::create('boolean')
       ->setLabel(new TranslatableMarkup('Transcription Job Failed?'))
       ->setDescription(new TranslatableMarkup('Tells whether there is a confirmed failure of the audio transcription job.'))
@@ -859,15 +859,6 @@ class SermonAudio extends ContentEntityBase {
       ->setRequired(FALSE)
       ->setSetting('unsigned', TRUE)
       ->setSetting('min', 0);
-    $fields['processing_initiated'] = BaseFieldDefinition::create('boolean')
-      ->setLabel(new TranslatableMarkup('Processing Initiated'))
-      ->setDescription(new TranslatableMarkup('Whether processing of the unprocessed audio has yet been initiated.'))
-      ->setCardinality(1)
-      ->setTranslatable(TRUE)
-      ->setRequired(FALSE)
-      ->setDefaultValue(FALSE)
-      ->setSetting('on_label', 'On')
-      ->setSetting('off_label', 'Off');
     $fields['processed_audio'] = BaseFieldDefinition::create('file')
       ->setLabel(new TranslatableMarkup('Processed Audio'))
       ->setDescription(new TranslatableMarkup('Processed audio file.'))
