@@ -576,15 +576,6 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Tells whether the audio processing was initiated by reading field value.
-   */
-  public function wasAudioProcessingInitiated() : bool {
-    $item = $this->get('processing_initiated')->get(0);
-    assert($item instanceof FieldItemInterface || $item === NULL);
-    return (bool) self::getScalarValueFromFieldItem($item);
-  }
-
-  /**
    * Attempts to get a new processed audio ID & duration for this entity.
    *
    * If the "debug_mode" module setting is active, then, if the processed audio
@@ -835,13 +826,13 @@ class SermonAudio extends ContentEntityBase {
       ->setRequired(FALSE);
     $fields['transcription_job_id'] = BaseFieldDefinition::create('string')
       ->setLabel(new TranslatableMarkup('Transcription Job ID'))
-      ->setDescription(new TranslatableMarkup('Audio transcription job ID.'))
+      ->setDescription(new TranslatableMarkup('Audio transcription job ID. NULL if there is known to be no active transcription job.'))
       ->setCardinality(1)
       ->setTranslatable(TRUE)
       ->setRequired(FALSE);
     $fields['cleaning_job_id'] = BaseFieldDefinition::create('string')
       ->setLabel(new TranslatableMarkup('Cleaning Job ID'))
-      ->setDescription(new TranslatableMarkup('Audio cleaning job ID.'))
+      ->setDescription(new TranslatableMarkup('Audio cleaning job ID. NULL if there is known to be no active cleaning job.'))
       ->setCardinality(1)
       ->setTranslatable(TRUE)
       ->setRequired(FALSE);
