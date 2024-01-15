@@ -103,14 +103,40 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
+   * Tells if a failure was recorded when the cleaning job was last checked.
+   */
+  public function didCleaningFail() : bool {
+    /** @phpstan-ignore-next-line */
+    return (bool) $this->cleaning_job_failed->value;
+  }
+
+  /**
+   * Tells if a failure was recorded when transcription job was last checked.
+   */
+  public function didTranscriptionFail() : bool {
+    /** @phpstan-ignore-next-line */
+    return (bool) $this->transcription_job_failed->value;
+  }
+
+  /**
+   * Gets the audio cleaning job ID, or NULL if there is no active job.
+   */
+  public function getCleaningJobId() : ?string {
+    /** @phpstan-ignore-next-line */
+    return CastHelpers::stringyToNullableString($this->cleaning_job_id->value);
+  }
+
+  /**
    * Gets the processed audio duration, or NULL if it is not set.
    */
   public function getDuration() : ?float {
-    $item = $this->get('duration')->get(0);
-    assert($item === NULL || $item instanceof FieldItemInterface);
-    $value = self::getScalarValueFromFieldItem($item);
-    assert(is_scalar($value) || $value === NULL);
-    return $value === NULL ? NULL : (float) $value;
+    /** @phpstan-ignore-next-line */
+    $value = $this->duration->value;
+    if ($value === NULL) return NULL;
+    else {
+      assert(is_scalar($value));
+      return (float) $value;
+    }
   }
 
   /**
@@ -142,10 +168,23 @@ class SermonAudio extends ContentEntityBase {
    * Gets the processed audio file ID, or NULL if not set.
    */
   public function getProcessedAudioId() : ?int {
-    $item = $this->get('processed_audio')->get(0)?->getValue();
-    assert(empty($item) || is_array($item));
-    if (empty($item) || $item['target_id'] === NULL) return NULL;
-    else return CastHelpers::intyToInt($item['target_id']);
+    return CastHelpers::intyToNullableInt($this->processed_audio->target_id);
+  }
+
+  /**
+   * Gets the audio transcription job ID, or NULL if there is no active job.
+   */
+  public function getTranscriptionJobId() : ?string {
+    /** @phpstan-ignore-next-line */
+    return CastHelpers::stringyToNullableString($this->transcription_job_id->value);
+  }
+
+  /**
+   * Gets the audio transcription URI, or NULL if not set.
+   */
+  public function getTranscriptionUri() : ?string {
+    /** @phpstan-ignore-next-line */
+    return CastHelpers::stringyToNullableString($this->transcription_uri->value);
   }
 
   /**
@@ -190,28 +229,40 @@ class SermonAudio extends ContentEntityBase {
    * Gets the unprocessed audio file ID, or NULL if it is not set.
    */
   public function getUnprocessedAudioId() : ?int {
-    $item = $this->get('unprocessed_audio')->get(0)?->getValue();
-    assert(empty($item) || is_array($item));
-    if (empty($item) || $item['target_id'] === NULL) return NULL;
-    else return CastHelpers::intyToInt($item['target_id']);
+    /** @phpstan-ignore-next-line */
+    return CastHelpers::intyToNullableInt($this->unprocessed_audio->target_id);
+  }
+
+  /**
+   * Tells whether there is a cleaning job ID associated with this entity.
+   */
+  public function hasCleaningJob() : bool {
+    /** @phpstan-ignore-next-line */
+    return $this->cleaning_job_id->value === NULL ? FALSE : TRUE;
   }
 
   /**
    * Tells if there is a processed audio file ID associated with this entity.
    */
   public function hasProcessedAudio() : bool {
-    $item = $this->get('processed_audio')->get(0)?->getValue();
-    assert(empty($item) || is_array($item));
-    return (empty($item) || $item['target_id'] === NULL) ? FALSE : TRUE;
+    /** @phpstan-ignore-next-line */
+    return $this->processed_audio->target_id === NULL ? FALSE : TRUE;
+  }
+
+  /**
+   * Tells whether there is a transcription job ID associated with this entity.
+   */
+  public function hasTranscriptionJob() : bool {
+    /** @phpstan-ignore-next-line */
+    return $this->transcription_job_id->value === NULL ? FALSE : TRUE;
   }
 
   /**
    * Tells if there is an unprocessed audio file ID associated with this entity.
    */
   public function hasUnprocessedAudio() : bool {
-    $item = $this->get('unprocessed_audio')->get(0)?->getValue();
-    assert(empty($item) || is_array($item));
-    return (empty($item) || $item['target_id'] === NULL) ? FALSE : TRUE;
+    /** @phpstan-ignore-next-line */
+    return $this->unprocessed_audio->target_id === NULL ? FALSE : TRUE;
   }
 
   /**
@@ -1065,23 +1116,6 @@ class SermonAudio extends ContentEntityBase {
       throw new ModuleConfigurationException('The processed audio key prefix module setting is empty.');
     }
     return $prefix;
-  }
-
-  /**
-   * Gets the value ("value" property) from a field item of a scalar type.
-   *
-   * @param \Drupal\Core\Field\FieldItemInterface|null $item
-   *   Field item, or NULL if no field item (in that case, this method will just
-   *   return NULL -- this is just for convenience).
-   *
-   * @return mixed
-   *   Item value, or NULL if item value is not defined.
-   */
-  private static function getScalarValueFromFieldItem(?FieldItemInterface $item) : mixed {
-    if ($item === NULL) return NULL;
-    $fullValue = $item->getValue();
-    assert(is_array($fullValue) || !$fullValue);
-    return $fullValue ? $fullValue['value'] : NULL;
   }
 
   /**

@@ -80,7 +80,7 @@ class SermonAudioPlayerFormatter extends EntityReferenceFormatterBase {
       }
       else {
         $output[$delta] = ['#theme' => 'sermon_audio_player_no_processed_audio'];
-        if ($sermonAudio->hasAudioCleaningJob()) {
+        if ($sermonAudio->hasCleaningJob()) {
           // Since the processed audio field could be updated with new audio at
           // any time, we don't want to cache the output.
           $output[$delta]['#cache']['max-age'] = 0;
