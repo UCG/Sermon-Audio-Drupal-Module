@@ -7,6 +7,7 @@
 
 declare (strict_types = 1);
 
+use Drupal\Core\Entity\EntityTypeInterface;
 use Drupal\sermon_audio\Helper\SettingsHelpers;
 
 /**
@@ -14,13 +15,10 @@ use Drupal\sermon_audio\Helper\SettingsHelpers;
  */
 function sermon_audio_update_9201() : void {
   // A new entity type property was set, so we have to update the installed
-  // entity type definition. So we grab the "last installed" entity type, make
-  // the appropriate change, and "update" the entity type to the changed object.
-  $updateManager = \Drupal::entityDefinitionUpdateManager();
-  $entityType = $updateManager->getEntityType('sermon_audio');
-  assert($entityType !== NULL);
-  $entityType->set('data_table', 'sermon_audio_field_data');
-  $updateManager->updateEntityType($entityType);
+  // entity type definition.
+  _sermon_audio_update_entity_type(function (EntityTypeInterface $type) : void {
+    $type->set('data_table', 'sermon_audio_field_data');
+  });
 }
 
 /**
@@ -39,4 +37,33 @@ function sermon_audio_update_9202() : void {
     $config->set('dynamodb_timeout', 10);
   }
   $config->save(TRUE);
+}
+
+/**
+ * Implements hook_update_9301().
+ */
+function sermon_audio_update_9301() : void {
+  // As in 9201, a new entity type property was set.
+  _sermon_audio_update_entity_type(function (EntityTypeInterface $type) : void {
+    $type->setHandlerClass('storage_schema', 'Drupal\sermon_audio\SermonAudioStorageSchema');
+  });
+
+  // @todo Delete old config and install new config.
+}
+
+/**
+ * Updates the sermon audio entity type.
+ *
+ * Grabs the "last installed" entity type, makes the requested change, and
+ * "updates" the entity type to the changed value.
+ *
+ * @param callable(\Drupal\Core\Entity\EntityTypeInterface $entityType) : void $update
+ *   Operation updating entity type.
+ */
+function _sermon_audio_update_entity_type(callable $update) : void {
+  $updateManager = \Drupal::entityDefinitionUpdateManager();
+  $entityType = $updateManager->getEntityType('sermon_audio');
+  assert($entityType !== NULL);
+  $update($entityType);
+  $updateManager->updateEntityType($entityType);
 }
