@@ -38,17 +38,52 @@ final class Settings {
   }
 
   /**
-   * Gets the audio processing jobs AWS region setting.
+   * Gets the path to the AWS credentials file.
    */
-  public static function getJobsDbAwsRegion() : string {
-    return CastHelpers::stringyToString(static::getSettings()->get('jobs_db_aws_region'));
+  public static function getAwsCredentialsFilePath() : string {
+    return CastHelpers::stringyToString(static::getSettings()->get('aws_credentials_file_path'));
   }
 
   /**
-   * Gets the audio processing jobs table name.
+   * Gets the audio cleaning job results AWS API region.
    */
-  public static function getJobsTableName() : string {
-    return CastHelpers::stringyToString(static::getSettings()->get('jobs_table_name'));
+  public static function getCleaningJobResultsApiRegion() : string {
+    return CastHelpers::stringyToString(static::getSettings()->get('cleaning_job_results_endpoint_aws_region'));
+  }
+
+  /**
+   * Gets the audio cleaning job results AWS API HTTP endpoint.
+   */
+  public static function getCleaningJobResultsApiEndpoint() : string {
+    return CastHelpers::stringyToString(static::getSettings()->get('cleaning_job_results_endpoint'));
+  }
+
+  /**
+   * Gets the AWS HTTP connection timeout in seconds, if set.
+   */
+  public static function getConnectionTimeout() : ?int {
+    return CastHelpers::intyToNullableInt(static::getSettings()->get('connect_timeout'));
+  }
+
+  /**
+   * Gets the AWS HTTP API endpoint timeout in seconds, if set.
+   */
+  public static function getEndpointTimeout() : ?int {
+    return CastHelpers::intyToNullableInt(static::getSettings()->get('endpoint_timeout'));
+  }
+
+  /**
+   * Gets the audio processing job submission AWS API region.
+   */
+  public static function getJobSubmissionApiRegion() : string {
+    return CastHelpers::stringyToString(static::getSettings()->get('job_submission_endpoint_aws_region'));
+  }
+
+  /**
+   * Gets the audio processing job submission AWS API HTTP endpoint.
+   */
+  public static function getJobSubmissionApiEndpoint() : string {
+    return CastHelpers::stringyToString(static::getSettings()->get('job_submission_endpoint'));
   }
 
   /**
@@ -58,18 +93,60 @@ final class Settings {
     return CastHelpers::stringyToString(static::getSettings()->get('processed_audio_key_prefix'));
   }
 
-    /**
-     * Gets the processed audio file URI prefix.
-     */
-    public static function getProcessedAudioUriPrefix() : string {
-      return CastHelpers::stringyToString(static::getSettings()->get('processed_audio_uri_prefix'));
-    }
+  /**
+   * Gets the processed audio file URI prefix.
+   */
+  public static function getProcessedAudioUriPrefix() : string {
+    return CastHelpers::stringyToString(static::getSettings()->get('processed_audio_uri_prefix'));
+  }
+
+  /**
+   * Gets the name of the S3 transcription XML file bucket.
+   */
+  public static function getTranscriptionBucketName() : string {
+    return CastHelpers::stringyToString(static::getSettings()->get('transcription_bucket_name'));
+  }
+
+  /**
+   * Gets the audio transcription job results AWS API region.
+   */
+  public static function getTranscriptionJobResultsApiRegion() : string {
+    return CastHelpers::stringyToString(static::getSettings()->get('transcription_job_results_endpoint_aws_region'));
+  }
+
+  /**
+   * Gets the audio transcription job results AWS API HTTP endpoint.
+   */
+  public static function getTranscriptionJobResultsApiEndpoint() : string {
+    return CastHelpers::stringyToString(static::getSettings()->get('transcription_job_results_endpoint'));
+  }
+
+  /**
+   * Gets the S3 key prefix for transcription XML files.
+   */
+  public static function getTranscriptionKeyPrefix() : string {
+    return CastHelpers::stringyToString(static::getSettings()->get('transcription_key_prefix'));
+  }
+
+  /**
+   * Gets the transcription XML storage AWS S3 region.
+   */
+  public static function getTranscriptionS3Region() : string {
+    return CastHelpers::stringyToString(static::getSettings()->get('transcription_s3_aws_region'));
+  }
 
   /**
    * Gets the unprocessed audio file URI prefix.
    */
   public static function getUnprocessedAudioUriPrefix() : string {
     return CastHelpers::stringyToString(static::getSettings()->get('unprocessed_audio_uri_prefix'));
+  }
+
+  /**
+   * Tells whether debug mode is enabled.
+   */
+  public static function isDebugModeEnabled() : bool {
+    return (bool) static::getSettings()->get('debug_mode');
   }
 
   /**
