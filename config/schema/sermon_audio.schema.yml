@@ -7,13 +7,7 @@ sermon_audio.settings:
       label: 'Full path to JSON file where AWS credentials are stored, if applicable (else leave empty)'
     audio_s3_aws_region:
       type: string
-      label: 'AWS region wherein S3 audio files reside'
-    jobs_db_aws_region:
-      type: string
-      label: 'AWS region wherein DynamoDB audio processing jobs table resides'
-    jobs_table_name:
-      type: string
-      label: 'Name of AWS DynamoDB audio processing jobs table'
+      label: 'AWS region where processed/unprocessed audio S3 bucket resides'
     audio_bucket_name:
       type: string
       label: 'Name of AWS S3 bucket where processed and unprocessed audio is stored'
@@ -25,7 +19,34 @@ sermon_audio.settings:
       label: 'Prefix, including scheme, for newly processed audio file URIs. This is ignored in debug mode.'
     processed_audio_key_prefix:
       type: string
-      label: 'S3 prefix newly processed audio keys'
+      label: 'S3 prefix of keys for processed audio'
+    job_submission_endpoint_aws_region:
+      type: string
+      label: 'AWS region where processing job submission endpoint resides'
+    job_submission_endpoint:
+      type: string
+      label: 'Audio processing job submission AWS HTTP endpoint'
+    transcription_job_results_endpoint_aws_region:
+      type: string
+      label: 'AWS region where transcription job results endpoint resides'
+    transcription_job_results_endpoint:
+      type: string
+      label: 'Transcription job results AWS HTTP endpoint'
+    transcription_s3_aws_region:
+      type: string
+      label: 'AWS region where audio transcription S3 bucket resides'
+    transcription_bucket_name:
+      type: string
+      label: 'Name of AWS S3 bucket where output transcription XML files are stored'
+    transcription_key_prefix:
+      type: string
+      label: 'S3 prefix of keys for output transcription XML files'
+    cleaning_job_results_endpoint_aws_region:
+      type: string
+      label: 'AWS region where audio cleaning job results endpoint resides'
+    cleaning_job_results_endpoint:
+      type: string
+      label: 'Audio cleaning job results AWS HTTP endpoint'
     debug_mode:
       type: boolean
       label: >-
@@ -37,6 +58,6 @@ sermon_audio.settings:
     connect_timeout:
       type: integer
       label: 'Timeout in seconds when attempting to connect to a server while making AWS calls'
-    dynamodb_timeout:
+    endpoint_timeout:
       type: integer
-      label: 'Timeout in seconds when making AWS DynamoDB requests (whose responses should return relatively quickly)'
+      label: 'Total timeout in seconds when making requests to custom AWS HTTP endpoints'

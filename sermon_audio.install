@@ -7,7 +7,10 @@
 
 declare (strict_types = 1);
 
+use Drupal\Core\Config\Config;
+use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\Entity\EntityTypeInterface;
+use Drupal\sermon_audio\Helper\CastHelpers;
 use Drupal\sermon_audio\Helper\SettingsHelpers;
 
 /**
@@ -33,9 +36,6 @@ function sermon_audio_update_9202() : void {
   if (SettingsHelpers::getConnectionTimeout($config) === NULL) {
     $config->set('connect_timeout', 5);
   }
-  if (SettingsHelpers::getDynamoDbTimeout($config) === NULL) {
-    $config->set('dynamodb_timeout', 10);
-  }
   $config->save(TRUE);
 }
 
@@ -48,7 +48,46 @@ function sermon_audio_update_9301() : void {
     $type->setHandlerClass('storage_schema', 'Drupal\sermon_audio\SermonAudioStorageSchema');
   });
 
-  // @todo Delete old config and install new config.
+  // Delete old settings and set default values for new settings.
+
+  $config = \Drupal::configFactory()->getEditable('sermon_audio.settings');
+
+  $config->clear('jobs_db_aws_region');
+  $config->clear('jobs_table_name');
+  $config->clear('dynamodb_timeout');
+
+  if (!_sermon_audio_is_string_setting_set($config, 'job_submission_endpoint_aws_region')) {
+    $config->set('job_submission_endpoint_aws_region', 'us-east-1');
+  }
+  if (!_sermon_audio_is_string_setting_set($config, 'job_submission_endpoint')) {
+    $config->set('job_submission_endpoint', 'https://fwh0ddufmj.execute-api.us-east-1.amazonaws.com/create-job');
+  }
+  if (!_sermon_audio_is_string_setting_set($config, 'transcription_job_results_endpoint_aws_region')) {
+    $config->set('transcription_job_results_endpoint_aws_region', 'us-east-1');
+  }
+  if (!_sermon_audio_is_string_setting_set($config, 'transcription_job_results_endpoint')) {
+    $config->set('transcription_job_results_endpoint', 'https://fwh0ddufmj.execute-api.us-east-1.amazonaws.com/transcription-job-results');
+  }
+  if (!_sermon_audio_is_string_setting_set($config, 'transcription_s3_aws_region')) {
+    $config->set('transcription_s3_aws_region', 'us-east-1');
+  }
+  if (!_sermon_audio_is_string_setting_set($config, 'transcription_bucket_name')) {
+    $config->set('transcription_bucket_name', 'ucgfiles');
+  }
+  if (!_sermon_audio_is_string_setting_set($config, 'transcription_key_prefix')) {
+    $config->set('transcription_key_prefix', 'text/sermons/transcription/');
+  }
+  if (!_sermon_audio_is_string_setting_set($config, 'cleaning_job_results_endpoint_aws_region')) {
+    $config->set('cleaning_job_results_endpoint_aws_region', 'us-east-1');
+  }
+  if (!_sermon_audio_is_string_setting_set($config, 'cleaning_job_results_endpoint')) {
+    $config->set('cleaning_job_results_endpoint', 'https://fwh0ddufmj.execute-api.us-east-1.amazonaws.com/cleaning-job-results');
+  }
+  if ($config->get('endpoint_timeout') === NULL) {
+    $config->set('endpoint_timeout', 10);
+  }
+
+  $config->save(TRUE);
 }
 
 /**
@@ -66,4 +105,19 @@ function _sermon_audio_update_entity_type(callable $update) : void {
   assert($entityType !== NULL);
   $update($entityType);
   $updateManager->updateEntityType($entityType);
+}
+
+/**
+ * Sees if the given string config settings is set.
+ *
+ * @param Config|ImmutableConfig $settings
+ *   Settings to look in.
+ * @param string $setting
+ *   Name of setting for which to determine if it is set.
+ *
+ * @return bool
+ *   TRUE if $setting is non-empty when casted to a string, else FALSE.
+ */
+function _sermon_audio_is_string_setting_set(Config|ImmutableConfig $settings, string $setting) : bool {
+  return CastHelpers::stringyToString($settings->get($setting)) === '' ? FALSE : TRUE;
 }

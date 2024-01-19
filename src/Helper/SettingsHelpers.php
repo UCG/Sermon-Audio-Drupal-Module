@@ -29,40 +29,32 @@ final class SettingsHelpers {
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown the module's "connect_timeout" configuration setting is neither
-   *   empty nor castable to a positive integer.
+   *   NULL nor castable to a positive integer.
    */
   public static function getConnectionTimeout(Config|ImmutableConfig $moduleSettings) : ?int {
-    $connectTimeout = $moduleSettings->get('connect_timeout');
-    if (empty($connectTimeout)) return NULL;
-    else {
-      $connectTimeout = CastHelpers::intyToInt($connectTimeout);
-      if ($connectTimeout <= 0) {
-        throw new ModuleConfigurationException('The connect_timeout module setting converts to a nonpositive integer.');
-      }
-      return $connectTimeout;
+    $connectTimeout = CastHelpers::intyToNullableInt($moduleSettings->get('connect_timeout'));
+    if ($connectTimeout !== NULL && $connectTimeout <= 0) {
+      throw new ModuleConfigurationException('The connect_timeout module setting converts to a nonpositive integer.');
     }
+    return $connectTimeout;
   }
 
   /**
-   * Gets the DynamoDB timeout setting if it is properly set.
+   * Gets the HTTP AWS endpoint timeout setting if it is properly set.
    *
    * @param \Drupal\Core\Config\Config|\Drupal\Core\Config\ImmutableConfig $moduleSettings
    *   Module settings.
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   *   Thrown the module's "dynamodb_timeout" configuration setting is neither
-   *   empty nor castable to a positive integer.
+   *   Thrown the module's "endpoint_timeout" configuration setting is neither
+   *   NULL nor castable to a positive integer.
    */
-  public static function getDynamoDbTimeout(Config|ImmutableConfig $moduleSettings) : ?int {
-    $timeout = $moduleSettings->get('dynamodb_timeout');
-    if (empty($timeout)) return NULL;
-    else {
-      $timeout = CastHelpers::intyToInt($timeout);
-      if ($timeout <= 0) {
-        throw new ModuleConfigurationException('The dynamodb_timeout module setting converts to a nonpositive integer.');
-      }
-      return $timeout;
+  public static function getEndpointTimeout(Config|ImmutableConfig $moduleSettings) : ?int {
+    $endpointTimeout = CastHelpers::intyToNullableInt($moduleSettings->get('endpoint_timeout'));
+    if ($endpointTimeout !== NULL && $endpointTimeout <= 0) {
+      throw new ModuleConfigurationException('The endpoint_timeout module setting converts to a nonpositive integer.');
     }
+    return $endpointTimeout;
   }
 
 }

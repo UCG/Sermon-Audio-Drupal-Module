@@ -45,20 +45,6 @@ class SettingsForm extends ConfigFormBase {
       '#description' => $this->t('The AWS region in which S3 audio (processed and unprocessed) files reside.'),
       '#required' => TRUE,
     ];
-    $form['jobs_db_aws_region'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('AWS DynamoDB Audio Processing Jobs Table Region'),
-      '#default_value' => CastHelpers::stringyToString($configuration->get('jobs_db_aws_region')),
-      '#description' => $this->t('The AWS region in which the DynamoDB audio processing jobs table resides.'),
-      '#required' => TRUE,
-    ];
-    $form['jobs_table_name'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('AWS DynamoDB Audio Processing Jobs Table Name'),
-      '#default_value' => CastHelpers::stringyToString($configuration->get('jobs_table_name')),
-      '#description' => $this->t('The name of the AWS DynamoDB audio processing jobs table.'),
-      '#required' => TRUE,
-    ];
     $form['audio_bucket_name'] = [
       '#type' => 'textfield',
       '#title' => $this->t('AWS S3 Audio Storage Bucket Name'),
@@ -87,6 +73,69 @@ class SettingsForm extends ConfigFormBase {
       '#description' => $this->t('The prefix, including any trailing slash, for processed sermon audio S3 keys.'),
       '#required' => TRUE,
     ];
+    $form['job_submission_endpoint_aws_region'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Job Submission Endpoint AWS Region'),
+      '#default_value' => CastHelpers::stringyToString($configuration->get('job_submission_endpoint_aws_region')),
+      '#description' => $this->t('AWS region where processing job submission endpoint resides.'),
+      '#required' => TRUE,
+    ];
+    $form['job_submission_endpoint'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Job Submission Endpoint'),
+      '#default_value' => CastHelpers::stringyToString($configuration->get('job_submission_endpoint')),
+      '#description' => $this->t('Audio processing job submission AWS HTTP endpoint.'),
+      '#required' => TRUE,
+    ];
+    $form['transcription_job_results_endpoint_aws_region'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Transcription Job Results Endpoint AWS Region'),
+      '#default_value' => CastHelpers::stringyToString($configuration->get('transcription_job_results_endpoint_aws_region')),
+      '#description' => $this->t('AWS region where transcription job results endpoint resides.'),
+      '#required' => TRUE,
+    ];
+    $form['transcription_job_results_endpoint'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Transcription Job Results Endpoint'),
+      '#default_value' => CastHelpers::stringyToString($configuration->get('transcription_job_results_endpoint')),
+      '#description' => $this->t('Transcription job results AWS HTTP endpoint.'),
+      '#required' => TRUE,
+    ];
+    $form['transcription_s3_aws_region'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Transcription S3 AWS Region'),
+      '#default_value' => CastHelpers::stringyToString($configuration->get('transcription_s3_aws_region')),
+      '#description' => $this->t('AWS region where audio transcription S3 bucket resides.'),
+      '#required' => TRUE,
+    ];
+    $form['transcription_bucket_name'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Transcription Bucket Name'),
+      '#default_value' => CastHelpers::stringyToString($configuration->get('transcription_bucket_name')),
+      '#description' => $this->t('Name of AWS S3 bucket where output transcription XML files are stored.'),
+      '#required' => TRUE,
+    ];
+    $form['transcription_key_prefix'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Transcription Key Prefix'),
+      '#default_value' => CastHelpers::stringyToString($configuration->get('transcription_key_prefix')),
+      '#description' => $this->t('S3 prefix of keys for output transcription XML files.'),
+      '#required' => TRUE,
+    ];
+    $form['cleaning_job_results_endpoint_aws_region'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Cleaning Job Results Endpoint AWS Region'),
+      '#default_value' => CastHelpers::stringyToString($configuration->get('cleaning_job_results_endpoint_aws_region')),
+      '#description' => $this->t('AWS region where audio cleaning job results endpoint resides.'),
+      '#required' => TRUE,
+    ];
+    $form['cleaning_job_results_endpoint'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Cleaning Job Results Endpoint'),
+      '#default_value' => CastHelpers::stringyToString($configuration->get('cleaning_job_results_endpoint')),
+      '#description' => $this->t('Audio cleaning job results AWS HTTP endpoint.'),
+      '#required' => TRUE,
+    ];
     $form['debug_mode'] = [
       '#type' => 'checkbox',
       '#title' => $this->t('Debug Mode'),
@@ -111,13 +160,13 @@ EOS
       '#description' => $this->t('Timeout in seconds when attempting to connect to a server while making AWS calls.'),
       '#required' => FALSE,
     ];
-    $form['dynamodb_timeout'] = [
+    $form['endpoint_timeout'] = [
       '#type' => 'number',
-      '#title' => $this->t('DynamoDB Timeout'),
+      '#title' => $this->t('Endpoint Timeout'),
       '#min' => 1,
       '#step' => 1,
-      '#default_value' => SettingsHelpers::getDynamoDbTimeout($configuration),
-      '#description' => $this->t('Timeout in seconds when making AWS DynamoDB requests (whose responses should return relatively quickly).'),
+      '#default_value' => SettingsHelpers::getEndpointTimeout($configuration),
+      '#description' => $this->t('Total timeout in seconds when making requests to custom AWS HTTP endpoints.'),
       '#required' => FALSE,
     ];
 
@@ -146,18 +195,25 @@ EOS
 
     $configuration->set('aws_credentials_file_path', CastHelpers::stringyToString($form_state->getValue('aws_credentials_file_path')));
     $configuration->set('audio_s3_aws_region', CastHelpers::stringyToString($form_state->getValue('audio_s3_aws_region')));
-    $configuration->set('jobs_db_aws_region', CastHelpers::stringyToString($form_state->getValue('jobs_db_aws_region')));
-    $configuration->set('jobs_table_name', CastHelpers::stringyToString($form_state->getValue('jobs_table_name')));
     $configuration->set('audio_bucket_name', CastHelpers::stringyToString($form_state->getValue('audio_bucket_name')));
     $configuration->set('unprocessed_audio_uri_prefix', CastHelpers::stringyToString($form_state->getValue('unprocessed_audio_uri_prefix')));
     $configuration->set('processed_audio_uri_prefix', CastHelpers::stringyToString($form_state->getValue('processed_audio_uri_prefix')));
     $configuration->set('processed_audio_key_prefix', CastHelpers::stringyToString($form_state->getValue('processed_audio_key_prefix')));
+    $configuration->set('job_submission_endpoint_aws_region', CastHelpers::stringyToString($form_state->getValue('job_submission_endpoint_aws_region')));
+    $configuration->set('job_submission_endpoint', CastHelpers::stringyToString($form_state->getValue('job_submission_endpoint')));
+    $configuration->set('transcription_job_results_endpoint_aws_region', CastHelpers::stringyToString($form_state->getValue('transcription_job_results_endpoint_aws_region')));
+    $configuration->set('transcription_job_results_endpoint', CastHelpers::stringyToString($form_state->getValue('transcription_job_results_endpoint')));
+    $configuration->set('transcription_s3_aws_region', CastHelpers::stringyToString($form_state->getValue('transcription_s3_aws_region')));
+    $configuration->set('transcription_bucket_name', CastHelpers::stringyToString($form_state->getValue('transcription_bucket_name')));
+    $configuration->set('transcription_key_prefix', CastHelpers::stringyToString($form_state->getValue('transcription_key_prefix')));
+    $configuration->set('cleaning_job_results_endpoint_aws_region', CastHelpers::stringyToString($form_state->getValue('cleaning_job_results_endpoint_aws_region')));
+    $configuration->set('cleaning_job_results_endpoint', CastHelpers::stringyToString($form_state->getValue('cleaning_job_results_endpoint')));
     $configuration->set('debug_mode', (bool) $form_state->getValue('debug_mode'));
 
     $connectTimeout = CastHelpers::intyToInt($form_state->getValue('connect_timeout'));
-    $dynamoDbTimeout = CastHelpers::intyToInt($form_state->getValue('dynamodb_timeout'));
+    $endpointTimeout = CastHelpers::intyToInt($form_state->getValue('endpoint_timeout'));
     $configuration->set('connect_timeout', $connectTimeout > 0 ? $connectTimeout : NULL);
-    $configuration->set('dynamodb_timeout', $dynamoDbTimeout > 0 ? $dynamoDbTimeout : NULL);
+    $configuration->set('endpoint_timeout', $endpointTimeout > 0 ? $endpointTimeout : NULL);
 
     $configuration->save();
     parent::submitForm($form, $form_state);
