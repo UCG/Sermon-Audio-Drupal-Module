@@ -14,7 +14,7 @@ use Drupal\sermon_audio\Helper\SettingsHelpers;
 /**
  * Returns/creates AWS S3 client objects.
  */
-class S3ClientFactory extends AwsClientFactoryBase {
+class S3ClientFactory {
 
   /**
    * S3 client instance.
@@ -24,7 +24,12 @@ class S3ClientFactory extends AwsClientFactoryBase {
   /**
    * Module configuration.
    */
-  private readonly ImmutableConfig $configuration;
+  private ImmutableConfig $configuration;
+
+  /**
+   * AWS credentials retriever.
+   */
+  private AwsCredentialsRetriever $credentialsRetriever;
 
   /**
    * Creates a new S3 client factory.
@@ -32,7 +37,8 @@ class S3ClientFactory extends AwsClientFactoryBase {
    * @param \Drupal\Core\Config\ConfigFactoryInterface $configFactory
    *   Configuration factory.
    */
-  public function __construct(ConfigFactoryInterface $configFactory) {
+  public function __construct(ConfigFactoryInterface $configFactory, AwsCredentialsRetriever $credentialsRetriever) {
+    $this->credentialsRetriever = $credentialsRetriever;
     $this->configuration = $configFactory->get('sermon_audio.settings');
   }
 
@@ -47,8 +53,8 @@ class S3ClientFactory extends AwsClientFactoryBase {
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if a new client instance is needed, and the module's
-   *   "aws_credentials_file_path" configuration setting points to an invalid or
-   *   missing credentials file.
+   *   "aws_credentials_file_path" configuration setting is not empty and not
+   *   whitespace yet points to an invalid or missing credentials file.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if a new client instance is needed, and the module's
    *   "audio_s3_aws_region" configuration setting is missing or empty.
@@ -60,64 +66,11 @@ class S3ClientFactory extends AwsClientFactoryBase {
     if (!isset($this->client)) {
       $this->createClient();
       assert(isset($this->client));
-      // The configuration won't be needed anymore.
+      // This stuff isn't needed anymore.
       unset($this->configuration);
+      unset($this->credentialsRetriever);
     }
     return $this->client;
-  }
-
-  /**
-   * {@inheritdoc}
-   *
-   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   */
-  protected static function throwCredsFileInvalidJsonException() : never {
-    throw new ModuleConfigurationException('File contents at aws_credentials_file_path was not valid JSON.');
-  }
-
-  /**
-   * {@inheritdoc}
-   *
-   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   */
-  protected static function throwFailedToReadCredsFileException() : never {
-    throw new ModuleConfigurationException('Failed to read from credentials file specified by aws_credentials_file_path.');
-  }
-
-  /**
-   * {@inheritdoc}
-   *
-   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   */
-  protected static function throwInvalidAccessKeyException() : never {
-    throw new ModuleConfigurationException('Invalid or empty "access-key" setting in aws_credentials_file_path file.');
-  }
-
-  /**
-   * {@inheritdoc}
-   *
-   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   */
-  protected static function throwInvalidSecretKeyException() : never {
-    throw new ModuleConfigurationException('Invalid or empty "secret-key" setting in aws_credentials_file_path file.');
-  }
-
-  /**
-   * {@inheritdoc}
-   *
-   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   */
-  protected static function throwMissingAccessKeyException() : never {
-    throw new ModuleConfigurationException('Missing "access-key" setting in aws_credentials_file_path file.');
-  }
-
-  /**
-   * {@inheritdoc}
-   *
-   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   */
-  protected static function throwMissingSecretKeyException() : never {
-    throw new ModuleConfigurationException('Missing "secret-key" setting in aws_credentials_file_path file.');
   }
 
   /**
@@ -125,8 +78,8 @@ class S3ClientFactory extends AwsClientFactoryBase {
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if a new client instance is needed, and the module's
-   *   "aws_credentials_file_path" configuration setting points to an invalid or
-   *   missing credentials file.
+   *   "aws_credentials_file_path" configuration setting is not empty and not
+   *   whitespace yet points to an invalid or missing credentials file.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if a new client instance is needed, and the module's
    *   "audio_s3_aws_region" configuration setting is missing or empty.
@@ -135,10 +88,7 @@ class S3ClientFactory extends AwsClientFactoryBase {
    *   empty nor castable to a positive integer.
    */
   private function createClient() : void {
-    $credentialsFilePath = trim(CastHelpers::stringyToString($this->configuration->get('aws_credentials_file_path')));
-    if ($credentialsFilePath !== '') {
-      $credentials = static::getCredentials($credentialsFilePath);
-    }
+    $credentials = $this->credentialsRetriever->getCredentials();
 
     $region = CastHelpers::stringyToString($this->configuration->get('audio_s3_aws_region'));
     if ($region === '') {

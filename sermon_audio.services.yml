@@ -1,10 +1,10 @@
 services:
-  sermon_audio.dynamo_db_client_factory:
-    class: Drupal\sermon_audio\DynamoDbClientFactory
+  sermon_audio.credentials_retriever:
+    class: Drupal\sermon_audio\CredentialsRetriever
     arguments: ['@config.factory']
   sermon_audio.s3_client_factory:
     class: Drupal\sermon_audio\S3ClientFactory
-    arguments: ['@config.factory']
+    arguments: ['@config.factory', '@sermon_audio.credentials_retriever']
   sermon_audio.file_rename_pseudo_extension_repository:
     class: Drupal\sermon_audio\FileRenamePseudoExtensionRepository
   sermon_audio.uploaded_file_rename_subscriber:
