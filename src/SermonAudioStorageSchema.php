@@ -18,6 +18,9 @@ class SermonAudioStorageSchema extends SqlContentEntityStorageSchema {
    * {@inheritdoc}
    */
   protected function getSharedTableFieldSchema(FieldStorageDefinitionInterface $storage_definition, mixed $table_name, array $column_mapping) {
+    // @todo Do we need anything in hook_update_N() to make this take effect if
+    // the module is already installed?
+
     $schema = parent::getSharedTableFieldSchema($storage_definition, $table_name, $column_mapping);
 
     if ($table_name == 'sermon_audio_field_data') {
