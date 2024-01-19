@@ -4,7 +4,6 @@ declare (strict_types = 1);
 
 namespace Drupal\sermon_audio\Entity;
 
-use Aws\DynamoDb\DynamoDbClient;
 use Aws\DynamoDb\Exception\DynamoDbException;
 use Aws\S3\Exception\S3Exception;
 use Aws\S3\S3Client;
@@ -21,16 +20,18 @@ use Drupal\file\FileInterface;
 use Drupal\file\FileStorageInterface;
 use Drupal\file\FileUsage\FileUsageInterface;
 use Drupal\s3fs\StreamWrapper\S3fsStream;
+use Drupal\sermon_audio\AwsCredentialsRetriever;
+use Drupal\sermon_audio\Exception\ApiCallException;
 use Drupal\sermon_audio\Exception\EntityValidationException;
 use Drupal\sermon_audio\Exception\InvalidInputAudioFileException;
 use Drupal\sermon_audio\Settings;
-use Drupal\sermon_audio\DynamoDbClientFactory;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
+use Drupal\sermon_audio\Helper\ApiHelpers;
 use Drupal\sermon_audio\Helper\AudioHelpers;
 use Drupal\sermon_audio\Helper\CastHelpers;
+use Drupal\sermon_audio\HttpMethod;
 use Drupal\sermon_audio\S3ClientFactory;
-use Ranine\Exception\AggregateException;
-use Ranine\Exception\InvalidOperationException;
+use Psr\Http\Client\ClientExceptionInterface;
 use Ranine\Exception\ParseException;
 use Ranine\Helper\ParseHelpers;
 use Ranine\Helper\ThrowHelpers;
@@ -266,43 +267,42 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Initiates a processing job corresponding to the unprocessed audio file.
+   * Initiates processing job(s) corresponding to the unprocessed audio file.
    *
-   * Clears the "processed audio" and "duration" fields if they are set, and
-   * sets the "processing intiated" field. If changes were made, this entity is
-   * saved. Note that if the "debug_mode" module setting is set, no actual
-   * processing job is initiated.
+   * Initiates audio processing, consisting of audio cleaning as well as (if
+   * requested) audio transcription transcription. Once the cleaning and
+   * (possibly) transcription job IDs are obtained, the corresponding entity
+   * fields are updated and the entity is saved.
    *
    * @param string $sermonName
-   *   Sermon name to attach to processed audio.
+   *   Sermon name corresponding to audio.
    * @phpstan-param non-empty-string $sermonName
-   * @param string $sermonSpeaker
-   *   Sermon speaker to attach to processed audio.
-   * @phpstan-param non-empty-string $sermonSpeaker
-   * @param string $sermonYear
-   *   Sermon year to attach to processed audio.
-   * @phpstan-param non-empty-string $sermonYear
+   * @param string $sermonSpeakerFirstNames
+   *   First name(s) of sermon speaker corresponding to audio.
+   * @param string $sermonSpeakerLastName
+   *   Last name of sermon speaker corresponding to audio.
+   * @param int $sermonYear
+   *   Sermon year corresponding to audio.
+   * @phpstan-param positive-int $sermonYear
    * @param string $sermonCongregation
-   *   Sermon congregation to attach to processed audio.
+   *   Sermon congregation corresponding to audio.
    * @phpstan-param non-empty-string $sermonCongregation
    * @param string $sermonLanguageCode
-   *   Sermon language code.
+   *   Sermon language code corresponding to audio.
    * @phpstan-param non-empty-string $sermonLanguageCode
+   * @param bool $transcribe
+   *   Whether to transcribe the audio.
    * @param bool $throwOnFailure
    *   TRUE if an exception should be thrown if the processing initiation fails
    *   for certain "expected" (and recoverable; that is, execution of the caller
    *   should continue without worrying about program state corruption) reasons:
-   *   that is, because of 1) AWS errors, 2) validation issues with this entity,
-   *   3) missing linked entiti(es), or 4) an existing (conflicting) processing
-   *   job.
+   *   that is, because of 1) AWS or HTTP errors, 2) validation issues with this
+   *   entity, or 3) missing linked entiti(es).
    * @param null|\Exception $failureException
    *   (output) If $throwOnFailure is FALSE and an "expected" exception occurs
    *   (see above), this parameter is set to the exception that occurred. This
    *   is NULL if no error occurs, or if $throwOnFailure is TRUE.
    *
-   * @throws \Aws\DynamoDb\Exception\DynamoDbException
-   *   Thrown if an error occurs when attempting to interface with the AWS audio
-   *   processing jobs database.
    * @throws \Drupal\Core\Entity\EntityStorageException
    *   Thrown if an error occurs when attempting to save the current entity.
    * @throws \Drupal\sermon_audio\Exception\EntityValidationException
@@ -311,37 +311,43 @@ class SermonAudio extends ContentEntityBase {
    *   Thrown if the input audio file URI does not have the correct prefix (as
    *   defined in the module settings) or is otherwise invalid.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   *   Can be thrown if this module's "aws_credentials_file_path" or
-   *   "jobs_db_aws_region" configuration setting is empty or invalid.
+   *   Can be thrown if one of this module's settings is missing or invalid.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   *   Can be thrown if module's "connect_timeout" or "dynamodb_timeout"
+   *   Can be thrown if module's "connect_timeout" or "endpoint_timeout"
    *   configuration setting is invalid.
    * @throws \InvalidArgumentException
-   *   Thrown if $sermonName, $sermonSpeaker, $sermonYear, $sermonCongregation,
-   *   or $sermonLanguageCode is empty.
-   * @throws \Ranine\Exception\AggregateException
-   *   Thrown if, after a DynamoDB error occurs, another error occurs in the
-   *   process of setting a field value and subsequently saving the entity.
-   * @throws \Ranine\Exception\InvalidOperationException
-   *   Thrown if the job cannot be queued because it conflicts with a job
-   *   already in the audio processing jobs table.
+   *   Thrown if $sermonName, $sermonYear, $sermonCongregation, or
+   *   $sermonLanguageCode is empty.
+   * @throws \InvalidArgumentException
+   *   Thrown if both $sermonSpeakerFirstNames and $sermonSpeakerLastName are
+   *   consist only of whitespace.
+   * @throws \InvalidArgumentException
+   *   Thrown if $sermonYear is less than or equal to zero.
    * @throws \RuntimeException
    *   Thrown if the unprocessed audio file entity could not be loaded.
-   * @throws \RuntimeException
-   *   Thrown if a regex error occurs.
+   * @throws \Drupal\sermon_audio\Exception\ApiCallException
+   *   Thrown if an error occurs when making an HTTP request to the audio
+   *   processing job submission API, or if the response is invalid.
    */
   public function initiateAudioProcessing(string $sermonName,
-    string $sermonSpeaker,
-    string $sermonYear,
+    string $sermonSpeakerFirstNames,
+    string $sermonSpeakerLastName,
+    int $sermonYear,
     string $sermonCongregation,
     string $sermonLanguageCode,
+    bool $transcribe = TRUE,
     bool $throwOnFailure = TRUE,
     \Exception &$failureException = NULL) : void {
     ThrowHelpers::throwIfEmptyString($sermonName, 'sermonName');
-    ThrowHelpers::throwIfEmptyString($sermonSpeaker, 'sermonSpeaker');
-    ThrowHelpers::throwIfEmptyString($sermonYear, 'sermonYear');
     ThrowHelpers::throwIfEmptyString($sermonCongregation, 'sermonCongregation');
     ThrowHelpers::throwIfEmptyString($sermonLanguageCode, 'sermonLanguageCode');
+    ThrowHelpers::throwIfLessThanOrEqualToZero($sermonYear, 'sermonYear');
+
+    $sermonSpeakerFirstNames = trim($sermonSpeakerFirstNames);
+    $sermonSpeakerLastName = trim($sermonSpeakerLastName);
+    if ($sermonSpeakerFirstNames === '' && $sermonSpeakerLastName === '') {
+      throw new \InvalidArgumentException('Both $sermonSpeakerFirstNames and $sermonSpeakerLastName are empty or are only whitespace.');
+    }
 
     $throwIfDesired = function(\Exception $e, ?callable $alwaysThrowPredicate = NULL) use ($throwOnFailure, &$failureException) {
       if ($throwOnFailure || ($alwaysThrowPredicate !== NULL && $alwaysThrowPredicate($e))) throw $e;
@@ -353,116 +359,112 @@ class SermonAudio extends ContentEntityBase {
       $inputSubKey = self::getUnprocessedAudioSubKey($unprocessedAudio);
     }
     catch (\Exception $e) {
-      $throwIfDesired($e, fn($e) => $e instanceof EntityValidationException || $e instanceof InvalidInputAudioFileException || $e instanceof \RuntimeException);
+      $throwIfDesired($e, fn($e) => !($e instanceof EntityValidationException || $e instanceof InvalidInputAudioFileException || $e instanceof \RuntimeException));
       return;
     }
 
-    $filename = substr(self::normalizeSubKeyPathSegment($sermonName, $sermonLanguageCode), 0, 128) . '.mp4';
-    $outputSubKey = self::getOutputSubKey($sermonSpeaker, $sermonYear, $filename, $sermonLanguageCode);
-
-    // Track changes to the entity, so we don't save it unnecessarily.
-    $didChangeEntity = FALSE;
-
-    // Clear the "audio duration" and "processed audio" fields if necessary.
-    $durationField = $this->get('duration');
-    if (!$durationField->isEmpty()) {
-      $durationField->removeItem(0);
-      $didChangeEntity = TRUE;
-    }
-    $processedAudioField = $this->get('processed_audio');
-    if (!$processedAudioField->isEmpty()) {
-      $processedAudioField->removeItem(0);
-      $didChangeEntity = TRUE;
-    }
-
-    // Indicate that we have initiated the audio processing.
-    $processingInitiatedField = $this->get('processing_initiated');
-    $processingInitiatedFieldItem = $processingInitiatedField->get(0);
-    assert($processingInitiatedFieldItem instanceof FieldItemInterface || $processingInitiatedFieldItem === NULL);
-    if ($processingInitiatedFieldItem === NULL) {
-      $processingInitiatedFieldItem = $processingInitiatedField->appendItem(['value' => TRUE]);
-      assert($processingInitiatedFieldItem instanceof FieldItemInterface);
-      $didChangeEntity = TRUE;
-    }
-    elseif (!self::getScalarValueFromFieldItem($processingInitiatedFieldItem)) {
-      self::setScalarValueOnFieldItem($processingInitiatedFieldItem, TRUE);
-      $didChangeEntity = TRUE;
-    }
-
-    if ($didChangeEntity) {
-      $this->save();
-    }
-
-    // Don't actually start an audio processing job if we're in "debug mode."
-    if (self::getModuleSettings()->get('debug_mode')) {
+    // Don't actually start any audio processing jobs if we're in "debug mode."
+    if (Settings::isDebugModeEnabled()) {
       return;
     }
 
-    // We start a new job if one of the following conditions is met. Otherwise,
-    // we throw an exception.
-    // 1) No job entry exists in the AWS DB for the given sub-key.
-    // 2) A job entry exists, but the job has not yet started, has already been
-    // completed, or has failed. In such a case, we re-queue the job.
-    // 3) An in-progress job entry exists, and the job is marked as "in
-    // progress," but the start timestamp of the job indicates that the Lambda
-    // function that was responsible for executing the job has already timed
-    // out. In this case, we also may re-queue the job.
-    $dynamoDb = self::getDynamoDbClient();
-    $currentTime = \Drupal::time()->getCurrentTime();
-    // Lambda jobs time out after 15 minutes; make our threshold 20 to be safe.
-    $thresholdRestartTime = $currentTime - (20 * 60);
+    $sermonSpeakerFullName = $sermonSpeakerFirstNames . ' ' . $sermonSpeakerLastName;
+    $sermonSpeakerNormalized = self::asciify($sermonSpeakerLastName . ' ' . $sermonSpeakerFirstNames, $sermonLanguageCode);
+    $sermonNameNormalized = self::asciify($sermonName, $sermonLanguageCode);
+
+    $jobSubmissionApiEndpoint = Settings::getJobSubmissionApiEndpoint();
+    if ($jobSubmissionApiEndpoint === '') {
+      throw new ModuleConfigurationException('The "job_submission_api_endpoint" module setting is empty.');
+    }
+    $jobSubmissionApiRegion = Settings::getJobSubmissionApiRegion();
+    if ($jobSubmissionApiRegion === '') {
+      throw new ModuleConfigurationException('The "job_submission_api_region" module setting is empty.');
+    }
+    $processingRequestData = [
+      'input-sub-key' => $inputSubKey,
+      'sermon-language' => $sermonLanguageCode,
+      'transcribe' => $transcribe,
+      'sermon-name' => $sermonName,
+      'sermon-name-normalized' => $sermonNameNormalized,
+      'sermon-speaker' => $sermonSpeakerFullName,
+      'sermon-speaker-normalized' => $sermonSpeakerNormalized,
+      'sermon-year' => $sermonYear,
+      'sermon-congregation' => $sermonCongregation,
+    ];
+    $credentialsRetriever = \Drupal::service('sermon_audio.credentials_retriever');
+    assert($credentialsRetriever instanceof AwsCredentialsRetriever);
     try {
-      $dynamoDb->putItem([
-        'ConditionExpression'
-          => 'NOT attribute_exists(#isk) OR #js = :completed OR #js = :notStarted OR #js = :failed OR (#js = :inProgress AND #st < :thresholdTime)',
-        'ExpressionAttributeNames' => [
-          '#isk' => 'input-sub-key',
-          '#js' => 'job-status',
-          '#st' => 'start-time',
-        ],
-        'ExpressionAttributeValues' => [
-          // The "completed" job status.
-          ':completed' => ['N' => '2'],
-          // The "not started" job status.
-          ':notStarted' => ['N' => '0'],
-          // The "failed" job status.
-          ':failed' => ['N' => '-1'],
-          // The "in progress" job status.
-          ':inProgress' => ['N' => '1'],
-          ':thresholdTime' => ['N' => (string) $thresholdRestartTime],
-        ],
-        'Item' => [
-          'input-sub-key' => ['S' => $inputSubKey],
-          'output-sub-key' => ['S' => $outputSubKey],
-          'queue-time' => ['N' => (string) $currentTime],
-          'job-status' => ['N' => '0'],
-          'sermon-name' => ['S' => $sermonName],
-          'sermon-speaker' => ['S' => $sermonSpeaker],
-          'sermon-year' => ['S' => $sermonYear],
-          'sermon-congregation' => ['S' => $sermonCongregation],
-          'sermon-language' => ['S' => $sermonLanguageCode],
-          'output-display-filename' => ['S' => $filename],
-        ],
-        'TableName' => self::getJobsTableName(),
-      ]);
+      $response = ApiHelpers::callApi(\Drupal::httpClient(),
+        $credentialsRetriever->getCredentials(),
+        $jobSubmissionApiEndpoint,
+        $jobSubmissionApiRegion,
+        $processingRequestData,
+        [],
+        HttpMethod::POST);
     }
-    catch (DynamoDbException $e) {
-      // Indicate that the audio processing job has not actually successfully
-      // been initiated.
-      try {
-        self::setScalarValueOnFieldItem($processingInitiatedFieldItem, FALSE);
-        $this->save();
-      }
-      catch (\Exception $inner) {
-        throw new AggregateException('An error occurred while attempting to save the entity or set a field value, which occurred while handling a DynamoDB error.', 0,
-          [$inner, $e]);
-      }
-      if ($e->getAwsErrorCode() === 'ConditionalCheckFailedException') {
-        $throwIfDesired(new InvalidOperationException('The job cannot be queued because it conflicts with an existing job.', 0, $e));
+    catch (ClientExceptionInterface $e) {
+      $throwIfDesired(new ApiCallException('An error occurred when calling the audio processing job submission api.', $e->getCode(), $e));
+      return;
+    }
+
+    $responseStatusCode = (int) $response->getStatusCode();
+    if ($responseStatusCode < 200 || $responseStatusCode >= 300) {
+      $throwIfDesired(new ApiCallException('The audio processing job submission API returned a faulty status code of ' . $responseStatusCode . '.'));
+      return;
+    }
+
+    try {
+      $responseBody = $response->getBody()->getContents();
+    }
+    catch (\RuntimeException $e) {
+      $throwIfDesired(new ApiCallException('An error occurred when trying to read the response body from the audio processing job submission API.', $e->getCode(), $e));
+      return;
+    }
+
+    $decodedResponse = json_decode($responseBody, TRUE);
+    if (!is_array($decodedResponse)) {
+      $throwIfDesired(new ApiCallException('The audio processing job submission API returned an invalid response body.'));
+      return;
+    }
+    if (!isset($decodedResponse['cleaning-job-id'])) {
+      $throwIfDesired(new ApiCallException('The audio processing job submission API returned a response body that did not contain a "cleaning-job-id" property.'));
+      return;
+    }
+    $cleaningJobId = $decodedResponse['cleaning-job-id'];
+    if (!is_scalar($cleaningJobId)) {
+      $throwIfDesired(new ApiCallException('The audio processing job submission API returned a response body that contained an invalid "cleaning-job-id" property.'));
+      return;
+    }
+    $cleaningJobId = (string) $cleaningJobId;
+    if ($cleaningJobId === '') {
+      $throwIfDesired(new ApiCallException('The audio processing job submission API returned a response body that contained an empty "cleaning-job-id" property.'));
+      return;
+    }
+
+    if ($transcribe) {
+      if (!isset($decodedResponse['transcription-job-id'])) {
+        $throwIfDesired(new ApiCallException('The audio processing job submission API returned a response body that did not contain a "transcription-job-id" property.'));
         return;
       }
-      else $throwIfDesired($e);
+      $transcriptionJobId = $decodedResponse['transcription-job-id'];
+      if (!is_scalar($transcriptionJobId)) {
+        $throwIfDesired(new ApiCallException('The audio processing job submission API returned a response body that contained an invalid "transcription-job-id" property.'));
+        return;
+      }
+      $transcriptionJobId = (string) $transcriptionJobId;
+      if ($transcriptionJobId === '') {
+        $throwIfDesired(new ApiCallException('The audio processing job submission API returned a response body that contained an empty "transcription-job-id" property.'));
+        return;
+      }
     }
+    else $transcriptionJobId = NULL;
+
+    /** @phpstan-ignore-next-line */
+    $this->cleaning_job_id = $cleaningJobId;
+    /** @phpstan-ignore-next-line */
+    if (isset($transcriptionJobId)) $this->transcription_job_id = $transcriptionJobId;
+
+    $this->save();
   }
 
   /**
@@ -688,7 +690,7 @@ class SermonAudio extends ContentEntityBase {
    *   type.
    */
   private function prepareToRefreshProcessedAudio(int &$newProcessedAudioId, float &$newAudioDuration) : bool {
-    if (self::getModuleSettings()->get('debug_mode')) {
+    if (Settings::isDebugModeEnabled()) {
       $unprocessedAudioId = $this->getUnprocessedAudioId() ?? throw self::getUnprocessedAudioFieldException();
       if ($this->getProcessedAudioId() === $unprocessedAudioId) {
         return FALSE;
@@ -862,6 +864,9 @@ class SermonAudio extends ContentEntityBase {
    */
   public static function baseFieldDefinitions(EntityTypeInterface $entity_type) : array {
     $fields = parent::baseFieldDefinitions($entity_type);
+    
+    // @todo Do we need anything in hook_update_N() to add new fields / remove
+    // old ones?
 
     $fields['transcription_job_failed'] = BaseFieldDefinition::create('boolean')
       ->setLabel(new TranslatableMarkup('Transcription Job Failed?'))
@@ -996,6 +1001,26 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
+   * "Transliterates" the given (Unicode) text to ASCII.
+   *
+   * @param string $text
+   *   Text to transliterate.
+   * @param string $langcode
+   *   Language code of $text language.
+   * @phpstan-param non-empty-string $langcode
+   *
+   * @return string
+   *   Transliterated text. "\\" is used for unknown characters.
+   */
+  private static function asciify(string $text, string $langcode) : string {
+    // Try to "transliterate" the segment to get an approximate ASCII
+    // representation. It won't be perfect, but that's okay. Use "\" for unknown
+    // characters to ensure these characters don't get merged with whitespace,
+    // etc. in the processing below (and are instead later replaced with "-").
+    return \Drupal::transliteration()->transliterate($segment, $langcode, '\\');
+  }
+
+  /**
    * Gets the S3 bucket for processed and unprocessed audio.
    *
    * @return string
@@ -1014,81 +1039,12 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Gets a DynamoDB client.
-   */
-  private static function getDynamoDbClient() : DynamoDbClient {
-    $dynamoDbClientFactory = \Drupal::service('sermon_audio.dynamo_db_client_factory');
-    assert($dynamoDbClientFactory instanceof DynamoDbClientFactory);
-    return $dynamoDbClientFactory->getClient();
-  }
-
-  /**
    * Gets the file storage.
    */
   private static function getFileStorage() : FileStorageInterface {
     $storage = \Drupal::entityTypeManager()->getStorage('file');
     assert($storage instanceof FileStorageInterface);
     return $storage;
-  }
-
-  /**
-   * Gets the audio processing jobs DynamoDB table name.
-   *
-   * @return string
-   *   Table name.
-   * @phpstan-return non-empty-string
-   *
-   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   *   Thrown if the jobs table name module setting is empty.
-   */
-  private static function getJobsTableName() : string {
-    $tableName = Settings::getJobsTableName();
-    if ($tableName === '') {
-      throw new ModuleConfigurationException('The jobs table name module setting is empty.');
-    }
-    return $tableName;
-  }
-
-  /**
-   * Gets this module's settings.
-   */
-  private static function getModuleSettings() : ImmutableConfig {
-    return \Drupal::config('sermon_audio.settings');
-  }
-
-  /**
-   * Gets the output sub-key for the given sermon audio parameters.
-   *
-   * @param string $sermonSpeaker
-   *   Sermon speaker.
-   * @phpstan-param non-empty-string $sermonSpeaker
-   * @param string $sermonYear
-   *   Sermon year.
-   * @phpstan-param non-empty-string $sermonYear
-   * @param string $outputFilename
-   *   Output filename (normalized).
-   * @phpstan-param non-empty-string $outputFilename
-   * @param string $sermonLanguage
-   *   Sermon language.
-   * @phpstan-param non-empty-string $sermonLanguage
-   *
-   * @throws \RuntimeException
-   *   Thrown if a regex error occurs.
-   */
-  private static function getOutputSubKey(string $sermonSpeaker, string $sermonYear, string $outputFilename, string $sermonLanguage) : string {
-    assert($sermonSpeaker !== '');
-    assert($sermonYear !== '');
-    assert($outputFilename !== '');
-    assert($sermonLanguage !== '');
-
-    $normalizedSermonYear = self::normalizeSubKeyPathSegment($sermonYear, $sermonLanguage);
-    $normalizedSermonSpeaker = self::normalizeSubKeyPathSegment($sermonSpeaker, $sermonLanguage);
-    return substr($normalizedSermonYear, 0, 16) . '/'
-      . substr($normalizedSermonSpeaker, 0, 128) . '/'
-      . $outputFilename . '-'
-      // Include a random hexadecimal sequence for uniqueness.
-      . bin2hex(random_bytes(8)) . '/'
-      . $outputFilename;
   }
 
   /**
@@ -1149,47 +1105,6 @@ class SermonAudio extends ContentEntityBase {
     }
 
     return $inputSubKey;
-  }
-
-  /**
-   * Normalizes a path segment in an output sub-key.
-   *
-   * Converts the segment to ASCII, removes/replaces non-alaphnumeric
-   * characters, and makes everything lowercase.
-   *
-   * @param string $segment
-   * @param string $langcode
-   *   Language code of segment language.
-   * @phpstan-param non-empty-string $langcode
-   *
-   * @return string
-   *   Normalized segment.
-   *
-   * @throws \RuntimeException
-   *   Thrown if a regex error occurs.
-   */
-  private static function normalizeSubKeyPathSegment(string $segment, string $langcode) : string {
-    // Try to "transliterate" the segment to get an approximate ASCII
-    // representation. It won't be perfect, but that's okay. Use "\" for unknown
-    // characters to ensure these characters don't get merged with whitespace,
-    // etc. in the processing below (and are instead later replaced with "-").
-    $normalizedSegment = \Drupal::transliteration()->transliterate($segment, $langcode, '\\');
-    // Now, merge together sequences of spaces and certain punctuation/special
-    // characters ((space)-_!?.,;"/@~*()'$%), and replace them with empty
-    // strings on the ends of the string, and dashes in the middle.
-    $normalizedSegment = preg_replace([
-      // Beginning of string.
-      '/^(?:[-_!?.,;"\/@~*()\'#$%]|\s)+/',
-      // End.
-      '/(?:[-_!?.,;"\/@~*()\'#$%]|\s)+$/',
-      // Middle.
-      '/(?:[-_!?.,;"\/@~*()\'#$%]|\s)+/',
-    ], ['', '', '-'], $normalizedSegment) ?? throw new \RuntimeException('A regex error occurred.');
-    // Now convert remaining non-alphanumeric characters to "-", and make
-    // everything lowercase.
-    $normalizedSegment = preg_replace('/[^-a-z0-9]/i', '-', $normalizedSegment)
-      ?? throw new \RuntimeException('A regex error occurred.');
-    return strtolower($normalizedSegment);
   }
 
   /**
