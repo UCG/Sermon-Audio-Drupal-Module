@@ -19,13 +19,14 @@ use Drupal\file\FileStorageInterface;
 use Drupal\file\FileUsage\FileUsageInterface;
 use Drupal\s3fs\StreamWrapper\S3fsStream;
 use Drupal\sermon_audio\AwsCredentialsRetriever;
+use Drupal\sermon_audio\Event\SermonAudioEvents;
+use Drupal\sermon_audio\Event\TranscriptionAutoUpdatedEvent;
 use Drupal\sermon_audio\Exception\ApiCallException;
 use Drupal\sermon_audio\Exception\EntityValidationException;
 use Drupal\sermon_audio\Exception\InvalidInputAudioFileException;
 use Drupal\sermon_audio\Settings;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
 use Drupal\sermon_audio\Helper\ApiHelpers;
-use Drupal\sermon_audio\Helper\AudioHelpers;
 use Drupal\sermon_audio\Helper\CastHelpers;
 use Drupal\sermon_audio\HttpMethod;
 use Drupal\sermon_audio\S3ClientFactory;
@@ -36,22 +37,10 @@ use Ranine\Exception\ParseException;
 use Ranine\Helper\ParseHelpers;
 use Ranine\Helper\ThrowHelpers;
 use Ranine\Iteration\ExtendableIterable;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 /**
  * An entity representing audio for a sermon.
- *
- * Audio processing of the "unprocessed audio" field can be initiated with the
- * intiateAudioProcessing() method. This method first sets the
- * processing_initiated flag.
- *
- * After a sermon audio entity is intially loaded (this does not occur on
- * subsequent loads within the same request), a "post load" handler checks to
- * see if processing_intiated is set. If the field is set and the processed
- * audio field is not set, a check is made to see if the AWS audio processing
- * job has finished. If it has, the entity's "processed audio" field is updated
- * with a new file entity corresponding to the processed audio, and the entity
- * is saved. The AWS audio processing job check and subsequent processed audio
- * field update can also be forced by calling refreshProcessedAudio().
  *
  * @ContentEntityType(
  *   id = "sermon_audio",
@@ -628,14 +617,18 @@ class SermonAudio extends ContentEntityBase {
    * so, the transcription sub-key field is updated with the new S3 sub-key and
    * the job ID is unset. Note that the "new transcription" event is not fired
    * by this method. Also note that none of this happens (except for the job ID
-   * being unset) if the new URI is the same as this entity's current URI. If
-   * the job has not finished, but has failed, the job ID is unset and the job
-   * failure flag is set.
+   * being unset) if the new sub-key is the same as this entity's current
+   * sub-key. If the job has not finished, but has failed, the job ID is unset
+   * and the job failure flag is set.
    *
-   * This method performs its function even if the current
-   * transcription URI field value is non-NULL.
+   * This method performs its function even if the current transcription sub-key
+   * field value is non-NULL.
    *
    * This entity is not saved in this method -- that is up to the caller.
+   *
+   * @param bool $newTranscriptionSubKeyObtained
+   *   (output) If a new transcription XML sub-key was found in the results for
+   *   the current job, this will be TRUE. Else, it will be FALSE.
    *
    * @return bool
    *   TRUE if this entity may have been changed, else FALSE.
@@ -653,12 +646,12 @@ class SermonAudio extends ContentEntityBase {
    * @throws \Drupal\sermon_audio\Exception\ApiCallException
    *   Thrown if an error occurs when making a call to the job results API.
    */
-  public function refreshTranscription() : bool {
+  public function refreshTranscription(bool &$newTranscriptionSubKeyObtained = FALSE) : bool {
     if (!$this->hasTranscriptionJob()) {
       throw new InvalidOperationException('There is no transcription job ID associated with this entity.');
     }
 
-    return $this->prepareToRefreshTranscription()();
+    return $this->prepareToRefreshTranscription($newTranscriptionSubKeyObtained)();
   }
 
   /**
@@ -850,12 +843,17 @@ class SermonAudio extends ContentEntityBase {
    * thrown (everything except the \Ranine\Exception\InvalidOperationException
    * exception).
    *
+   * @param bool $newTranscriptionSubKeyObtained
+   *   (output) If a new transcription XML sub-key was found in the results for the
+   *   current job, this will be TRUE. Else, it will be FALSE.
+   *
    * @return callable() : bool
    *   Setter returning TRUE if the entity may have been changed; else it
    *   returns FALSE.
    */
-  private function prepareToRefreshTranscription() : callable {
+  private function prepareToRefreshTranscription(bool &$newTranscriptionSubKeyObtained = FALSE) : callable {
     assert($this->hasTranscriptionJob());
+    $newTranscriptionSubKeyObtained = FALSE;
 
     if (Settings::isDebugModeEnabled()) {
       return function () : bool {
@@ -919,11 +917,20 @@ class SermonAudio extends ContentEntityBase {
       throw new ApiCallException('The audio transcription job results API returned a response body that contained an empty "output-sub-key" property.');
     }
 
-    return function () use($outputSubKey) : bool {
-      $this->setTranscriptionSubKey($outputSubKey);
-      $this->unsetTranscriptionJob();
-      return TRUE;
-    };
+    if ($outputSubKey === $this->getTranscriptionSubKey()) {
+      return function () : bool {
+        $this->unsetTranscriptionJob();
+        return FALSE;
+      };
+    }
+    else {
+      $newTranscriptionSubKeyObtained = TRUE;
+      return function () use($outputSubKey) : bool {
+        $this->setTranscriptionSubKey($outputSubKey);
+        $this->unsetTranscriptionJob();
+        return TRUE;
+      };
+    }
   }
 
   /**
@@ -1096,11 +1103,11 @@ class SermonAudio extends ContentEntityBase {
 
       // We'll have to refresh for all translations, as postLoad() is only
       // called once for all translations.
+      /** @var \Drupal\sermon_audio\Entity\SermonAudio[] */
+      $translationsWithTranscriptEvents = [];
       foreach ($entity->iterateTranslations() as $translation) {
-        if (!AudioHelpers::isProcessedAudioRefreshable($translation)) continue;
-
         try {
-          $translationUpdate = $translation->prepareToRefreshProcessedAudio();
+          $translationAudioUpdate = $translation->prepareToRefreshProcessedAudio();
         }
         catch (\Exception $e) {
           if ($e instanceof DynamoDbException
@@ -1118,15 +1125,37 @@ class SermonAudio extends ContentEntityBase {
           }
           else throw $e;
         }
-        if ($translationUpdate()) $requiresSave = TRUE;
+        if ($translationAudioUpdate()) $requiresSave = TRUE;
+
+        try {
+          $shouldFireNewTranscriptionEvent = FALSE;
+          $translationTranscriptUpdate = $translation->prepareToRefreshTranscription($shouldFireNewTranscriptionEvent);
+        }
+        catch (\Exception $e) {
+          if ($e instanceof ApiCallException || $e instanceof ModuleConfigurationException) {
+            watchdog_exception('sermon_audio', $e, NULL, [], RfcLogLevel::WARNING);
+            continue;
+          }
+          else throw $e;
+        }
+        if ($translationTranscriptUpdate()) {
+          $requiresSave = TRUE;
+          $translationsWithTranscriptEvents[] = $translation;
+        }
       }
 
       if ($requiresSave) {
+        $eventDispatcher = \Drupal::service('event_dispatcher');
+        assert($eventDispatcher instanceof EventDispatcherInterface);
         // We add the entity ID to the $finishedEntityIds set before saving.
         // This is because the save process will invoke postLoad() again (when
         // loading the unchanged entity).
         $finishedEntityIds[$entityId] = NULL;
         $entity->save();
+
+        foreach ($translationsWithTranscriptEvents as $translation) {
+          $eventDispatcher->dispatch(new TranscriptionAutoUpdatedEvent($translation), SermonAudioEvents::TRANSCRIPTION_AUTO_UPDATED);
+        }
       }
       else {
         $finishedEntityIds[$entityId] = NULL;

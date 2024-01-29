@@ -61,15 +61,11 @@ final class RefreshHelpers {
     $requiresSave = FALSE;
     foreach ($audio->iterateTranslations() as $translation) {
       if ($translation->hasTranscriptionJob()) {
-        if ($translation->refreshTranscription()) {
+        $subKeyUpdated = FALSE;
+        if ($translation->refreshTranscription($subKeyUpdated)) {
           $requiresSave = TRUE;
-          if ($translationsWithUpdatedTranscriptionSubKey !== NULL) {
-            // If the entity no longer has an active transcription job, and the
-            // job did not fail, then we know the transcription sub-key was
-            // updated with data from the previously active job.
-            if (!$translation->hasTranscriptionJob() && !$translation->didTranscriptionFail()) {
-              $translationsWithUpdatedTranscriptionSubKey[] = $translation;
-            }
+          if ($translationsWithUpdatedTranscriptionSubKey !== NULL && $subKeyUpdated) {
+            $translationsWithUpdatedTranscriptionSubKey[] = $translation;
           }
         }
       }
