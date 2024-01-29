@@ -7,14 +7,12 @@ namespace Drupal\sermon_audio\Entity;
 use Aws\DynamoDb\Exception\DynamoDbException;
 use Aws\S3\Exception\S3Exception;
 use Aws\S3\S3Client;
-use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\Entity\ContentEntityBase;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeInterface;
 use Drupal\Core\Field\BaseFieldDefinition;
-use Drupal\Core\Field\FieldItemBase;
-use Drupal\Core\Field\FieldItemInterface;
+use Drupal\Core\Logger\RfcLogLevel;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\file\FileInterface;
 use Drupal\file\FileStorageInterface;
@@ -32,6 +30,8 @@ use Drupal\sermon_audio\Helper\CastHelpers;
 use Drupal\sermon_audio\HttpMethod;
 use Drupal\sermon_audio\S3ClientFactory;
 use Psr\Http\Client\ClientExceptionInterface;
+use Psr\Http\Message\ResponseInterface;
+use Ranine\Exception\InvalidOperationException;
 use Ranine\Exception\ParseException;
 use Ranine\Helper\ParseHelpers;
 use Ranine\Helper\ThrowHelpers;
@@ -238,32 +238,28 @@ class SermonAudio extends ContentEntityBase {
    * Tells whether there is a cleaning job ID associated with this entity.
    */
   public function hasCleaningJob() : bool {
-    /** @phpstan-ignore-next-line */
-    return $this->cleaning_job_id->value === NULL ? FALSE : TRUE;
+    return $this->getCleaningJobId() === NULL ? FALSE : TRUE;
   }
 
   /**
    * Tells if there is a processed audio file ID associated with this entity.
    */
   public function hasProcessedAudio() : bool {
-    /** @phpstan-ignore-next-line */
-    return $this->processed_audio->target_id === NULL ? FALSE : TRUE;
+    return $this->getProcessedAudioId() === NULL ? FALSE : TRUE;
   }
 
   /**
    * Tells whether there is a transcription job ID associated with this entity.
    */
   public function hasTranscriptionJob() : bool {
-    /** @phpstan-ignore-next-line */
-    return $this->transcription_job_id->value === NULL ? FALSE : TRUE;
+    return $this->getTranscriptionJobId() === NULL ? FALSE : TRUE;
   }
 
   /**
    * Tells if there is an unprocessed audio file ID associated with this entity.
    */
   public function hasUnprocessedAudio() : bool {
-    /** @phpstan-ignore-next-line */
-    return $this->unprocessed_audio->target_id === NULL ? FALSE : TRUE;
+    return $this->getUnprocessedAudioId() === NULL ? FALSE : TRUE;
   }
 
   /**
@@ -363,8 +359,11 @@ class SermonAudio extends ContentEntityBase {
       return;
     }
 
-    // Don't actually start any audio processing jobs if we're in "debug mode."
+    // Don't actually start any audio processing jobs if we're in "debug mode,"
+    // but do set the job IDs to fake values.
     if (Settings::isDebugModeEnabled()) {
+      $this->setCleaningJob('abcdef');
+      if ($transcribe) $this->setTranscriptionJob('123456');
       return;
     }
 
@@ -391,11 +390,9 @@ class SermonAudio extends ContentEntityBase {
       'sermon-year' => $sermonYear,
       'sermon-congregation' => $sermonCongregation,
     ];
-    $credentialsRetriever = \Drupal::service('sermon_audio.credentials_retriever');
-    assert($credentialsRetriever instanceof AwsCredentialsRetriever);
     try {
       $response = ApiHelpers::callApi(\Drupal::httpClient(),
-        $credentialsRetriever->getCredentials(),
+        static::getCredentialsRetriever()->getCredentials(),
         $jobSubmissionApiEndpoint,
         $jobSubmissionApiRegion,
         $processingRequestData,
@@ -407,8 +404,7 @@ class SermonAudio extends ContentEntityBase {
       return;
     }
 
-    $responseStatusCode = (int) $response->getStatusCode();
-    if ($responseStatusCode < 200 || $responseStatusCode >= 300) {
+    if (!self::isResponseStatusCodeValid($response)) {
       $throwIfDesired(new ApiCallException('The audio processing job submission API returned a faulty status code of ' . $responseStatusCode . '.'));
       return;
     }
@@ -459,10 +455,8 @@ class SermonAudio extends ContentEntityBase {
     }
     else $transcriptionJobId = NULL;
 
-    /** @phpstan-ignore-next-line */
-    $this->cleaning_job_id = $cleaningJobId;
-    /** @phpstan-ignore-next-line */
-    if (isset($transcriptionJobId)) $this->transcription_job_id = $transcriptionJobId;
+    $this->setCleaningJob($cleaningJobId);
+    if (isset($transcriptionJobId)) $this->setTranscriptionJob($transcriptionJobId);
 
     $this->save();
   }
@@ -561,302 +555,448 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Attempts to correctly set the processed audio field.
+   * Handles any audio cleaning result.
    *
-   * If the "debug_mode" module setting is active, then, if the processed audio
-   * field is not already set to the unprocessed audio field value, it is thus
-   * set, and the duration field set to zero.
+   * If the "debug_mode" module setting is active, the processed audio field is
+   * set to the unprocessed audio field, and the duration field is set to zero.
+   * The processed audio job ID is also unset.
    *
-   * Otherwise, the processed audio field is set to point to the audio file,
-   * indicated by the AWS DynamoDB database, that corresponds to the unprocessed
-   * audio field. Nothing is changed if the URI computed from the DynamoDB query
-   * response is the same as that currently associated with the processed audio
-   * field.
-   * 
+   * Otherwise, if there is a (presumably active) processed audio job attached
+   * to this entity, a check is made to see if the job has finished. If so, the
+   * processed audio field is updated with the processed audio URI and the
+   * duration is updated to the value computed by the job. The job ID is also
+   * unset. The processed audio URI and duration, though, are not changed if
+   * the new URI is the same as that currently associated with the processed
+   * audio field. If the job has not finished, but has failed, the job ID is
+   * unset and the job failure flag is set.
+   *
    * Note that this method performs its function even if the current processed
-   * audio field value is non-NULL, and even if processing_initiated is not
-   * TRUE.
+   * audio field value is non-NULL.
    *
    * This entity is not saved in this method -- that is up to the caller.
    *
    * @return bool
-   *   TRUE if the processed audio or duration field was changed, else FALSE.
+   *   TRUE if this entity may have been changed, else FALSE.
    *
-   * @throws \Aws\DynamoDb\Exception\DynamoDbException
-   *   Thrown if an error occurs when attempting to interface with the AWS audio
-   *   processing jobs database.
    * @throws \Aws\S3\Exception\S3Exception
    *   Thrown if an error occurs when attempting to make/receive a HEAD request
    *   for a new processed audio file.
+   * @throws \Drupal\sermon_audio\Exception\EntityValidationException
+   *   Thrown if debug mode is enabled and the unprocessed audio file field is
+   *   not set.
    * @throws \Drupal\Core\Entity\EntityStorageException
    *   Thrown if an error occurs when trying to save a new file entity.
-   * @throws \Drupal\sermon_audio\Exception\EntityValidationException
-   *   Thrown if the unprocessed audio file field is not set.
-   * @throws \Drupal\sermon_audio\Exception\InvalidInputAudioFileException
-   *   Thrown if the input audio file URI does not have the correct prefix (as
-   *   defined in the module settings) or is otherwise invalid.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Can be thrown if this module's "aws_credentials_file_path",
-   *   "jobs_db_aws_region", or "audio_s3_aws_region" configuration setting is
-   *   empty or invalid.
+   *   "audio_s3_aws_region", "cleaning_job_results_endpoint", or
+   *   "cleaning_job_results_endpoint_aws_region" configuration setting is empty
+   *   or invalid.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   *   Can be thrown if module's "connect_timeout" or "dynamodb_timeout"
+   *   Can be thrown if module's "connect_timeout" or "endpoint_timeout"
    *   configuration setting is invalid.
    * @throws \Ranine\Exception\ParseException
    *   Thrown if the file size of the processsed audio file could not be parsed.
    * @throws \RuntimeException
-   *   Thrown if something is wrong with the DynamoDB record returned.
-   * @throws \RuntimeException
-   *   Thrown if a referenced file entity does not exist.
-   * @throws \RuntimeException
-   *   Thrown if a new processed audio file referenced by a returned DynamoDB
-   *   record did not exist when a HEAD query was made for it, or if the HEAD
+   *   Thrown if the new processed audio URI references an S3 location that was
+   *   reported nonexistent when a HEAD query was made for it, or if the HEAD
    *   query response is invalid in some way.
    * @throws \RuntimeException
    *   Thrown if the "s3fs" module was enabled, but a class from that module is
    *   missing or a service from that module is missing or of the incorrect
    *   type.
+   * @throws \Ranine\Exception\InvalidOperationException
+   *   Thrown if there is no cleaning job ID associated with this entity.
+   * @throws \Drupal\sermon_audio\Exception\ApiCallException
+   *   Thrown if an error occurs when making a call to the job results API.
    */
   public function refreshProcessedAudio() : bool {
-    $newProcessedAudioId = 0;
-    $newAudioDuration = 0.0;
-    if ($this->prepareToRefreshProcessedAudio($newProcessedAudioId, $newAudioDuration)) {
-      $this->setProcessedAudioTargetId($newProcessedAudioId);
-      $this->setDuration($newAudioDuration);
-      return TRUE;
+    if (!$this->hasCleaningJob()) {
+      throw new InvalidOperationException('There is no cleaning job ID associated with this entity.');
     }
-    else return FALSE;
+
+    return $this->prepareToRefreshProcessedAudio()();
   }
 
   /**
-   * Attempts to get a new processed audio ID & duration for this entity.
+   * Handles any audio transcription result.
    *
-   * If the "debug_mode" module setting is active, then, if the processed audio
-   * field is not already set to the unprocessed audio field value,
-   * $newProcessedAudioId is thus set, and the duration is set to zero.
+   * If the "debug_mode" module setting is active, the transcription sub-key is
+   * set to a generic value and the transcription job is cleared.
    *
-   * Otherwise, the $newProcessedAudioId is set to point to the audio file,
-   * indicated by the AWS DynamoDB database, that corresponds to the unprocessed
-   * audio field. Nothing is changed if the URI computed from the DynamoDB query
-   * response is the same as that currently associated with the processed audio
-   * field.
+   * Otherwise, if there is a (presumably active) audio transcription job
+   * attached to this entity, a check is made to see if the job has finished. If
+   * so, the transcription sub-key field is updated with the new S3 sub-key and
+   * the job ID is unset. Note that the "new transcription" event is not fired
+   * by this method. Also note that none of this happens (except for the job ID
+   * being unset) if the new URI is the same as this entity's current URI. If
+   * the job has not finished, but has failed, the job ID is unset and the job
+   * failure flag is set.
    *
-   * Note that this method performs its function even if the current processed
-   * audio field value is non-NULL, and even if processing_initiated is not
-   * TRUE.
+   * This method performs its function even if the current
+   * transcription URI field value is non-NULL.
    *
-   * @param int $newProcessedAudioId
-   *   (output) New processed audio ID.
-   * @param float $newAudioDuration
-   *   (output) New audio duration.
+   * This entity is not saved in this method -- that is up to the caller.
    *
    * @return bool
-   *   TRUE if a new value (not already set on the entity field) is present in
-   *   either of the output parameters, else FALSE.
+   *   TRUE if this entity may have been changed, else FALSE.
    *
-   * @throws \Aws\DynamoDb\Exception\DynamoDbException
-   *   Thrown if an error occurs when attempting to interface with the AWS audio
-   *   processing jobs database.
-   * @throws \Aws\S3\Exception\S3Exception
-   *   Thrown if an error occurs when attempting to make/receive a HEAD request
-   *   for a new processed audio file.
-   * @throws \Drupal\Core\Entity\EntityStorageException
-   *   Thrown if an error occurs when trying to save a new file entity.
-   * @throws \Drupal\sermon_audio\Exception\EntityValidationException
-   *   Thrown if the unprocessed audio file field is not set.
-   * @throws \Drupal\sermon_audio\Exception\InvalidInputAudioFileException
-   *   Thrown if the input audio file URI does not have the correct prefix (as
-   *   defined in the module settings) or is otherwise invalid.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Can be thrown if this module's "aws_credentials_file_path",
-   *   "jobs_db_aws_region", or "audio_s3_aws_region" configuration setting is
+   *   "transcription_job_results_endpoint", or
+   *   "transcription_job_results_endpoint_aws_region" configuration setting is
    *   empty or invalid.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   *   Can be thrown if module's "connect_timeout" or "dynamodb_timeout"
+   *   Can be thrown if module's "connect_timeout" or "endpoint_timeout"
    *   configuration setting is invalid.
-   * @throws \Ranine\Exception\ParseException
-   *   Thrown if the file size of the processsed audio file could not be parsed.
-   * @throws \RuntimeException
-   *   Thrown if something is wrong with the DynamoDB record returned.
-   * @throws \RuntimeException
-   *   Thrown if a referenced file entity does not exist.
-   * @throws \RuntimeException
-   *   Thrown if a new processed audio file referenced by a returned DynamoDB
-   *   record did not exist when a HEAD query was made for it, or if the HEAD
-   *   query response is invalid in some way.
-   * @throws \RuntimeException
-   *   Thrown if the "s3fs" module was enabled, but a class from that module is
-   *   missing or a service from that module is missing or of the incorrect
-   *   type.
+   * @throws \Ranine\Exception\InvalidOperationException
+   *   Thrown if there is no transcription job ID associated with this entity.
+   * @throws \Drupal\sermon_audio\Exception\ApiCallException
+   *   Thrown if an error occurs when making a call to the job results API.
    */
-  private function prepareToRefreshProcessedAudio(int &$newProcessedAudioId, float &$newAudioDuration) : bool {
+  public function refreshTranscription() : bool {
+    if (!$this->hasTranscriptionJob()) {
+      throw new InvalidOperationException('There is no transcription job ID associated with this entity.');
+    }
+
+    return $this->prepareToRefreshTranscription()();
+  }
+
+  /**
+   * Unsets the cleaning job ID and records a cleaning job failure.
+   */
+  private function failCleaningJob() : void {
+    /** @phpstan-ignore-next-line */
+    $this->cleaning_job_failed = TRUE;
+    /** @phpstan-ignore-next-line */
+    $this->cleaning_job_id = NULL;
+  }
+
+  /**
+   * Unsets the transcription job ID and records a transcription job failure.
+   */
+  private function failTranscriptionJob() : void {
+    /** @phpstan-ignore-next-line */
+    $this->transcription_job_failed = TRUE;
+    /** @phpstan-ignore-next-line */
+    $this->transcription_job_id = NULL;
+  }
+
+  /**
+   * Returns a setter for any audio cleaning result.
+   *
+   * The setter sets the fields of this entity as described in
+   * self::refreshProcessedAudio().
+   *
+   * NOTE: See self::refreshProcessedAudio() for the exceptions that are thrown
+   * (everything except the \Ranine\Exception\InvalidOperationException
+   * exception).
+   *
+   * @return callable() : bool
+   *   Setter returning TRUE if the entity may have been changed; else it
+   *   returns FALSE.
+   */
+  private function prepareToRefreshProcessedAudio() : callable {
+    assert($this->hasCleaningJob());
+
     if (Settings::isDebugModeEnabled()) {
       $unprocessedAudioId = $this->getUnprocessedAudioId() ?? throw self::getUnprocessedAudioFieldException();
-      if ($this->getProcessedAudioId() === $unprocessedAudioId) {
-        return FALSE;
+      return function () use($unprocessedAudioId) : bool {
+        $this->setProcessedAudioTargetId($unprocessedAudioId);
+        $this->unsetCleaningJob();
+        $this->setDuration(0);
+        return TRUE;
+      };
+    }
+
+    $cleaningJobResultsApiEndpoint = Settings::getCleaningJobResultsApiEndpoint();
+    if ($cleaningJobResultsApiEndpoint === '') {
+      throw new ModuleConfigurationException('The "cleaning_job_results_endpoint" module setting is empty.');
+    }
+    $cleaningJobResultsApiRegion = Settings::getCleaningJobResultsApiRegion();
+    if ($cleaningJobResultsApiRegion === '') {
+      throw new ModuleConfigurationException('The "cleaning_job_results_endpoint_aws_region" module setting is empty.');
+    }
+    try {
+      $response = ApiHelpers::callApi(\Drupal::httpClient(),
+        static::getCredentialsRetriever()->getCredentials(),
+        $cleaningJobResultsApiEndpoint,
+        $cleaningJobResultsApiRegion,
+        [],
+        ['id' => $this->getCleaningJobId()],
+        HttpMethod::GET);
+    }
+    catch (ClientExceptionInterface $e) {
+      throw new ApiCallException('An error occurred when calling the audio cleaning job results api.', $e->getCode(), $e);
+    }
+
+    if (!self::isResponseStatusCodeValid($response)) {
+      throw new ApiCallException('The audio cleaning job results API returned a faulty status code of ' . $responseStatusCode . '.');
+    }
+    $jobResults = self::decodeJsonResponseBody($response);
+    if ($jobResults === NULL) {
+      throw new ApiCallException('Could not read or decode audio cleaning job results API response body.');
+    }
+    if (!isset($jobResults['status'])) {
+      throw new ApiCallException('The audio cleaning job results API returned a response body that did not contain a valid "status" property.');
+    }
+    $jobStatus = 0;
+    if (!ParseHelpers::tryParseInt($jobResults['status'], $jobStatus)) {
+      throw new ApiCallException('The audio cleaning job results API returned a response body that contained a non-integral "status" property.');
+    }
+    if ($jobStatus === -1) {
+      return function() {
+        $this->failCleaningJob();
+        return TRUE;
+      };
+    }
+    elseif ($jobStatus !== 2) {
+      // Job is presumably not finished yet.
+      return fn() => FALSE;
+    }
+
+    if (!isset($jobResults['output-sub-key'])) {
+      throw new ApiCallException('The audio cleaning job results API returned a response body that did not contain a valid "output-sub-key" property.');
+    }
+    $outputSubKey = CastHelpers::stringyToString($jobResults['output-sub-key']);
+    if ($outputSubKey === '') {
+      throw new ApiCallException('The audio cleaning job results API returned a response body that contained an empty "output-sub-key" property.');
+    }
+    if (!isset($jobResults['duration'])) {
+      throw new ApiCallException('The audio cleaning job results API returned a response body that did not contain a valid "duration" property.');
+    }
+    $duration = $jobResults['duration'];
+    if (!is_numeric($duration)) {
+      throw new ApiCallException('The audio cleaning job results API returned a response body that contained a non-numeric "duration" property.');
+    }
+    $duration = (float) $duration;
+    if (!is_finite($duration) || $duration < 0) {
+      throw new ApiCallException('The audio cleaning job results API returned a response body that contained non-finite or negative "duration" property.');
+    }
+
+    $processedAudioUri = Settings::getProcessedAudioUriPrefix() . $outputSubKey;
+
+    // Before creating a new file entity, check to see if the current processed
+    // audio entity already references the correct URI.
+    $processedAudio = $this->getProcessedAudio();
+    if ($processedAudio !== NULL && $processedAudio->getFileUri() === $processedAudioUri) {
+      return FALSE;
+    }
+
+    // If the s3fs module is enabled, we will go ahead and cache metadata for
+    // the processed audio file. This will also allow the file size to be
+    // automatically set when the processed audio file entity is created.
+    // Otherwise, we'll have to grab the file size separately.
+    if (\Drupal::moduleHandler()->moduleExists('s3fs')) {
+      $s3fsStreamWrapper = \Drupal::service('stream_wrapper.s3fs');
+      if (!class_exists('Drupal\\s3fs\\StreamWrapper\\S3fsStream')) {
+        throw new \RuntimeException('The "s3fs" module was enabled, but the \\Drupal\\s3fs\\StreamWrapper\\S3fsStream class does not exist.');
       }
-      else {
-        $newProcessedAudioId = $unprocessedAudioId;
-        $newAudioDuration = 0;
+      if(!($s3fsStreamWrapper instanceof S3fsStream)) {
+        throw new \RuntimeException('The "s3fs" module was enabled, but the "stream_wrapper.s3fs" is not of the expected type.');
       }
+      $s3fsStreamWrapper->writeUriToCache($processedAudioUri);
     }
     else {
-      $unprocessedAudio = $this->getUnprocessedAudio() ?? throw self::getUnprocessedAudioFieldException();
-      $inputSubKey = self::getUnprocessedAudioSubKey($unprocessedAudio);
-  
-      $dynamoDb = self::getDynamoDbClient();
-      $jobsTableName = self::getJobsTableName();
-      $dbResponse = $dynamoDb->getItem([
-        'Key' => [
-          'input-sub-key' => ['S' => $inputSubKey],
-        ],
-        'ExpressionAttributeNames' => [
-          '#js' => 'job-status',
-          '#osk' => 'output-sub-key',
-          '#odf' => 'output-display-filename',
-          '#d' => 'audio-duration',
-        ],
-        // Grab the output display filename also, because we use it as the file
-        // entity's filename.
-        'ProjectionExpression' => '#js, #osk, #d, #odf',
-        'TableName' => $jobsTableName,
-      ]);
-      if (isset($dbResponse['Item'])) {
-        $item = $dbResponse['Item'];
-        if (!is_array($item)) {
-          throw new \RuntimeException('Jobs DB response "Item" property is of the wrong type.');
-        }
-        if (!isset($item['job-status']['N'])) {
-          throw new \RuntimeException('Jobs DB item found does not contain valid "job-status" attribute.');
-        }
-        // @todo Consider doing something w/ failed jobs.
-        if (((int) $item['job-status']['N']) !== 2) {
-          // The job has not finished.
-          return FALSE;
-        }
-  
-        if (!isset($item['output-sub-key']['S'])) {
-          throw new \RuntimeException('Jobs DB item found does not contain valid "output-sub-key" attribute.');
-        }
-        $outputSubKey = (string) $item['output-sub-key']['S'];
-        if ($outputSubKey === '') {
-          throw new \RuntimeException('The output sub-key found seems to be empty.');
-        }
-  
-        if (!isset($item['output-display-filename']['S'])) {
-          throw new \RuntimeException('Jobs DB item found does not contain valid "output-display-filename" attribute.');
-        }
-        $outputDisplayFilename = (string) $item['output-display-filename']['S'];
-        if ($outputDisplayFilename === '') {
-          throw new \RuntimeException('The output display filename found seemed to be empty.');
-        }
-  
-        if (!isset($item['audio-duration']['N'])) {
-          throw new \RuntimeException('Jobs DB items found does not contain valid "audio-duration" attribute.');
-        }
-        $newAudioDuration = (float) $item['audio-duration']['N'];
-        if (!is_finite($newAudioDuration) || $newAudioDuration < 0) {
-          throw new \RuntimeException('The audio duration was not finite or was negative.');
-        }
+      // Get the size of the new processed audio file. We do this by making a
+      // HEAD request for the file.
+      $s3Client = self::getS3Client();
+      $result = $s3Client->headObject(['Bucket' => self::getAudioBucket(), 'Key' => self::getS3ProcessedAudioKeyPrefix() . $outputSubKey]);
+      if (!isset($result['ContentLength'])) {
+        throw new \RuntimeException('Could not retrieve file size for processed audio file.');
       }
-      // Otherwise, there is no job with the given input sub-key.
-      else return FALSE;
-  
-      assert($outputSubKey != "");
-      assert($outputDisplayFilename != "");
-      assert($newAudioDuration >= 0);
-  
-      $processedAudioUri = Settings::getProcessedAudioUriPrefix() . $outputSubKey;
-  
-      // Before creating a new file entity, check to see if the current processed
-      // audio entity already references the correct URI.
-      $processedAudio = $this->getProcessedAudio();
-      if ($processedAudio !== NULL && $processedAudio->getFileUri() === $processedAudioUri) {
-        return FALSE;
+      $fileSize = ParseHelpers::parseInt($result['ContentLength']);
+      if ($fileSize < 0) {
+        throw new \RuntimeException('Invalid file size for processed audio file.');
       }
-
-      // If the s3fs module is enabled, we will go ahead and cache metadata for
-      // the processed audio file. This will also allow the file size to be
-      // automatically set when the processed audio file entity is created.
-      // Otherwise, we'll have to grab the file size separately.
-      if (\Drupal::moduleHandler()->moduleExists('s3fs')) {
-        $s3fsStreamWrapper = \Drupal::service('stream_wrapper.s3fs');
-        if (!class_exists('Drupal\\s3fs\\StreamWrapper\\S3fsStream')) {
-          throw new \RuntimeException('The "s3fs" module was enabled, but the \\Drupal\\s3fs\\StreamWrapper\\S3fsStream class does not exist.');
-        }
-        if(!($s3fsStreamWrapper instanceof S3fsStream)) {
-          throw new \RuntimeException('The "s3fs" module was enabled, but the "stream_wrapper.s3fs" is not of the expected type.');
-        }
-        $s3fsStreamWrapper->writeUriToCache($processedAudioUri);
-      }
-      else {
-        // Get the size of the new processed audio file. We do this by making a
-        // HEAD request for the file.
-        $s3Client = self::getS3Client();
-        $result = $s3Client->headObject(['Bucket' => self::getAudioBucket(), 'Key' => self::getS3ProcessedAudioKeyPrefix() . $outputSubKey]);
-        if (!isset($result['ContentLength'])) {
-          throw new \RuntimeException('Could not retrieve file size for processed audio file.');
-        }
-        $fileSize = ParseHelpers::parseInt($result['ContentLength']);
-        if ($fileSize < 0) {
-          throw new \RuntimeException('Invalid file size for processed audio file.');
-        }
-      }
-
-      // Create the new processed audio file entity, setting its owner to the
-      // owner of the unprocessed audio file.
-      $owner = $unprocessedAudio->getOwnerId();
-      $newProcessedAudioFieldInitValues = [
-        'uri' => $processedAudioUri,
-        'uid' => $owner,
-        'filename' => $outputDisplayFilename,
-        'filemime' => 'audio/mp4',
-        'status' => TRUE,
-      ];
-      if (isset($fileSize)) {
-        // If the file size was captured above, set it. Otherwise, it should be
-        // automatically set when the entity creation/save process is executed
-        // below.
-        $newProcessedAudioFieldInitValues['filesize'] = $fileSize;
-      }
-      $newProcessedAudio = self::getFileStorage()
-        ->create($newProcessedAudioFieldInitValues)
-        ->enforceIsNew();
-      $newProcessedAudio->save();
-      $newProcessedAudioId = (int) $newProcessedAudio->id();
     }
 
-    return TRUE;
+    // Create the new processed audio file entity, setting its owner to the
+    // owner of the unprocessed audio file.
+    $owner = $unprocessedAudio->getOwnerId();
+    $newProcessedAudioFieldInitValues = [
+      'uri' => $processedAudioUri,
+      'uid' => $owner,
+      'filename' => $outputDisplayFilename,
+      'filemime' => 'audio/mp4',
+      'status' => TRUE,
+    ];
+    if (isset($fileSize)) {
+      // If the file size was captured above, set it. Otherwise, it should be
+      // automatically set when the entity creation/save process is executed
+      // below.
+      $newProcessedAudioFieldInitValues['filesize'] = $fileSize;
+    }
+    $newProcessedAudio = self::getFileStorage()
+      ->create($newProcessedAudioFieldInitValues)
+      ->enforceIsNew();
+    $newProcessedAudio->save();
+    $newProcessedAudioId = (int) $newProcessedAudio->id();
+
+    return function() use ($newProcessedAudioId, $duration) : bool {
+      $this->setProcessedAudioTargetId($newProcessedAudioId);
+      $this->setDuration($duration);
+      $this->unsetCleaningJob();
+      return TRUE;
+    };
+  }
+
+  /**
+   * Returns a setter for any audio transcription result.
+   *
+   * The setter sets the fields of this entity as described in
+   * self::refreshProcessedTranscription().
+   *
+   * NOTE: See self::refreshProcessedTranscription() for the exceptions that are
+   * thrown (everything except the \Ranine\Exception\InvalidOperationException
+   * exception).
+   *
+   * @return callable() : bool
+   *   Setter returning TRUE if the entity may have been changed; else it
+   *   returns FALSE.
+   */
+  private function prepareToRefreshTranscription() : callable {
+    assert($this->hasTranscriptionJob());
+
+    if (Settings::isDebugModeEnabled()) {
+      return function () : bool {
+        $this->setTranscriptionUri('https://example.com/transcription.xml');
+        $this->unsetTranscriptionJob();
+        return TRUE;
+      };
+    }
+
+    $transcriptionJobResultsApiEndpoint = Settings::getTranscriptionJobResultsApiEndpoint();
+    if ($transcriptionJobResultsApiEndpoint === '') {
+      throw new ModuleConfigurationException('The "transcription_job_results_endpoint" module setting is empty.');
+    }
+    $transcriptionJobResultsApiRegion = Settings::getTranscriptionJobResultsApiRegion();
+    if ($transcriptionJobResultsApiRegion === '') {
+      throw new ModuleConfigurationException('The "transcription_job_results_endpoint_aws_region" module setting is empty.');
+    }
+    try {
+      $response = ApiHelpers::callApi(\Drupal::httpClient(),
+        static::getCredentialsRetriever()->getCredentials(),
+        $transcriptionJobResultsApiEndpoint,
+        $transcriptionJobResultsApiRegion,
+        [],
+        ['id' => $this->getTranscriptionJobId()],
+        HttpMethod::GET);
+    }
+    catch (ClientExceptionInterface $e) {
+      throw new ApiCallException('An error occurred when calling the audio transcription job results api.', $e->getCode(), $e);
+    }
+
+    if (!self::isResponseStatusCodeValid($response)) {
+      throw new ApiCallException('The audio transcription job results API returned a faulty status code of ' . $responseStatusCode . '.');
+    }
+    $jobResults = self::decodeJsonResponseBody($response);
+    if ($jobResults === NULL) {
+      throw new ApiCallException('Could not read or decode audio transcription job results API response body.');
+    }
+    if (!isset($jobResults['status'])) {
+      throw new ApiCallException('The audio transcription job results API returned a response body that did not contain a valid "status" property.');
+    }
+    $jobStatus = 0;
+    if (!ParseHelpers::tryParseInt($jobResults['status'], $jobStatus)) {
+      throw new ApiCallException('The audio transcription job results API returned a response body that contained a non-integral "status" property.');
+    }
+    if ($jobStatus === -1) {
+      return function() {
+        $this->failTranscriptionJob();
+        return TRUE;
+      };
+    }
+    elseif ($jobStatus !== 2) {
+      // Job is presumably not finished yet.
+      return fn() => FALSE;
+    }
+
+    if (!isset($jobResults['output-sub-key'])) {
+      throw new ApiCallException('The audio transcription job results API returned a response body that did not contain a valid "output-sub-key" property.');
+    }
+    $outputSubKey = CastHelpers::stringyToString($jobResults['output-sub-key']);
+    if ($outputSubKey === '') {
+      throw new ApiCallException('The audio transcription job results API returned a response body that contained an empty "output-sub-key" property.');
+    }
+
+    return function () use($outputSubKey) : bool {
+      $this->setTranscriptionSubKey($outputSubKey);
+      $this->unsetTranscriptionJob();
+      return TRUE;
+    };
+  }
+
+  /**
+   * Sets the cleaning job ID to the given value.
+   *
+   * @phpstan-param non-empty-string $jobId
+   */
+  private function setCleaningJob(string $jobId) : void {
+    assert($jobId !== '');
+    /** @phpstan-ignore-next-line */
+    $this->cleaning_job_failed = FALSE;
+    /** @phpstan-ignore-next-line */
+    $this->cleaning_job_id = $jobId;
+  }
+
+  /**
+   * Sets the transcription job ID to the given value.
+   *
+   * @phpstan-param non-empty-string $jobId
+   */
+  private function setTranscriptionJob(string $jobId) : void {
+    assert($jobId !== '');
+    /** @phpstan-ignore-next-line */
+    $this->transcription_job_failed = FALSE;
+    /** @phpstan-ignore-next-line */
+    $this->transcription_job_id = $jobId;
+  }
+
+  /**
+   * Sets the cleaning job ID to NULL.
+   */
+  private function unsetCleaningJob() : void {
+    /** @phpstan-ignore-next-line */
+    $this->cleaning_job_id = NULL;
+  }
+
+  /**
+   * Sets the transcription job ID to NULL.
+   */
+  private function unsetTranscriptionJob() : void {
+    /** @phpstan-ignore-next-line */
+    $this->transcription_job_id = NULL;
   }
 
   /**
    * Sets the audio duration to the given value.
    */
   private function setDuration(float $value) : void {
-    $durationField = $this->get('duration');
-    if ($durationField->count() === 0) $durationField->appendItem(['value' => $value]);
-    else {
-      $item = $durationField->get(0);
-      assert($item instanceof FieldItemInterface);
-      self::setScalarValueOnFieldItem($item, $value);
-    }
+    assert($value >= 0);
+    /** @phpstan-ignore-next-line */
+    $this->duration = $value;
   }
 
   /**
    * Sets the processed audio target ID to the given value.
+   *
+   * @phpstan-param int<0, max> $id
    */
   private function setProcessedAudioTargetId(int $id) : void {
-    $processedAudioField = $this->get('processed_audio');
-    // Get the first item, or create it if necessary.
-    if ($processedAudioField->count() === 0) {
-      $processedAudioField->appendItem([]);
-    }
-    $processedAudioItem = $processedAudioField->get(0);
-    assert($processedAudioItem instanceof FieldItemBase);
-    // Reset the item to its default value.
-    $processedAudioItem->applyDefaultValue();
-    // Finally, set the target entity ID.
-    $processedAudioItem->set('target_id', $id);
+    assert($id >= 0);
+    /** @phpstan-ignore-next-line */
+    $this->processed_audio = $id;
+  }
+
+  /**
+   * Sets the transcription sub-key to the given value.
+   * 
+   * @phpstan-param non-empty-string $subKey
+   */
+  private function setTranscriptionSubKey(string $subKey) : void {
+    assert($subKey !== '');
+    /** @phpstan-ignore-next-line */
+    $this->transcription_sub_key = $subKey;
   }
 
   /**
@@ -874,9 +1014,9 @@ class SermonAudio extends ContentEntityBase {
       ->setCardinality(1)
       ->setTranslatable(TRUE)
       ->setDefaultValue(FALSE);
-    $fields['transcription_uri'] = BaseFieldDefinition::create('string')
-      ->setLabel(new TranslatableMarkup('Transcription URI'))
-      ->setDescription(new TranslatableMarkup('URI of transcription XML file.'))
+    $fields['transcription_sub_key'] = BaseFieldDefinition::create('string')
+      ->setLabel(new TranslatableMarkup('Transcription Sub-Key'))
+      ->setDescription(new TranslatableMarkup('S3 sub-key of transcription XML file.'))
       ->setCardinality(1)
       ->setTranslatable(TRUE)
       ->setRequired(FALSE);
@@ -959,32 +1099,26 @@ class SermonAudio extends ContentEntityBase {
       foreach ($entity->iterateTranslations() as $translation) {
         if (!AudioHelpers::isProcessedAudioRefreshable($translation)) continue;
 
-        $newProcessedAudioId = 0;
-        $newAudioDuration = 0.0;
         try {
-          $translationShouldBeRefreshed = $translation->prepareToRefreshProcessedAudio($newProcessedAudioId, $newAudioDuration);
+          $translationUpdate = $translation->prepareToRefreshProcessedAudio();
         }
         catch (\Exception $e) {
           if ($e instanceof DynamoDbException
             || $e instanceof S3Exception
             || $e instanceof EntityStorageException
-            || $e instanceof EntityValidationException
             || $e instanceof InvalidInputAudioFileException
             || $e instanceof ModuleConfigurationException
+            || $e instanceof ApiCallException
             || $e instanceof ParseException) {
             // For "expected exceptions," we don't want to blow up in
             // postLoad(). Instead, we simply log the exception, and continue to
             // the next translation.
-            watchdog_exception('sermon_audio', $e);
+            watchdog_exception('sermon_audio', $e, NULL, [], RfcLogLevel::WARNING);
             continue;
           }
           else throw $e;
         }
-        if ($translationShouldBeRefreshed) {
-          $translation->setProcessedAudioTargetId($newProcessedAudioId);
-          $translation->setDuration($newAudioDuration);
-          $requiresSave = TRUE;
-        }
+        if ($translationUpdate()) $requiresSave = TRUE;
       }
 
       if ($requiresSave) {
@@ -1036,6 +1170,39 @@ class SermonAudio extends ContentEntityBase {
       throw new ModuleConfigurationException('The audio bucket name module setting is empty.');
     }
     return $bucketName;
+  }
+
+  /**
+   * Gets the credentials retriever from the service container.
+   */
+  private static function getCredentialsRetriever() : AwsCredentialsRetriever {
+    $credentialsRetriever = \Drupal::service('sermon_audio.credentials_retriever');
+    assert($credentialsRetriever instanceof AwsCredentialsRetriever);
+    return $credentialsRetriever;
+  }
+
+  /**
+   * Attempts to decode the $response body as JSON.
+   *
+   * @param \Psr\Http\Message\ResponseInterface $response
+   *   Response whose body we should decode.
+   *
+   * @return array|null
+   *   The response body, if it could be decoded, or NULL if not.
+   */
+  private static function decodeJsonResponseBody(ResponseInterface $response) : ?array {
+    try {
+      $responseBody = $response->getBody()->getContents();
+    }
+    catch (\RuntimeException $e) {
+      return NULL;
+    }
+    $decodedResponse = json_decode($responseBody, TRUE);
+    if (!is_array($decodedResponse)) {
+      return NULL;
+    }
+
+    return $decodedResponse;
   }
 
   /**
@@ -1108,15 +1275,18 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Sets the core value (defined by "value" proeprty) for scalar field item.
+   * Tells whether the status code for the given API call response is valid.
    *
-   * @param \Drupal\Core\Field\FieldItemInterface $item
-   *   Field item.
-   * @param mixed $value
-   *   Scalar value.
+   * @param \Psr\Http\Message\ResponseInterface $response
+   *   Response.
+   *
+   * @return bool
+   *   TRUE if the response status code is in the [200..299] range; else FALSE.
    */
-  private static function setScalarValueOnFieldItem(FieldItemInterface $item, mixed $value) : void {
-    $item->setValue(['value' => $value]);
+  private static function isResponseStatusCodeValid(ResponseInterface $response) : bool {
+    assert($apiName !== '');
+    $responseStatusCode = (int) $response->getStatusCode();
+    return ($responseStatusCode >= 200 && $responseStatusCode < 300) ? TRUE : FALSE;
   }
 
 }
