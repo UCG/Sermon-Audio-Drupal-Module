@@ -7,9 +7,8 @@ namespace Drupal\sermon_audio;
 use Aws\S3\S3Client;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ImmutableConfig;
-use Drupal\sermon_audio\Exception\ModuleConfigurationException;
-use Drupal\sermon_audio\Helper\CastHelpers;
 use Drupal\sermon_audio\Helper\SettingsHelpers;
+use Ranine\Helper\ThrowHelpers;
 
 /**
  * Returns/creates AWS S3 client objects.
@@ -17,9 +16,11 @@ use Drupal\sermon_audio\Helper\SettingsHelpers;
 class S3ClientFactory {
 
   /**
-   * S3 client instance.
+   * Cached S3 client instances, indexed by region.
+   *
+   * @var \Aws\S3\S3Client[]
    */
-  private S3Client $client;
+  private array $clients = [];
 
   /**
    * Module configuration.
@@ -51,50 +52,44 @@ class S3ClientFactory {
    * obtain AWS credentials. Otherwise, the credentials are obtained using AWS's
    * default procedure.
    *
+   * @throws \InvalidArgumentException
+   *   Thrown if $region is empty.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if a new client instance is needed, and the module's
    *   "aws_credentials_file_path" configuration setting is not empty and not
    *   whitespace yet points to an invalid or missing credentials file.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   *   Thrown if a new client instance is needed, and the module's
-   *   "audio_s3_aws_region" configuration setting is missing or empty.
-   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if the module's "connect_timeout" configuration setting is neither
    *   empty nor castable to a positive integer.
    */
-  public function getClient() : S3Client {
-    if (!isset($this->client)) {
-      $this->createClient();
-      assert(isset($this->client));
-      // This stuff isn't needed anymore.
-      unset($this->configuration);
-      unset($this->credentialsRetriever);
+  public function getClient(string $region) : S3Client {
+    ThrowHelpers::throwIfEmptyString($region, 'region');
+
+    if (!isset($this->clients[$region])) {
+      $this->createClient($region);
+      assert(isset($this->clients[$region]));
     }
-    return $this->client;
+    return $this->clients[$region];
   }
 
   /**
-   * Creates a new client instance.
+   * Creates a new client instance for the given region.
+   *
+   * @param string $region
+   *   Region for which to create client.
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if a new client instance is needed, and the module's
    *   "aws_credentials_file_path" configuration setting is not empty and not
    *   whitespace yet points to an invalid or missing credentials file.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   *   Thrown if a new client instance is needed, and the module's
-   *   "audio_s3_aws_region" configuration setting is missing or empty.
-   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if the module's "connect_timeout" configuration setting is neither
    *   empty nor castable to a positive integer.
    */
-  private function createClient() : void {
+  private function createClient(string $region) : void {
+    assert($region !== '');
+
     $credentials = $this->credentialsRetriever->getCredentials();
-
-    $region = CastHelpers::stringyToString($this->configuration->get('audio_s3_aws_region'));
-    if ($region === '') {
-      throw new ModuleConfigurationException('The audio_s3_aws_region setting is missing or empty.');
-    }
-
     $connectTimeout = SettingsHelpers::getConnectionTimeout($this->configuration);
 
     $connectionOptions = [

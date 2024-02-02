@@ -6,7 +6,7 @@ namespace Drupal\sermon_audio\Entity;
 
 use Aws\DynamoDb\Exception\DynamoDbException;
 use Aws\S3\Exception\S3Exception;
-use Aws\S3\S3Client;
+use Aws\S3\S3ClientInterface;
 use Drupal\Core\Entity\ContentEntityBase;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Entity\EntityStorageInterface;
@@ -792,7 +792,7 @@ class SermonAudio extends ContentEntityBase {
     else {
       // Get the size of the new processed audio file. We do this by making a
       // HEAD request for the file.
-      $s3Client = self::getS3Client();
+      $s3Client = self::getProcessedAudioS3Client();
       $result = $s3Client->headObject(['Bucket' => self::getAudioBucket(), 'Key' => self::getS3ProcessedAudioKeyPrefix() . $outputSubKey]);
       if (!isset($result['ContentLength'])) {
         throw new \RuntimeException('Could not retrieve file size for processed audio file.');
@@ -1244,12 +1244,20 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Gets an S3 client.
+   * Gets an S3 client for the processed audio.
+   *
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
+   *   Thrown if the "audio_s3_aws_region" module setting is missing or empty.
    */
-  private static function getS3Client() : S3Client {
-    $dynamoDbClientFactory = \Drupal::service('sermon_audio.s3_client_factory');
-    assert($dynamoDbClientFactory instanceof S3ClientFactory);
-    return $dynamoDbClientFactory->getClient();
+  private static function getProcessedAudioS3Client() : S3ClientInterface {
+    $region = Settings::getAudioS3Region();
+    if ($region === '') {
+      throw new ModuleConfigurationException('The "audio_s3_aws_region" module setting is empty.');
+    }
+
+    $factory = \Drupal::service('sermon_audio.s3_client_factory');
+    assert($factory instanceof S3ClientFactory);
+    return $factory->getClient($region);
   }
 
   /**
