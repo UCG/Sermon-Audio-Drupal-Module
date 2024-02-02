@@ -5,3 +5,21 @@ sermon_audio.settings:
     _title: Sermon Audio Settings
   requirements:
     _permission: administer sermon audio module
+sermon_audio.announce_clean_audio:
+  path: /sermons/audio/announce-clean-audio
+  defaults:
+    _controller: \Drupal\sermon_audio\Controller\AnnouncementController::announceCleanAudio
+  requirements:
+    _access: 'TRUE'
+  methods: [POST]
+  options:
+    no_cache: TRUE
+sermon_audio.announce_transcription:
+  path: /sermons/transcript/announce-transcription
+  defaults:
+    _controller: \Drupal\sermon_audio\Controller\AnnouncementController::announceTranscription
+  requirements:
+    _access: 'TRUE'
+  methods: [POST]
+  options:
+    no_cache: TRUE
