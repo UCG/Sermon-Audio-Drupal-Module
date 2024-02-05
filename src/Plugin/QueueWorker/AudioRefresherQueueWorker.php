@@ -10,7 +10,7 @@ use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Queue\QueueWorkerBase;
 use Drupal\Core\Queue\RequeueException;
 use Drupal\sermon_audio\Entity\SermonAudio;
-use Drupal\sermon_audio\Helper\AudioHelpers;
+use Drupal\sermon_audio\Helper\RefreshHelpers;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -62,7 +62,7 @@ class AudioRefresherQueueWorker extends QueueWorkerBase implements ContainerFact
 
       // The refresh process probably happened after the load, but if for
       // whatever reason it didn't:
-      if (AudioHelpers::refreshProcessedAudioAllTranslations($entity)) {
+      if (RefreshHelpers::refreshProcessedAudioAllTranslations($entity)) {
         $entity->save();
       }
     }
