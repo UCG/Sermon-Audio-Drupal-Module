@@ -12,8 +12,6 @@ use Drupal\file\FileInterface;
 use Drupal\sermon_audio\QueueItem\CleaningRefreshJob;
 use Drupal\sermon_audio\QueueItem\TranscriptionRefreshJob;
 
-// @todo Unify docblock style.
-
 /**
  * Implements hook_cron().
  */

@@ -226,7 +226,7 @@ class FinalTranscriptionGenerator {
       $end = (float) $end;
       // If $start is a small negative value, clean it up.
       if ($start < 0 && $start > -self::EPSILON) $start = 0;
-      // Tiny segments are discarded. @todo Warn?
+      // Tiny segments are discarded.
       if ($end <= $start) continue;
 
       $text = $tagInfo['value'];

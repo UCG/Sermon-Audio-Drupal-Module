@@ -19,7 +19,7 @@ class SermonAudioStorageSchema extends SqlContentEntityStorageSchema {
    */
   protected function getSharedTableFieldSchema(FieldStorageDefinitionInterface $storage_definition, mixed $table_name, array $column_mapping) {
     // @todo Do we need anything in hook_update_N() to make this take effect if
-    // the module is already installed?
+    // the module is already installed? See https://api.drupal.org/api/drupal/core%21modules%21node%21node.install/function/node_update_8002/8.9.x.
 
     $schema = parent::getSharedTableFieldSchema($storage_definition, $table_name, $column_mapping);
 
