@@ -12,3 +12,11 @@ services:
     arguments: ['@sermon_audio.file_rename_pseudo_extension_repository']
     tags:
       - { name: event_subscriber }
+  sermon_audio.finished_job_processor:
+    class: Drupal\sermon_audio\EventSubscriber\FinishedJobProcessor
+    arguments: ['@entity_type.manager']
+    tags:
+      - { name: event_subscriber }
+  sermon_audio.site_token_retriever:
+    class: Drupal\sermon_audio\SiteTokenRetriever
+    arguments: ['@config.factory']

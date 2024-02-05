@@ -38,6 +38,13 @@ class SettingsForm extends ConfigFormBase {
       '#default_value' => CastHelpers::stringyToString($configuration->get('aws_credentials_file_path')),
       '#description' => $this->t('The full path to the JSON file where AWS credentials are stored, if applicable. If left empty, the AWS SDK will use its built-in credential discovery method (beginning by attempting to extract credentials from the environment).'),
     ];
+    $form['site_token_file_path'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Site Token File Path'),
+      '#default_value' => CastHelpers::stringyToString($configuration->get('site_token_file_path')),
+      '#description' => $this->t('The full path to text file where site token (controlling access to announcement routes) is stored.'),
+      '#required' => TRUE,
+    ];
     $form['audio_s3_aws_region'] = [
       '#type' => 'textfield',
       '#title' => $this->t('AWS S3 Audio Storage Region'),
@@ -194,6 +201,7 @@ EOS
     $configuration = $this->config('sermon_audio.settings');
 
     $configuration->set('aws_credentials_file_path', CastHelpers::stringyToString($form_state->getValue('aws_credentials_file_path')));
+    $configuration->set('site_token_file_path', CastHelpers::stringyToString($form_state->getValue('site_token_file_path')));
     $configuration->set('audio_s3_aws_region', CastHelpers::stringyToString($form_state->getValue('audio_s3_aws_region')));
     $configuration->set('audio_bucket_name', CastHelpers::stringyToString($form_state->getValue('audio_bucket_name')));
     $configuration->set('unprocessed_audio_uri_prefix', CastHelpers::stringyToString($form_state->getValue('unprocessed_audio_uri_prefix')));

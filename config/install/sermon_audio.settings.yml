@@ -1,4 +1,5 @@
 aws_credentials_file_path: ''
+site_token_file_path: ''
 audio_s3_aws_region: us-east-1
 audio_bucket_name: ucgfiles
 unprocessed_audio_uri_prefix: 's3://audio/sermons/unprocessed/'

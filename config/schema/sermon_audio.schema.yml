@@ -5,6 +5,9 @@ sermon_audio.settings:
     aws_credentials_file_path:
       type: string
       label: 'Full path to JSON file where AWS credentials are stored, if applicable (else leave empty)'
+    site_token_file_path:
+      type: string
+      label: 'Full path to text file where site token (controlling access to announcement routes) is stored'
     audio_s3_aws_region:
       type: string
       label: 'AWS region where processed/unprocessed audio S3 bucket resides'
