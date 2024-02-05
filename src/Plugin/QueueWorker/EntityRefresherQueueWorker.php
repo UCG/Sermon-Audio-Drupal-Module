@@ -9,28 +9,24 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Queue\QueueWorkerBase;
 use Drupal\Core\Queue\RequeueException;
-use Drupal\sermon_audio\Entity\SermonAudio;
-use Drupal\sermon_audio\Helper\RefreshHelpers;
+use Drupal\sermon_audio\QueueItem\RefreshJob;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Automatically refreshes processed audio for certain sermon audio entities.
+ * Refreshes processed audio / transcription for certain sermon audio entities.
  *
  * @QueueWorker(
- *   id = "sermon_audio_refresher",
- *   title = @Translation("Sermon Audio Refresher"),
+ *   id = "sermon_audio_entity_refresher",
+ *   title = @Translation("Sermon Audio Entity Refresher"),
  *   cron = {"time" = 60}
  * )
  */
-class AudioRefresherQueueWorker extends QueueWorkerBase implements ContainerFactoryPluginInterface {
+class EntityRefresherQueueWorker extends QueueWorkerBase implements ContainerFactoryPluginInterface {
 
-  /**
-   * Sermon audio entity storage.
-   */
   private readonly EntityStorageInterface $sermonAudioStorage;
 
   /**
-   * Creates a new audio refresher queue worker.
+   * Creates a new sermon audio entity refresher queue worker.
    *
    * @param array $configuration
    *   Plugin instance configuration.
@@ -51,20 +47,10 @@ class AudioRefresherQueueWorker extends QueueWorkerBase implements ContainerFact
    */
   public function processItem(mixed $data) : void {
     try {
-      if (!is_int($data) || $data < 0) {
-        throw new \InvalidArgumentException('Queue data is not a nonnegative integer.');
+      if (!($item instanceof RefreshJob)) {
+        throw new \InvalidArgumentException('Queue data is not an instance of \\Drupal\\sermon_audio\\QueueItem\\RefreshJob.');
       }
-
-      // $data is the entity ID.
-      $entity = $this->sermonAudioStorage->load($data);
-      if ($entity === NULL) return;
-      assert($entity instanceof SermonAudio);
-
-      // The refresh process probably happened after the load, but if for
-      // whatever reason it didn't:
-      if (RefreshHelpers::refreshProcessedAudioAllTranslations($entity)) {
-        $entity->save();
-      }
+      $item->processItem($this->sermonAudioStorage);
     }
     catch (\Exception $e) {
       // Mark the item for immediate re-queing, because we want to make sure

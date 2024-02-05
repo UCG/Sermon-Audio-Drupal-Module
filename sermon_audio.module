@@ -9,6 +9,8 @@ declare (strict_types = 1);
 
 use Drupal\Component\Utility\Html;
 use Drupal\file\FileInterface;
+use Drupal\sermon_audio\QueueItem\CleaningRefreshJob;
+use Drupal\sermon_audio\QueueItem\TranscriptionRefreshJob;
 
 // @todo Unify docblock style.
 
@@ -16,22 +18,34 @@ use Drupal\file\FileInterface;
  * Implements hook_cron().
  */
 function sermon_audio_cron() : void {
-  // Automatically refresh sermon audio wherever applicable.
-  $ids = \Drupal::entityTypeManager()->getStorage('sermon_audio')->getQuery()
+  // Automatically refresh sermon audio and transcriptions wherever applicable.
+  $storage = \Drupal::entityTypeManager()->getStorage('sermon_audio');
+
+  $idsForAudioRefresh = $storage->getQuery()
     ->accessCheck(FALSE)
-    ->condition('processing_initiated', TRUE)
-    ->condition('processed_audio', NULL, 'IS NULL')
-    ->condition('unprocessed_audio.entity', NULL, 'IS NOT NULL')
+    ->condition('cleaning_job_id', NULL, 'IS NOT NULL')
+    ->condition('cleaning_job_id', '', '<>')
+    ->condition('cleaning_job_failed', TRUE, '<>')
     ->execute();
   assert(is_array($ids));
-  $queue = \Drupal::queue('sermon_audio_refresher');
+  $idsForTranscriptionRefresh = $storage->getQuery()
+    ->accessCheck(FALSE)
+    ->condition('transcription_job_id', NULL, 'IS NOT NULL')
+    ->condition('transcription_job_id', '', '<>')
+    ->condition('transcription_job_failed', TRUE, '<>')
+    ->execute();
+
+  $queue = \Drupal::queue('sermon_audio_entity_refresher');
   // Clean unused items from the queue, as there is no built-in mechanism to
   // check if an entity ID already exists in the queue.
   while ($item = $queue->claimItem()) {
     $queue->deleteItem($item);
   }
-  foreach ($ids as $id) {
-    $queue->createItem((int) $id);
+  foreach ($idsForAudioRefresh as $id) {
+    $queue->createItem(new CleaningRefreshJob((int) $id));
+  }
+  foreach ($idsForTranscriptionRefresh as $id) {
+    $queue->createItem(new TranscriptionRefreshJob((int) $id));
   }
 }
 
