@@ -27,9 +27,6 @@ class S3ClientFactory {
    */
   private ImmutableConfig $configuration;
 
-  /**
-   * AWS credentials retriever.
-   */
   private AwsCredentialsRetriever $credentialsRetriever;
 
   /**
@@ -37,6 +34,8 @@ class S3ClientFactory {
    *
    * @param \Drupal\Core\Config\ConfigFactoryInterface $configFactory
    *   Configuration factory.
+   * @param \Drupal\sermon_audio\AwsCredentialsRetriever $credentialsRetriever
+   *   AWS credentials retriever.
    */
   public function __construct(ConfigFactoryInterface $configFactory, AwsCredentialsRetriever $credentialsRetriever) {
     $this->credentialsRetriever = $credentialsRetriever;

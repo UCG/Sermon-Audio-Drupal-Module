@@ -632,10 +632,7 @@ class SermonAudioWidget extends WidgetBase {
    * associated with the given token, if the ID exists in the store and has not
    * expired.
    *
-   * @param string $token
-   *   Token.
-   *
-   * @return int|null
+   * @return ?int
    *   Sermon audio ID, or NULL if no ID was found in the store, or if the ID
    *   had expired.
    */
@@ -675,9 +672,6 @@ class SermonAudioWidget extends WidgetBase {
    *
    * @param array $element
    *   Widget element.
-   *
-   * @return string
-   *   Key.
    *
    * @throws \RuntimeException
    *   Can be thrown if $element contains a bad #parent value.

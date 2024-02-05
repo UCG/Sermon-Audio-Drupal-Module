@@ -16,12 +16,6 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 class SettingsForm extends ConfigFormBase {
 
-  /**
-   * Creates a new settings form.
-   *
-   * @param \Drupal\Core\Config\ConfigFactoryInterface $configFactory
-   *   Configuration factory.
-   */
   public function __construct(ConfigFactoryInterface $configFactory) {
     parent::__construct($configFactory);
   }

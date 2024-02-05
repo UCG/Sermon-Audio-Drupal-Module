@@ -15,7 +15,7 @@ class TranscriptionAutoUpdatedEvent extends Event {
   /**
    * Translation whose transcription sub-key was updated.
    */
-  private SermonAudio $translation;
+  private readonly SermonAudio $translation;
 
   /**
    * Creates a new transcription auto-updated event.

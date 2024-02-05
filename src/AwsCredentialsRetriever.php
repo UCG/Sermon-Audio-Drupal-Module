@@ -24,12 +24,6 @@ class AwsCredentialsRetriever {
    */
   private ImmutableConfig $configuration;
 
-  /**
-   * Creates a new AWS credentials retriever.
-   *
-   * @param \Drupal\Core\Config\ConfigFactoryInterface $configFactory
-   *   Configuration factory.
-   */
   public function __construct(ConfigFactoryInterface $configFactory) {
     $this->configuration = $configFactory->get('sermon_audio.settings');
   }

@@ -14,12 +14,12 @@ class InvalidFieldConfigurationException extends \RuntimeException {
   /**
    * Creates a new InvalidFieldConfigurationException object.
    *
-   * @param string|null $message
+   * @param ?string $message
    *   Message pertaining to exception; can be NULL or an empty string, in which
    *   case a default message is used.
    * @param int $code
    *   Exception code.
-   * @param \Throwable|null $previous
+   * @param ?\Throwable $previous
    *   Previous exception/error which triggered this exception. Can be NULL to
    *   indicate no such error.
    */

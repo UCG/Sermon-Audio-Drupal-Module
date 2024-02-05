@@ -20,14 +20,14 @@ class AnnouncementController extends ControllerBase {
   /**
    * Queues trans./audio refreshes for execution after response is sent.
    */
-  private FinishedJobProcessor $finishedJobProcessor;
+  private readonly FinishedJobProcessor $finishedJobProcessor;
 
-  private RequestStack $requestStack;
+  private readonly RequestStack $requestStack;
 
   /**
    * Retriever for route access token.
    */
-  private SiteTokenRetriever $tokenRetriever;
+  private readonly SiteTokenRetriever $tokenRetriever;
 
   /**
    * Creates a new announcement controller.

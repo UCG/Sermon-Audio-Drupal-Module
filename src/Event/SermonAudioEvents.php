@@ -13,6 +13,8 @@ final class SermonAudioEvents {
 
   /**
    * Name of event fired when audio transcription is spontaneously updated.
+   *
+   * @var string
    */
   public const TRANSCRIPTION_AUTO_UPDATED = 'sermon_audio.transcription_auto_updated';
 

@@ -61,12 +61,12 @@ class FinalTranscriptionGenerator {
   /**
    * Module configuration.
    */
-  private ImmutableConfig $configuration;
+  private readonly ImmutableConfig $configuration;
 
   /**
    * Amazon S3 client factory.
    */
-  private S3ClientFactory $s3ClientFactory;
+  private readonly S3ClientFactory $s3ClientFactory;
 
   /**
    * XML parser, if it is set yet.

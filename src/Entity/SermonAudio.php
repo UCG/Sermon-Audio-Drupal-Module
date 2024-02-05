@@ -283,7 +283,7 @@ class SermonAudio extends ContentEntityBase {
    *   should continue without worrying about program state corruption) reasons:
    *   that is, because of 1) AWS or HTTP errors, 2) validation issues with this
    *   entity, or 3) missing linked entiti(es).
-   * @param null|\Exception $failureException
+   * @param ?\Exception $failureException
    *   (output) If $throwOnFailure is FALSE and an "expected" exception occurs
    *   (see above), this parameter is set to the exception that occurred. This
    *   is NULL if no error occurs, or if $throwOnFailure is TRUE.
@@ -1216,7 +1216,7 @@ class SermonAudio extends ContentEntityBase {
    * @param \Psr\Http\Message\ResponseInterface $response
    *   Response whose body we should decode.
    *
-   * @return array|null
+   * @return ?array
    *   The response body, if it could be decoded, or NULL if not.
    */
   private static function decodeJsonResponseBody(ResponseInterface $response) : ?array {

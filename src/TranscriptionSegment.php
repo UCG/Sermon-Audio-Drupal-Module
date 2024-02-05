@@ -11,9 +11,9 @@ use Ranine\Helper\ThrowHelpers;
  */
 class TranscriptionSegment {
 
-  private float $end;
-  private float $start;
-  private string $text;
+  private readonly float $end;
+  private readonly float $start;
+  private readonly string $text;
 
   /**
    * Creates a new transcription segment.
@@ -47,21 +47,21 @@ class TranscriptionSegment {
   /**
    * Gets the end time in seconds.
    */
-  public function getEnd(): float {
+  public function getEnd() : float {
     return $this->end;
   }
 
   /**
    * Gets the start time in seconds.
    */
-  public function getStart(): float {
+  public function getStart() : float {
     return $this->start;
   }
 
   /**
    * Gets the transcription text.
    */
-  public function getText(): string {
+  public function getText() : string {
     return $this->text;
   }
 

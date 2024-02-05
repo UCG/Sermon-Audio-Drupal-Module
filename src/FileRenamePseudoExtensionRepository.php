@@ -65,7 +65,7 @@ class FileRenamePseudoExtensionRepository {
    * @param iterable<string> $extensions
    *   Extensions to test.
    *
-   * @return string|null
+   * @return ?string
    *   The bare (extension-less) filename in the repo associated with the first
    *   extension in $extensions that matches an extension in the repo, or NULL
    *   if no such bare filename is found.

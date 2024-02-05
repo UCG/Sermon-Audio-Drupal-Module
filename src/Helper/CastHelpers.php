@@ -23,9 +23,6 @@ final class CastHelpers {
    * Asserts that $inty is a scalar or equal to NULL, and then casts it. This
    * method is partly used for getting rid of the PHPStan error that occurs when
    * one attempts to cast "mixed" to "int."
-   *
-   * @param mixed $inty
-   *   Scalar or NULL value to convert.
    */
   public static function intyToInt(mixed $inty) : int {
     assert(is_scalar($inty) || $inty === NULL);
@@ -38,9 +35,6 @@ final class CastHelpers {
    * If $inty is NULL, returns NULL. Else, asserts that $inty is a scalar, and
    * then casts it. This method is partly used for getting rid of the PHPStan
    * error that occurs when one attempts to cast "mixed" to "int."
-   *
-   * @param mixed $inty
-   *   Scalar or NULL value to convert.
    */
   public static function intyToNullableInt(mixed $inty) : ?int {
     if ($inty === NULL) return NULL;
@@ -57,9 +51,6 @@ final class CastHelpers {
    * or an instance of \Stringable, and then returns the casted string.
    * This method is partly used for getting rid of the PHPStan error that occurs
    * when one attempts to cast "mixed" to "string."
-   *
-   * @param mixed $stringy
-   *   Scalar, NULL, or \Stringable to convert.
    */
   public static function stringyToNullableString(mixed $stringy) : ?string {
     if ($stringy === NULL) return NULL;
@@ -76,9 +67,6 @@ final class CastHelpers {
    * \Stringable, and then casts it. This method is partly used for getting rid
    * of the PHPStan error that occurs when one attempts to cast "mixed" to
    * "string."
-   *
-   * @param mixed $stringy
-   *   Scalar, NULL, or \Stringable to convert.
    */
   public static function stringyToString(mixed $stringy) : string {
     assert(is_scalar($stringy) || $stringy instanceof \Stringable || $stringy === NULL);

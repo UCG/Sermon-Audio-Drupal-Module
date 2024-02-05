@@ -38,7 +38,7 @@ class FinishedJobProcessor implements EventSubscriberInterface {
   /**
    * Storage for sermon audio entities.
    */
-  private EntityStorageInterface $sermonAudioStorage;
+  private readonly EntityStorageInterface $sermonAudioStorage;
 
   public function __construct(EntityTypeManagerInterface $entityTypeManager) {
     $this->sermonAudioStorage = $entityTypeManager->getStorage('sermon_audio');
