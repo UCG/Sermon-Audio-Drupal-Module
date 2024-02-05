@@ -48,6 +48,63 @@ function sermon_audio_update_9301() : void {
     $type->setHandlerClass('storage_schema', 'Drupal\sermon_audio\SermonAudioStorageSchema');
   });
 
+  // We also had some new fields and removed an old one.
+  $updateManager = \Drupal::entityDefinitionUpdateManager();
+
+  $processingInitiatedFieldDefinition = $updateManager->getFieldStorageDefinition('processing_initiated', 'sermon_audio');
+  if ($processingInitiatedFieldDefinition !== NULL) {
+    $updateManager->uninstallFieldStorageDefinition($processingInitiatedFieldDefinition);
+  }
+
+  // To ensure we're capturing a "snapshot in time" of the base field
+  // definitions, we reproduce the definitions here (instead of just pulling
+  // them from the entity type class). Not sure we have to do this, though...
+  $updateManager->installFieldStorageDefinition('transcription_job_failed',
+    'sermon_audio',
+    'sermon_audio',
+    BaseFieldDefinition::create('boolean')
+      ->setLabel(new TranslatableMarkup('Transcription Job Failed?'))
+      ->setDescription(new TranslatableMarkup('Tells whether there is a confirmed failure of the audio transcription job.'))
+      ->setCardinality(1)
+      ->setTranslatable(TRUE)
+      ->setDefaultValue(FALSE));
+  $updateManager->installFieldStorageDefinition('transcription_sub_key',
+    'sermon_audio',
+    'sermon_audio',
+    BaseFieldDefinition::create('string')
+      ->setLabel(new TranslatableMarkup('Transcription Sub-Key'))
+      ->setDescription(new TranslatableMarkup('S3 sub-key of transcription XML file.'))
+      ->setCardinality(1)
+      ->setTranslatable(TRUE)
+      ->setRequired(FALSE));
+  $updateManager->installFieldStorageDefinition('transcription_job_id',
+    'sermon_audio',
+    'sermon_audio',
+    BaseFieldDefinition::create('string')
+      ->setLabel(new TranslatableMarkup('Transcription Job ID'))
+      ->setDescription(new TranslatableMarkup('Audio transcription job ID. NULL if there is known to be no active transcription job.'))
+      ->setCardinality(1)
+      ->setTranslatable(TRUE)
+      ->setRequired(FALSE));
+  $updateManager->installFieldStorageDefinition('cleaning_job_id',
+    'sermon_audio',
+    'sermon_audio',
+    BaseFieldDefinition::create('string')
+      ->setLabel(new TranslatableMarkup('Cleaning Job ID'))
+      ->setDescription(new TranslatableMarkup('Audio cleaning job ID. NULL if there is known to be no active cleaning job.'))
+      ->setCardinality(1)
+      ->setTranslatable(TRUE)
+      ->setRequired(FALSE));
+  $updateManager->installFieldStorageDefinition('cleaning_job_failed',
+    'sermon_audio',
+    'sermon_audio',
+    BaseFieldDefinition::create('boolean')
+      ->setLabel(new TranslatableMarkup('Cleaning Job Failed?'))
+      ->setDescription(new TranslatableMarkup('Tells whether there is a confirmed failure of the audio cleaning job.'))
+      ->setCardinality(1)
+      ->setTranslatable(TRUE)
+      ->setDefaultValue(FALSE));
+
   // Delete old settings and set default values for new settings.
 
   $config = \Drupal::configFactory()->getEditable('sermon_audio.settings');

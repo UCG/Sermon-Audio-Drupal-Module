@@ -1011,9 +1011,6 @@ class SermonAudio extends ContentEntityBase {
    */
   public static function baseFieldDefinitions(EntityTypeInterface $entity_type) : array {
     $fields = parent::baseFieldDefinitions($entity_type);
-    
-    // @todo Do we need anything in hook_update_N() to add new fields / remove
-    // old ones?
 
     $fields['transcription_job_failed'] = BaseFieldDefinition::create('boolean')
       ->setLabel(new TranslatableMarkup('Transcription Job Failed?'))
