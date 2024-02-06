@@ -77,13 +77,16 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
     $this->assertEquals(trim($result), $result);
     // Since there is no timestamp info to use, the result should be split into
     // paragraphs that deviate no more than a certain amount from the target
-    // word count.
+    // word count, except that the last paragraph may be shorter than would
+    // otherwise be acceptable.
     $minWords = FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT - FinalTranscriptionGenerator::SPLITTING_FLUCTUATION;
     $maxWords = FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT + FinalTranscriptionGenerator::SPLITTING_FLUCTUATION;
     foreach ($this->getParagraphWordCounts($result) as $wordCount) {
-      $this->assertGreaterThanOrEqual($minWords, $wordCount);
-      $this->assertLessThanOrEqual($maxWords, $wordCount);
+      $this->assertGreaterThanOrEqual($minWords, $previousWordCount);
+      $this->assertLessThanOrEqual($maxWords, $previousWordCount);
+      $previousWordCount = $wordCount;
     }
+    $this->assertLessThanOrEqual($maxWords, $previousWordCount);
   }
 
   /**
