@@ -18,16 +18,9 @@ use Ranine\Helper\StringHelpers;
 class FinalTranscriptionGenerator {
 
   /**
-   * Resolution for floating-point comparisons.
-   *
-   * @var float
-   */
-  private const EPSILON = 1E-6;
-
-  /**
    * Paragraphs shorter than this are considered "pathological."
    */
-  private const MIN_EXPECTED_PARAGRAPH_WORD_COUNT = 30;
+  public const MIN_EXPECTED_PARAGRAPH_WORD_COUNT = 30;
 
   /**
    * Minimum separation time (in seconds) between transcription segments.
@@ -36,28 +29,35 @@ class FinalTranscriptionGenerator {
    *
    * @var float
    */
-  private const MIN_SEGMENT_SEPARATION = 5E-2;
+  public const MIN_SEGMENT_SEPARATION = 5E-2;
 
   /**
    * Paragraphs larger than this are considered "pathological."
    *
    * @var int
    */
-  private const MAX_EXPECTED_PARAGRAPH_WORD_COUNT = 700;
+  public const MAX_EXPECTED_PARAGRAPH_WORD_COUNT = 700;
 
   /**
    * Maximum fluctuation from target when spitting large paragraph.
    *
    * @var int
    */
-  private const SPLITTING_FLUCTUATION = 50;
+  public const SPLITTING_FLUCTUATION = 50;
 
   /**
    * Target average paragraph word count.
    *
    * @var int
    */
-  private const TARGET_AVERAGE_PARAGRAPH_WORD_COUNT = 75;
+  public const TARGET_AVERAGE_PARAGRAPH_WORD_COUNT = 75;
+
+  /**
+   * Resolution for floating-point comparisons.
+   *
+   * @var float
+   */
+  private const EPSILON = 1E-6;
 
   /**
    * Module configuration.
