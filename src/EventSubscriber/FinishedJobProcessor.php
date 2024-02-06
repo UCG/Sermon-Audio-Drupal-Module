@@ -81,12 +81,14 @@ class FinishedJobProcessor implements EventSubscriberInterface {
     if (StringHelpers::isNullOrEmpty($jobId)) return;
 
     if ($isTranscriptionJob) {
+      /** @var \Drupal\sermon_audio\Entity\SermonAudio[] */
       $entities = $this->sermonAudioStorage->loadByProperties(['transcription_job_id' => $jobId]);
       foreach ($entities as $entity) {
         RefreshHelpers::refreshTranscriptionAllTranslations($entity);
       }
     }
     else {
+      /** @var \Drupal\sermon_audio\Entity\SermonAudio[] */
       $entities = $this->sermonAudioStorage->loadByProperties(['cleaning_job_id' => $jobId]);
       foreach ($entities as $entity) {
         RefreshHelpers::refreshProcessedAudioAllTranslations($entity);

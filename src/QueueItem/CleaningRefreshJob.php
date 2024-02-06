@@ -10,6 +10,16 @@ use Drupal\sermon_audio\Helper\RefreshHelpers;
 class CleaningRefreshJob extends RefreshJob {
 
   /**
+   * Creates a new audio cleaning refresh job.
+   *
+   * @param int $entityId
+   *   ID of sermon audio entity whose processed audio should be refreshed.
+   */
+  public function __construct(int $entityId) {
+    parent::__construct($entityId);
+  }
+
+  /**
    * Processes the given newly loaded sermon audio entity.
    *
    * For further exception information, @see \Drupal\sermon_audio\Entity\SermonAudio::refreshProcessedAudio().

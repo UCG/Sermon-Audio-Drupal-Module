@@ -4,9 +4,10 @@ declare (strict_types = 1);
 
 namespace Drupal\sermon_audio\Entity;
 
+use Aws\Credentials\CredentialsInterface;
 use Aws\DynamoDb\Exception\DynamoDbException;
 use Aws\S3\Exception\S3Exception;
-use Aws\S3\S3ClientInterface;
+use Aws\S3\S3Client;
 use Drupal\Core\Entity\ContentEntityBase;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Entity\EntityStorageInterface;
@@ -158,6 +159,7 @@ class SermonAudio extends ContentEntityBase {
    * Gets the processed audio file ID, or NULL if not set.
    */
   public function getProcessedAudioId() : ?int {
+    /** @phpstan-ignore-next-line */
     return CastHelpers::intyToNullableInt($this->processed_audio->target_id);
   }
 
@@ -170,11 +172,11 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Gets the audio transcription URI, or NULL if not set.
+   * Gets the audio transcription sub-key, or NULL if not set.
    */
-  public function getTranscriptionUri() : ?string {
+  public function getTranscriptionSubKey() : ?string {
     /** @phpstan-ignore-next-line */
-    return CastHelpers::stringyToNullableString($this->transcription_uri->value);
+    return CastHelpers::stringyToNullableString($this->transcription_sub_key->value);
   }
 
   /**
@@ -225,6 +227,8 @@ class SermonAudio extends ContentEntityBase {
 
   /**
    * Tells whether there is a cleaning job ID associated with this entity.
+   *
+   * @phpstan-assert-if-true !null $this->getCleaningJobId()
    */
   public function hasCleaningJob() : bool {
     return $this->getCleaningJobId() === NULL ? FALSE : TRUE;
@@ -232,6 +236,8 @@ class SermonAudio extends ContentEntityBase {
 
   /**
    * Tells if there is a processed audio file ID associated with this entity.
+   *
+   * @phpstan-assert-if-true !null $this->getProcessedAudioId()
    */
   public function hasProcessedAudio() : bool {
     return $this->getProcessedAudioId() === NULL ? FALSE : TRUE;
@@ -239,6 +245,8 @@ class SermonAudio extends ContentEntityBase {
 
   /**
    * Tells whether there is a transcription job ID associated with this entity.
+   *
+   * @phpstan-assert-if-true !null $this->getTranscriptionJobId()
    */
   public function hasTranscriptionJob() : bool {
     return $this->getTranscriptionJobId() === NULL ? FALSE : TRUE;
@@ -246,6 +254,8 @@ class SermonAudio extends ContentEntityBase {
 
   /**
    * Tells if there is an unprocessed audio file ID associated with this entity.
+   *
+   * @phpstan-assert-if-true !null $this->getUnprocessedAudioId()
    */
   public function hasUnprocessedAudio() : bool {
     return $this->getUnprocessedAudioId() === NULL ? FALSE : TRUE;
@@ -381,7 +391,7 @@ class SermonAudio extends ContentEntityBase {
     ];
     try {
       $response = ApiHelpers::callApi(\Drupal::httpClient(),
-        static::getCredentialsRetriever()->getCredentials(),
+        self::getAwsCredentials(),
         $jobSubmissionApiEndpoint,
         $jobSubmissionApiRegion,
         $processingRequestData,
@@ -393,7 +403,8 @@ class SermonAudio extends ContentEntityBase {
       return;
     }
 
-    if (!self::isResponseStatusCodeValid($response)) {
+    $responseStatusCode = $response->getStatusCode();
+    if (!self::isResponseStatusCodeValid($responseStatusCode)) {
       $throwIfDesired(new ApiCallException('The audio processing job submission API returned a faulty status code of ' . $responseStatusCode . '.'));
       return;
     }
@@ -571,8 +582,8 @@ class SermonAudio extends ContentEntityBase {
    *   Thrown if an error occurs when attempting to make/receive a HEAD request
    *   for a new processed audio file.
    * @throws \Drupal\sermon_audio\Exception\EntityValidationException
-   *   Thrown if debug mode is enabled and the unprocessed audio file field is
-   *   not set.
+   *   Can be thrown if debug mode is enabled and the unprocessed audio file
+   *   field is not set or is invalid.
    * @throws \Drupal\Core\Entity\EntityStorageException
    *   Thrown if an error occurs when trying to save a new file entity.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
@@ -693,6 +704,9 @@ class SermonAudio extends ContentEntityBase {
 
     if (Settings::isDebugModeEnabled()) {
       $unprocessedAudioId = $this->getUnprocessedAudioId() ?? throw self::getUnprocessedAudioFieldException();
+      if ($unprocessedAudioId < 0) {
+        throw new EntityValidationException('The unprocessed audio field target ID is negative.');
+      }
       return function () use($unprocessedAudioId) : bool {
         $this->setProcessedAudioTargetId($unprocessedAudioId);
         $this->unsetCleaningJob();
@@ -711,7 +725,7 @@ class SermonAudio extends ContentEntityBase {
     }
     try {
       $response = ApiHelpers::callApi(\Drupal::httpClient(),
-        static::getCredentialsRetriever()->getCredentials(),
+        self::getAwsCredentials(),
         $cleaningJobResultsApiEndpoint,
         $cleaningJobResultsApiRegion,
         [],
@@ -722,7 +736,8 @@ class SermonAudio extends ContentEntityBase {
       throw new ApiCallException('An error occurred when calling the audio cleaning job results api.', $e->getCode(), $e);
     }
 
-    if (!self::isResponseStatusCodeValid($response)) {
+    $responseStatusCode = $response->getStatusCode();
+    if (!self::isResponseStatusCodeValid($responseStatusCode)) {
       throw new ApiCallException('The audio cleaning job results API returned a faulty status code of ' . $responseStatusCode . '.');
     }
     $jobResults = self::decodeJsonResponseBody($response);
@@ -772,7 +787,7 @@ class SermonAudio extends ContentEntityBase {
     // audio entity already references the correct URI.
     $processedAudio = $this->getProcessedAudio();
     if ($processedAudio !== NULL && $processedAudio->getFileUri() === $processedAudioUri) {
-      return FALSE;
+      return fn() => FALSE;
     }
 
     // If the s3fs module is enabled, we will go ahead and cache metadata for
@@ -804,15 +819,27 @@ class SermonAudio extends ContentEntityBase {
     }
 
     // Create the new processed audio file entity, setting its owner to the
-    // owner of the unprocessed audio file.
-    $owner = $unprocessedAudio->getOwnerId();
+    // owner of the unprocessed audio file, if it exists, or to the superuser,
+    // if it does not. The filename is set using the output sub-key.
+
+    if ($this->hasUnprocessedAudio()) {
+      $unprocessedAudio = $this->getUnprocessedAudio(TRUE);
+      if ($unprocessedAudio === NULL) $owner = 1;
+      else $owner = $unprocessedAudio->getOwnerId();
+    }
+    else $owner = 1;
+
+    $filename = trim(basename($outputSubKey));
+    if ($filename === '') $filename = 'audio.mp4';
+
     $newProcessedAudioFieldInitValues = [
       'uri' => $processedAudioUri,
       'uid' => $owner,
-      'filename' => $outputDisplayFilename,
+      'filename' => $filename,
       'filemime' => 'audio/mp4',
       'status' => TRUE,
     ];
+
     if (isset($fileSize)) {
       // If the file size was captured above, set it. Otherwise, it should be
       // automatically set when the entity creation/save process is executed
@@ -857,7 +884,7 @@ class SermonAudio extends ContentEntityBase {
 
     if (Settings::isDebugModeEnabled()) {
       return function () : bool {
-        $this->setTranscriptionUri('https://example.com/transcription.xml');
+        $this->setTranscriptionSubKey('transcription.xml');
         $this->unsetTranscriptionJob();
         return TRUE;
       };
@@ -873,7 +900,7 @@ class SermonAudio extends ContentEntityBase {
     }
     try {
       $response = ApiHelpers::callApi(\Drupal::httpClient(),
-        static::getCredentialsRetriever()->getCredentials(),
+        self::getAwsCredentials(),
         $transcriptionJobResultsApiEndpoint,
         $transcriptionJobResultsApiRegion,
         [],
@@ -884,7 +911,8 @@ class SermonAudio extends ContentEntityBase {
       throw new ApiCallException('An error occurred when calling the audio transcription job results api.', $e->getCode(), $e);
     }
 
-    if (!self::isResponseStatusCodeValid($response)) {
+    $responseStatusCode = $response->getStatusCode();
+    if (!self::isResponseStatusCodeValid($responseStatusCode)) {
       throw new ApiCallException('The audio transcription job results API returned a faulty status code of ' . $responseStatusCode . '.');
     }
     $jobResults = self::decodeJsonResponseBody($response);
@@ -986,11 +1014,8 @@ class SermonAudio extends ContentEntityBase {
 
   /**
    * Sets the processed audio target ID to the given value.
-   *
-   * @phpstan-param int<0, max> $id
    */
   private function setProcessedAudioTargetId(int $id) : void {
-    assert($id >= 0);
     /** @phpstan-ignore-next-line */
     $this->processed_audio = $id;
   }
@@ -1151,6 +1176,11 @@ class SermonAudio extends ContentEntityBase {
         $entity->save();
 
         foreach ($translationsWithTranscriptEvents as $translation) {
+          // As of this writing, dispatch() is declared without an explicit
+          // $event_name parameter. This may change in later implementations of
+          // Drupal/Symfony, but for now we have to suppress the related PHPStan
+          // error.
+          /** @phpstan-ignore-next-line */
           $eventDispatcher->dispatch(new TranscriptionAutoUpdatedEvent($translation), SermonAudioEvents::TRANSCRIPTION_AUTO_UPDATED);
         }
       }
@@ -1173,11 +1203,11 @@ class SermonAudio extends ContentEntityBase {
    *   Transliterated text. "\\" is used for unknown characters.
    */
   private static function asciify(string $text, string $langcode) : string {
-    // Try to "transliterate" the segment to get an approximate ASCII
+    // Try to "transliterate" the text to get an approximate ASCII
     // representation. It won't be perfect, but that's okay. Use "\" for unknown
     // characters to ensure these characters don't get merged with whitespace,
     // etc. in the processing below (and are instead later replaced with "-").
-    return \Drupal::transliteration()->transliterate($segment, $langcode, '\\');
+    return \Drupal::transliteration()->transliterate($text, $langcode, '\\');
   }
 
   /**
@@ -1199,12 +1229,22 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Gets the credentials retriever from the service container.
+   * Gets AWS credentials.
+   *
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
+   *   Thrown if there is no existing credentials instance, and the module's
+   *   "aws_credentials_file_path" configuration setting is empty or points to
+   *   an invalid or missing credentials file.
+   * 
    */
-  private static function getCredentialsRetriever() : AwsCredentialsRetriever {
+  private static function getAwsCredentials() : CredentialsInterface {
     $credentialsRetriever = \Drupal::service('sermon_audio.credentials_retriever');
     assert($credentialsRetriever instanceof AwsCredentialsRetriever);
-    return $credentialsRetriever;
+    $credentials = $credentialsRetriever->getCredentials();
+    if ($credentials === NULL) {
+      throw new ModuleConfigurationException('"aws_credentials_file_path" module setting is unset or consists only of whitespace.');
+    }
+    return $credentials;
   }
 
   /**
@@ -1246,7 +1286,7 @@ class SermonAudio extends ContentEntityBase {
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if the "audio_s3_aws_region" module setting is missing or empty.
    */
-  private static function getProcessedAudioS3Client() : S3ClientInterface {
+  private static function getProcessedAudioS3Client() : S3Client {
     $region = Settings::getAudioS3Region();
     if ($region === '') {
       throw new ModuleConfigurationException('The "audio_s3_aws_region" module setting is empty.');
@@ -1254,6 +1294,8 @@ class SermonAudio extends ContentEntityBase {
 
     $factory = \Drupal::service('sermon_audio.s3_client_factory');
     assert($factory instanceof S3ClientFactory);
+    // NOTE: We have to return S3Client instead of S3ClientInterface, becuase
+    // for some reason the interface doesn't contain the needed methods.
     return $factory->getClient($region);
   }
 
@@ -1309,17 +1351,12 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Tells whether the status code for the given API call response is valid.
-   *
-   * @param \Psr\Http\Message\ResponseInterface $response
-   *   Response.
+   * Tells whether the given HTTP status code is in the "valid" range.
    *
    * @return bool
    *   TRUE if the response status code is in the [200..299] range; else FALSE.
    */
-  private static function isResponseStatusCodeValid(ResponseInterface $response) : bool {
-    assert($apiName !== '');
-    $responseStatusCode = (int) $response->getStatusCode();
+  private static function isResponseStatusCodeValid(int $responseStatusCode) : bool {
     return ($responseStatusCode >= 200 && $responseStatusCode < 300) ? TRUE : FALSE;
   }
 

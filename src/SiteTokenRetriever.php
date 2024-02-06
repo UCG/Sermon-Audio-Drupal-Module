@@ -4,6 +4,11 @@ declare (strict_types = 1);
 
 namespace Drupal\sermon_audio;
 
+use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Config\ImmutableConfig;
+use Drupal\sermon_audio\Exception\ModuleConfigurationException;
+use Drupal\sermon_audio\Helper\CastHelpers;
+
 /**
  * Obtains the site token (controlling access to the announcement routes).
  */
@@ -36,9 +41,12 @@ class SiteTokenRetriever {
    *   Thrown if the token file is empty or whitespace, or could not be read.
    */
   public function getToken() : string {
-    if (!isset($this->credentials)) {
+    if (!isset($this->token)) {
       $tokenFilePath = trim(CastHelpers::stringyToString($this->configuration->get('site_token_file_path')));
-      if ($tokenFilePath !== '') $this->token = static::getTokenFromFile($tokenFilePath);
+      if ($tokenFilePath === '') {
+        throw new ModuleConfigurationException('Module "site_token_file_path" setting is whitespace or unset.');
+      }
+      $this->token = self::getTokenFromFile($tokenFilePath);
       // The configuration won't be needed anymore.
       unset($this->configuration);
     }

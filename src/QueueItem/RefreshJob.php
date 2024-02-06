@@ -35,6 +35,7 @@ abstract class RefreshJob {
   public function processItem(EntityStorageInterface $sermonAudioStorage) : void {
     $entity = $sermonAudioStorage->load($this->entityId);
     if ($entity === NULL) return;
+    assert($entity instanceof SermonAudio);
     $this->processEntity($entity);
   }
 

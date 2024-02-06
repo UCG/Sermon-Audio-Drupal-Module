@@ -13,6 +13,7 @@ class TranscriptionSegment {
 
   private readonly float $end;
   private readonly float $start;
+  /** @phpstan-var non-empty-string */
   private readonly string $text;
 
   /**
@@ -24,6 +25,7 @@ class TranscriptionSegment {
    *   End time in seconds.
    * @param string $text
    *   Transcription text.
+   * @phpstan-param non-empty-string $text
    *
    * @throws \InvalidArgumentException
    *   Thrown if $text is empty.
@@ -33,7 +35,7 @@ class TranscriptionSegment {
    *   Thrown if $end is less than $start.
    */
   public function __construct(float $start, float $end, string $text) {
-    ThrowHelpers::throwIfEmpty($text, 'text');
+    ThrowHelpers::throwIfEmptyString($text, 'text');
     ThrowHelpers::throwIfLessThanZero($start, 'start');
     if ($end < $start) {
       throw new \InvalidArgumentException('$end is less than $start.');
@@ -60,6 +62,8 @@ class TranscriptionSegment {
 
   /**
    * Gets the transcription text.
+   *
+   * @phpstan-return non-empty-string
    */
   public function getText() : string {
     return $this->text;

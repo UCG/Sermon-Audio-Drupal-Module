@@ -72,7 +72,6 @@ final class ApiHelpers {
     $methodString = match ($method) {
       HttpMethod::GET => 'GET',
       HttpMethod::POST => 'POST',
-      default => throw new \InvalidArgumentException('$method is neither GET nor POST.'),
     };
     if ($query === []) $uri = $endpoint;
     else $uri = $endpoint . '?' . http_build_query($query);
@@ -106,7 +105,7 @@ final class ApiHelpers {
    */
   public static function signRequest(RequestInterface $request, CredentialsInterface $credentials, string $region) : RequestInterface {
     ThrowHelpers::throwIfEmptyString($region, '$region');
-    return static::getSignature()->signRequest($request, $credentials);
+    return static::getSignature($region)->signRequest($request, $credentials);
   }
 
   /**
@@ -117,10 +116,11 @@ final class ApiHelpers {
    * @phpstan-param non-empty-string $region
    */
   private static function getSignature(string $region) : SignatureInterface {
-    if (!isset(static::$signaturesByRegion[$region])) {
-      static::$signaturesByRegion[$region] = new SignatureV4('execute-api', $region);
+    assert($region !== '');
+    if (!isset(self::$signaturesByRegion[$region])) {
+      self::$signaturesByRegion[$region] = new SignatureV4('execute-api', $region);
     }
-    return static::$signaturesByRegion[$region];
+    return self::$signaturesByRegion[$region];
   }
 
 }

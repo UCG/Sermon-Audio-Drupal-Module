@@ -6,8 +6,10 @@ namespace Drupal\sermon_audio;
 
 use Aws\Credentials\Credentials;
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Config\ImmutableConfig;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
 use Drupal\sermon_audio\Helper\CastHelpers;
+use Ranine\Helper\StringHelpers;
 
 /**
  * Obtains AWS credentials.
@@ -45,7 +47,7 @@ class AwsCredentialsRetriever {
   public function getCredentials() : ?Credentials {
     if (!isset($this->credentials)) {
       $credentialsFilePath = trim(CastHelpers::stringyToString($this->configuration->get('aws_credentials_file_path')));
-      if ($credentialsFilePath !== '') $this->credentials = static::getCredentialsFromFile($credentialsFilePath);
+      if ($credentialsFilePath !== '') $this->credentials = self::getCredentialsFromFile($credentialsFilePath);
       // The configuration won't be needed anymore.
       unset($this->configuration);
     }

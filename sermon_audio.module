@@ -25,13 +25,14 @@ function sermon_audio_cron() : void {
     ->condition('cleaning_job_id', '', '<>')
     ->condition('cleaning_job_failed', TRUE, '<>')
     ->execute();
-  assert(is_array($ids));
+  assert(is_array($idsForAudioRefresh));
   $idsForTranscriptionRefresh = $storage->getQuery()
     ->accessCheck(FALSE)
     ->condition('transcription_job_id', NULL, 'IS NOT NULL')
     ->condition('transcription_job_id', '', '<>')
     ->condition('transcription_job_failed', TRUE, '<>')
     ->execute();
+  assert(is_array($idsForTranscriptionRefresh));
 
   $queue = \Drupal::queue('sermon_audio_entity_refresher');
   // Clean unused items from the queue, as there is no built-in mechanism to

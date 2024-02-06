@@ -47,10 +47,10 @@ class EntityRefresherQueueWorker extends QueueWorkerBase implements ContainerFac
    */
   public function processItem(mixed $data) : void {
     try {
-      if (!($item instanceof RefreshJob)) {
+      if (!($data instanceof RefreshJob)) {
         throw new \InvalidArgumentException('Queue data is not an instance of \\Drupal\\sermon_audio\\QueueItem\\RefreshJob.');
       }
-      $item->processItem($this->sermonAudioStorage);
+      $data->processItem($this->sermonAudioStorage);
     }
     catch (\Exception $e) {
       // Mark the item for immediate re-queing, because we want to make sure

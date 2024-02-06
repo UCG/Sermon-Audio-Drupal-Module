@@ -57,10 +57,18 @@ class AnnouncementController extends ControllerBase {
    *
    * The audio is not actually refreshed here -- this is done after the response
    * is sent by hooking into KernelEvents::TERMINATE.
+   *
+   * @throws \RuntimeException
+   *   Thrown if there is no current request on the request stack.
    */
   public function announceCleanAudio() : Response {
+    $request = $this->requestStack->getCurrentRequest();
+    if ($request === NULL) {
+      throw new \RuntimeException('No current request on the request stack.');
+    }
+
     $jobId = '';
-    $errorResponse = $this->tryGetJobIdFromRequest($this->requestStack->getCurrentRequest(), $jobId);
+    $errorResponse = $this->tryGetJobIdFromRequest($request, $jobId);
     if ($errorResponse !== NULL) return $errorResponse;
     $this->finishedJobProcessor->setJobAsCleaningJob($jobId);
     return new Response('', 200);
@@ -77,10 +85,18 @@ class AnnouncementController extends ControllerBase {
    *
    * The transcript is not actually refreshed here -- this is done after the
    * response is sent by hooking into KernelEvents::TERMINATE.
+   *
+   * @throws \RuntimeException
+   *   Thrown if there is no current request on the request stack.
    */
   public function announceNewTranscription() : Response {
+    $request = $this->requestStack->getCurrentRequest();
+    if ($request === NULL) {
+      throw new \RuntimeException('No current request on the request stack.');
+    }
+
     $jobId = '';
-    $errorResponse = $this->tryGetJobIdFromRequest($this->requestStack->getCurrentRequest(), $jobId);
+    $errorResponse = $this->tryGetJobIdFromRequest($request, $jobId);
     if ($errorResponse !== NULL) return $errorResponse;
     $this->finishedJobProcessor->setJobAsTranscriptionJob($jobId);
     return new Response('', 200);
@@ -141,10 +157,10 @@ class AnnouncementController extends ControllerBase {
   private function tryGetJobIdFromRequest(Request $request, string &$jobId) : ?Response {
     // Check the credentials before doing anything else.
     $errorResponse = $this->checkAuthorization($request);
-    if ($errorResponse !== NULL) return $authResponse;
+    if ($errorResponse !== NULL) return $errorResponse;
 
     $errorResponse = self::checkContentType($request);
-    if ($errorResponse !== NULL) return $response;
+    if ($errorResponse !== NULL) return $errorResponse;
 
     $jobId = '';
     return self::tryParseRequestBody($request, $jobId);
@@ -154,9 +170,13 @@ class AnnouncementController extends ControllerBase {
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container) : self {
-    return new self($container->get('request_stack'),
-      $container->get('sermon_audio.site_token_retriever'),
-      $container->get('sermon_audio.finished_job_processor'));
+    $requestStack = $container->get('request_stack');
+    assert($requestStack instanceof RequestStack);
+    $tokenRetriever = $container->get('sermon_audio.site_token_retriever');
+    assert($tokenRetriever instanceof SiteTokenRetriever);
+    $finishedJobProcessor = $container->get('sermon_audio.finished_job_processor');
+    assert($finishedJobProcessor instanceof FinishedJobProcessor);
+    return new self($requestStack, $tokenRetriever, $finishedJobProcessor);
   }
 
   /**
@@ -176,7 +196,6 @@ class AnnouncementController extends ControllerBase {
 
     $contentTypeParts = explode(';', $contentType);
     assert(is_array($contentTypeParts));
-    if (empty($contentTypeParts)) return self::getGenericMalformedContentTypeResponse();
 
     $numContentTypeParts = count($contentTypeParts);
     if ($numContentTypeParts > 2) return self::getGenericMalformedContentTypeResponse();
@@ -187,19 +206,16 @@ class AnnouncementController extends ControllerBase {
       $secondContentTypePart = trim($contentTypeParts[1]);
       if ($secondContentTypePart !== '') {
         $charsetParts = explode('=', $secondContentTypePart);
-        if (!empty($charsetParts)) {
-          // In this case, this parameter should indicate a UTF-8 or US-ASCII
-          // character set.
-          if (count($charsetParts) !== 2) {
-            return self::getGenericMalformedContentTypeResponse();
-          }
-          if (strcasecmp(trim($charsetParts[0]), 'charset') !== 0) {
-            return self::getGenericMalformedContentTypeResponse();
-          }
-          $characterSet = trim($charsetParts[1]);
-          if (strcasecmp($characterSet, 'utf-8') !== 0 && strcasecmp($characterSet, 'us-ascii') !== 0) {
-            return new Response('Content-Type header indicates an unsupported character set (neither ASCII nor UTF-8).', 415);
-          }
+        // This parameter should indicate a UTF-8 or US-ASCII character set.
+        if (count($charsetParts) !== 2) {
+          return self::getGenericMalformedContentTypeResponse();
+        }
+        if (strcasecmp(trim($charsetParts[0]), 'charset') !== 0) {
+          return self::getGenericMalformedContentTypeResponse();
+        }
+        $characterSet = trim($charsetParts[1]);
+        if (strcasecmp($characterSet, 'utf-8') !== 0 && strcasecmp($characterSet, 'us-ascii') !== 0) {
+          return new Response('Content-Type header indicates an unsupported character set (neither ASCII nor UTF-8).', 415);
         }
       }
     }

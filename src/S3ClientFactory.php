@@ -100,7 +100,7 @@ class S3ClientFactory {
     }
     if (isset($credentials)) $connectionOptions['credentials'] = $credentials;
 
-    $this->client = new S3Client($connectionOptions);
+    $this->clients[$region] = new S3Client($connectionOptions);
   }
 
 }

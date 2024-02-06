@@ -6,10 +6,11 @@ namespace Drupal\sermon_audio;
 
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ImmutableConfig;
+use Drupal\sermon_audio\Exception\ModuleConfigurationException;
 use Drupal\sermon_audio\Helper\CastHelpers;
 use Psr\Http\Message\StreamInterface;
 use Ranine\Exception\ParseException;
-use Ranine\Iteration\ExtendableIterable;
+use Ranine\Helper\StringHelpers;
 
 /**
  * Downloads transcription XML and generates HTML output given an input sub-key.
@@ -149,12 +150,14 @@ class FinalTranscriptionGenerator {
 
   /**
    * Ensures the XML parser is created.
+   *
+   * @phpstan-assert !null $this->xmlParser
    */
   private function ensureXmlParserCreated() : void {
     if (!isset($this->xmlParser)) {
-      $this->xmlParser = new \XMLParser('UTF-8');
-      xml_parser_set_option($this->xmlParser, XML_OPTION_CASE_FOLDING, TRUE);
-      xml_parser_set_option($this->xmlParser, XML_OPTION_SKIP_WHITE, TRUE);
+      $this->xmlParser = xml_parser_create('UTF-8');
+      xml_parser_set_option($this->xmlParser, XML_OPTION_CASE_FOLDING, 1);
+      xml_parser_set_option($this->xmlParser, XML_OPTION_SKIP_WHITE, 1);
     }
   }
 
@@ -242,9 +245,11 @@ class FinalTranscriptionGenerator {
         $segmentText = $text;
       }
       else {
+        assert($segmentEnd !== NULL);
+        assert(!StringHelpers::isNullOrEmpty($segmentText));
         // We merge together very nearby segments or segments that are not
         // separated with a period (".").
-        if (($start - $segmentEnd) < self::MIN_SEGMENT_SEPARATION || $segmentText[count($segmentText) - 1] !== '.') {
+        if (($start - $segmentEnd) < self::MIN_SEGMENT_SEPARATION || $segmentText[strlen($segmentText) - 1] !== '.') {
           // We use max() in case $end < $segmentEnd for some strange reason.
           $segmentEnd = (float) max($end, $segmentEnd);
           $segmentText .= ' ' . $text;
@@ -259,6 +264,8 @@ class FinalTranscriptionGenerator {
       }
     }
     if ($segmentStart !== NULL) {
+      assert($segmentEnd !== NULL);
+      assert(!StringHelpers::isNullOrEmpty($segmentText));
       $segments[] = new TranscriptionSegment($segmentStart, $segmentEnd, $segmentText);
     }
 
@@ -281,7 +288,7 @@ class FinalTranscriptionGenerator {
     if ($unitNoise > 0.5) $unitFluctuation = 1 - sqrt(2 * (1 - $unitNoise));
     else $unitFluctuation = sqrt(2 * $unitNoise) - 1;
 
-    return $center + $unitFluctuation * $maxFluctuation;
+    return (int) ($center + $unitFluctuation * $maxFluctuation);
   }
 
   /**
@@ -306,17 +313,19 @@ class FinalTranscriptionGenerator {
     // adding one. The input text should already be trimmed, so we don't have to
     // worry about that. We don't use str_word_count() because of the possible
     // existence of Unicode characters.
-    return ExtendableIterable::from($text)
-        ->filter(fn(string $c) => ctype_space($c))
-        ->count() + 1;
+    $totalLength = strlen($text);
+    $numSpaces = 0;
+    for ($i = 0; $i < $totalLength; $i++) {
+      if (ctype_space($text[$i])) $numSpaces++;
+    }
+    return $numSpaces + 1;
   }
 
   /**
    * Attempts to convert the given S3 body to a string.
    *
-   * @throws \RuntimeException
-   *   Thrown if the body is a PHP resource, but a call to
-   *   stream_get_meta_data() does not return a valid response.
+   * @param string|resource|\Psr\Http\Message\StreamInterface $body
+   *
    * @throws \RuntimeException
    *   Thrown if the body is a PHP resource, but could not be converted to a
    *   string.
@@ -324,16 +333,13 @@ class FinalTranscriptionGenerator {
    *   Thrown if an error occurs when attempting to read from or rewind the PSR
    *   stream $body.
    */
-  private static function s3BodyToString(string|resource|StreamInterface $body) : string {
+  private static function s3BodyToString(mixed $body) : string {
     if (is_resource($body)) {
       // Here and below, we try to seek to the beginning of the stream. This is
       // because an example in the AWS documentation at https://docs.aws.amazon.com/sdk-for-php/v3/developer-guide/php_s3_code_examples.html
       // seems to suggest that might be necessary, though I suspect it isn't.
       // First we try to determine if the stream is seekable.
       $streamMetadata = stream_get_meta_data($body);
-      if (!is_array($streamMetadata) || !array_key_exists('seekable', $streamMetadata)) {
-        throw new \RuntimeException('S3 stream body does not appear to have valid metadata.');
-      }
       $result = stream_get_contents($body, NULL, empty($streamMetadata['seekable']) ? -1 : 0);
       if (!is_string($result)) {
         throw new \RuntimeException('Failed to convert S3 stream body to a string.');
@@ -342,7 +348,7 @@ class FinalTranscriptionGenerator {
     }
     elseif ($body instanceof StreamInterface) {
       if ($body->isSeekable()) $body->rewind();
-      $result = $body->getContents();
+      return $body->getContents();
     }
     else return $body;
   }
@@ -467,8 +473,11 @@ class FinalTranscriptionGenerator {
         else $candidateStartIndex = $testIndex;
       }
     }
-    if ($textIndex === NULL) $separation = $sortedSeparations[$candidateStartIndex];
-    else $separation = $testSeparation;
+    if ($testIndex === NULL) $separation = $sortedSeparations[$candidateStartIndex];
+    else {
+      assert(isset($testSeparation));
+      $separation = $testSeparation;
+    }
 
     // Compute the paragraph breaks, and note the pathologically long
     // paragraphs.
@@ -476,7 +485,6 @@ class FinalTranscriptionGenerator {
     // following the paragraphs.
     /** @var array<int, int> */
     $breaksByParagraph = [];
-    /** @var array<int, bool> */
     $longParagraphWordCounts = [];
     $wordCountCurrentParagraph = 0;
     $paragraphId = 0;
@@ -503,16 +511,19 @@ class FinalTranscriptionGenerator {
     $paragraphStart = 0;
     foreach ($breaksByParagraph as $paragraphId => $break) {
       if (isset($longParagraphWordCounts[$paragraphId])) {
-        yield from self::splitLongParagraph((function () use ($segments, $break, $paragraphStart, $lastSegmentIndex) : iterable {
+        yield from self::splitLongParagraph((function () use ($segments, $break, $paragraphStart) : iterable {
           for ($i = $paragraphStart; $i < $break; $i++) {
-            $segmentText = $segments[$paragraphStart];
-            yield strtok($segmentText, '.') . '.';
-            while (($sentence = strtok('.')) !== FALSE) yield ltrim($sentence) . '.';
+            $segmentText = $segments[$paragraphStart]->getText();
+            $sentence = ltrim(strtok($segmentText, '.'));
+            while (($nextSentenceUntrimmed = strtok('.')) !== FALSE) {
+              yield $sentence . '.';
+              $sentence = ltrim($nextSentenceUntrimmed);
+            }
             // If the segment doesn't end in a period, don't add a period.
-            if ($segmentText[count($segmentText) - 1] === '.') yield ltrim($sentence) . '.';
-            else yield ltrim($sentence);
+            if ($segmentText[strlen($segmentText) - 1] === '.') yield $sentence . '.';
+            else yield $sentence;
           }
-        })(), $longParagraphWordCounts[$i]);
+        })(), $longParagraphWordCounts[$paragraphId]);
       }
       else {
         $paragraph = '';
@@ -542,15 +553,13 @@ class FinalTranscriptionGenerator {
    *   Output paragraphs.
    */
   private static function splitLongParagraph(iterable $sentences, int $totalWordCount) : iterable {
-    assert($totalWordCount > 0);
-
     $wordCountFutureParagraphs = $totalWordCount;
     $currentParagraph = '';
     $currentParagraphWordCount = 0;
     $targetParagraphSize = self::getRandomIntWithFluctuations(self::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT, self::SPLITTING_FLUCTUATION);
     foreach ($sentences as $sentence) {
       $currentParagraph .= ($currentParagraph === '' ? $sentence : ' ' . $sentence);
-      if ($remainingWordCount > $targetParagraphSize) {
+      if ($wordCountFutureParagraphs > $targetParagraphSize) {
         $currentParagraphWordCount += self::estimateWordCount($sentence);
         if ($currentParagraphWordCount >= $targetParagraphSize) {
           // Output the current paragraph and start a new one.
