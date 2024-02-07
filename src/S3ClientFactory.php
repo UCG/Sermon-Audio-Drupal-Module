@@ -33,13 +33,11 @@ class S3ClientFactory {
    * Creates a new S3 client factory.
    *
    * @param \Drupal\Core\Config\ConfigFactoryInterface $configFactory
-   *   Configuration factory.
    * @param \Drupal\sermon_audio\AwsCredentialsRetriever $credentialsRetriever
-   *   AWS credentials retriever.
    */
   public function __construct(ConfigFactoryInterface $configFactory, AwsCredentialsRetriever $credentialsRetriever) {
-    $this->credentialsRetriever = $credentialsRetriever;
     $this->configuration = $configFactory->get('sermon_audio.settings');
+    $this->credentialsRetriever = $credentialsRetriever;
   }
 
   /**
@@ -59,10 +57,12 @@ class S3ClientFactory {
    *   whitespace yet points to an invalid or missing credentials file.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if the module's "connect_timeout" configuration setting is neither
-   *   empty nor castable to a positive integer.
+   *   empty nor casts to a positive integer.
    */
   public function getClient(string $region) : S3Client {
     ThrowHelpers::throwIfEmptyString($region, 'region');
+    // NOTE: This method returns S3Client instead of S3ClientInterface, because
+    // not all needed methods are available (for some reason) on the interface.
 
     if (!isset($this->clients[$region])) {
       $this->createClient($region);
@@ -83,7 +83,7 @@ class S3ClientFactory {
    *   whitespace yet points to an invalid or missing credentials file.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if the module's "connect_timeout" configuration setting is neither
-   *   empty nor castable to a positive integer.
+   *   empty nor casts to a positive integer.
    */
   private function createClient(string $region) : void {
     assert($region !== '');

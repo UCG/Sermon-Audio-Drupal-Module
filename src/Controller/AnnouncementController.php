@@ -7,6 +7,7 @@ namespace Drupal\sermon_audio\Controller;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\sermon_audio\EventSubscriber\FinishedJobProcessor;
 use Drupal\sermon_audio\SiteTokenRetriever;
+use Ranine\Exception\InvalidOperationException;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -33,7 +34,6 @@ class AnnouncementController extends ControllerBase {
    * Creates a new announcement controller.
    *
    * @param \Symfony\Component\HttpFoundation\RequestStack $requestStack
-   *   Request stack.
    * @param \Drupal\sermon_audio\SiteTokenRetriever $tokenRetriever
    *   Retriever for route access token.
    * @param \Drupal\sermon_audio\EventSubscriber\FinishedJobProcessor $finishedJobProcessor
@@ -58,13 +58,13 @@ class AnnouncementController extends ControllerBase {
    * The audio is not actually refreshed here -- this is done after the response
    * is sent by hooking into KernelEvents::TERMINATE.
    *
-   * @throws \RuntimeException
+   * @throws \Ranine\Exception\InvalidOperationException
    *   Thrown if there is no current request on the request stack.
    */
   public function announceCleanAudio() : Response {
     $request = $this->requestStack->getCurrentRequest();
     if ($request === NULL) {
-      throw new \RuntimeException('No current request on the request stack.');
+      throw new InvalidOperationException('No current request on the request stack.');
     }
 
     $jobId = '';
@@ -86,13 +86,13 @@ class AnnouncementController extends ControllerBase {
    * The transcript is not actually refreshed here -- this is done after the
    * response is sent by hooking into KernelEvents::TERMINATE.
    *
-   * @throws \RuntimeException
+   * @throws \Ranine\Exception\InvalidOperationException
    *   Thrown if there is no current request on the request stack.
    */
   public function announceNewTranscription() : Response {
     $request = $this->requestStack->getCurrentRequest();
     if ($request === NULL) {
-      throw new \RuntimeException('No current request on the request stack.');
+      throw new InvalidOperationException('No current request on the request stack.');
     }
 
     $jobId = '';
@@ -239,10 +239,9 @@ class AnnouncementController extends ControllerBase {
   }
 
   /**
-   * Tries to extract the job ID from the request body.
+   * Tries to extract the job ID from the given request's body.
    *
-   * @param Request $request
-   *   Request.
+   * @param \Symfony\Component\HttpFoundation\Request $request
    * @param string $jobId
    *   (output) Extracted job ID. Only set if request was valid.
    *
@@ -277,4 +276,5 @@ class AnnouncementController extends ControllerBase {
     $jobId = $id;
     return NULL;
   }
+
 }

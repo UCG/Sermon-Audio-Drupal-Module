@@ -47,9 +47,11 @@ class AwsCredentialsRetriever {
   public function getCredentials() : ?Credentials {
     if (!isset($this->credentials)) {
       $credentialsFilePath = trim(CastHelpers::stringyToString($this->configuration->get('aws_credentials_file_path')));
-      if ($credentialsFilePath !== '') $this->credentials = self::getCredentialsFromFile($credentialsFilePath);
-      // The configuration won't be needed anymore.
-      unset($this->configuration);
+      if ($credentialsFilePath !== '') {
+        $this->credentials = self::getCredentialsFromFile($credentialsFilePath);
+        // The configuration won't be needed anymore.
+        unset($this->configuration);
+      }
     }
     return $this->credentials;
   }
@@ -80,10 +82,10 @@ class AwsCredentialsRetriever {
     if (!is_array($credentialsArray)) {
       throw new ModuleConfigurationException('File contents at aws_credentials_file_path was not valid JSON.');
     }
-    if (!array_key_exists('access-key', $credentialsArray)) {
+    if (!isset($credentialsArray['access-key'])) {
       throw new ModuleConfigurationException('Missing "access-key" setting in aws_credentials_file_path file.');
     }
-    if (!array_key_exists('secret-key', $credentialsArray)) {
+    if (!isset($credentialsArray['secret-key'])) {
       throw new ModuleConfigurationException('Missing "secret-key" setting in aws_credentials_file_path file.');
     }
     $accessKey = $credentialsArray['access-key'];

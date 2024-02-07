@@ -5,23 +5,14 @@ declare(strict_types = 1);
 namespace Drupal\sermon_audio\Plugin\QueueWorker;
 
 use Drupal\Core\Entity\EntityStorageInterface;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Queue\QueueWorkerBase;
 use Drupal\Core\Queue\RequeueException;
-use Drupal\sermon_audio\QueueItem\RefreshJob;
-use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Refreshes processed audio / transcription for certain sermon audio entities.
- *
- * @QueueWorker(
- *   id = "sermon_audio_entity_refresher",
- *   title = @Translation("Sermon Audio Entity Refresher"),
- *   cron = {"time" = 60}
- * )
+ * Base class for processed audio / transcription refresher queue workers.
  */
-class EntityRefresherQueueWorker extends QueueWorkerBase implements ContainerFactoryPluginInterface {
+abstract class EntityRefresherQueueWorker extends QueueWorkerBase implements ContainerFactoryPluginInterface {
 
   private readonly EntityStorageInterface $sermonAudioStorage;
 
@@ -35,9 +26,8 @@ class EntityRefresherQueueWorker extends QueueWorkerBase implements ContainerFac
    * @param mixed $plugin_definition
    *   Plugin implementation definition.
    * @param \Drupal\Core\Entity\EntityStorageInterface $sermonAudioStorage
-   *   Sermon audio entity storage.
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityStorageInterface $sermonAudioStorage) {
+  protected function __construct(array $configuration, $plugin_id, $plugin_definition, EntityStorageInterface $sermonAudioStorage) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
     $this->sermonAudioStorage = $sermonAudioStorage;
   }
@@ -47,10 +37,16 @@ class EntityRefresherQueueWorker extends QueueWorkerBase implements ContainerFac
    */
   public function processItem(mixed $data) : void {
     try {
-      if (!($data instanceof RefreshJob)) {
-        throw new \InvalidArgumentException('Queue data is not an instance of \\Drupal\\sermon_audio\\QueueItem\\RefreshJob.');
+      // $data should be the entity ID.
+      if (!is_int($data)) {
+        throw new \InvalidArgumentException('Queue data is not an integer');
       }
-      $data->processItem($this->sermonAudioStorage);
+
+      $entity = $this->sermonAudioStorage->load($data);
+      // Ignore nonexistent entities.
+      if ($entity === NULL) return;
+      assert($entity instanceof SermonAudio);
+      $this->processEntity($entity);
     }
     catch (\Exception $e) {
       // Mark the item for immediate re-queing, because we want to make sure
@@ -60,15 +56,8 @@ class EntityRefresherQueueWorker extends QueueWorkerBase implements ContainerFac
   }
 
   /**
-   * {@inheritdoc}
+   * Processes the given sermon audio entity.
    */
-  public static function create(ContainerInterface $container, array $configuration, mixed $plugin_id, mixed $plugin_definition) : self {
-    $entityTypeManager = $container->get('entity_type.manager');
-    assert($entityTypeManager instanceof EntityTypeManagerInterface);
-    return new self($configuration,
-      $plugin_id,
-      $plugin_definition,
-      $entityTypeManager->getStorage('sermon_audio'));
-  }
+  protected abstract function processEntity(SermonAudio $entity) : void;
 
 }

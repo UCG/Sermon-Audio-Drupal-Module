@@ -21,7 +21,7 @@ class TranscriptionAutoUpdatedEvent extends Event {
    * Creates a new transcription auto-updated event.
    *
    * @param \Drupal\sermon_audio\Entity\SermonAudio $translation
-   *   Translations whose transcription sub-key was updated.
+   *   Translation whose transcription sub-key was updated.
    */
   public function __construct(SermonAudio $translation) {
     $this->translation = $translation;

@@ -50,9 +50,7 @@ class UploadedFileRenameSubscriber implements EventSubscriberInterface {
    * {@inheritdoc}
    */
   public static function getSubscribedEvents() : array {
-    return [
-      FileUploadSanitizeNameEvent::class => [['handleSanitizeName']],
-    ];
+    return [FileUploadSanitizeNameEvent::class => [['handleSanitizeName']]];
   }
 
 }

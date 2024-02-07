@@ -77,8 +77,8 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
     $this->assertEquals(trim($result), $result);
     // Since there is no timestamp info to use, the result should be split into
     // paragraphs that deviate no more than a certain amount from the target
-    // word count, except that the last paragraph may be shorter than would
-    // otherwise be acceptable.
+    // word count, except that the last paragraph may be shorter or longer than
+    // what would otherwise be acceptable.
     $minWords = FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT - FinalTranscriptionGenerator::SPLITTING_FLUCTUATION;
     $maxWords = FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT + FinalTranscriptionGenerator::SPLITTING_FLUCTUATION;
     foreach ($this->getParagraphWordCounts($result) as $wordCount) {
@@ -86,7 +86,6 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
       $this->assertLessThanOrEqual($maxWords, $previousWordCount);
       $previousWordCount = $wordCount;
     }
-    $this->assertLessThanOrEqual($maxWords, $previousWordCount);
   }
 
   /**
@@ -159,7 +158,15 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
     self::setUpTranscriptionDatums();
   }
 
+  /**
+   * Gets the number of words in the given paragraph by couunting spaces.
+   *
+   * @phpstan-param non-empty-string $paragraph
+   *
+   * @phpstan-return positive-int
+   */
   private static function getNumWordsInParagraph(string $paragraph) : int {
+    assert($paragraph !== '');
     return substr_count($paragraph, ' ') + 1;
   }
 

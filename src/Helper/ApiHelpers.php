@@ -22,7 +22,7 @@ use Ranine\Helper\ThrowHelpers;
 final class ApiHelpers {
 
   /**
-   * Cached signatures for AWS regions.
+   * Cached signatures by AWS region.
    *
    * @var \Aws\Signature\SignatureInterface[]
    */
@@ -57,13 +57,17 @@ final class ApiHelpers {
    * @throws \InvalidArgumentException
    *   Thrown if $endpoint or $apiRegion is empty.
    * @throws \InvalidArgumentException
-   *   Thrown if $method is neither GET nor POST.
-   * @throws \InvalidArgumentException
    *   Thrown if $body is non-NULL and cannot be encoded as JSON.
    * @throws \Psr\Http\Client\ClientExceptionInterface
    *   Thrown if an error happens while processing the request.
    */
-  public static function callApi(ClientInterface $httpClient, CredentialsInterface $credentials, string $endpoint, string $apiRegion, ?array $body = NULL, array $query = [], HttpMethod $method = HttpMethod::GET) : ResponseInterface {
+  public static function callApi(ClientInterface $httpClient,
+    CredentialsInterface $credentials,
+    string $endpoint,
+    string $apiRegion,
+    ?array $body = NULL,
+    array $query = [],
+    HttpMethod $method = HttpMethod::GET) : ResponseInterface {
     // @todo Implement retry?
 
     ThrowHelpers::throwIfEmptyString($endpoint, '$endpoint');

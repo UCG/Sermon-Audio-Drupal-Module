@@ -144,7 +144,7 @@ class SermonAudio extends ContentEntityBase {
   public function getProcessedAudio(bool $ignoreMissingReference = FALSE) : ?FileInterface {
     $targetId = $this->getProcessedAudioId();
     if ($targetId === NULL) return NULL;
-    $file = $this->getFileStorage()->load($targetId);
+    $file = self::getFileStorage()->load($targetId);
     if ($file === NULL) {
       if ($ignoreMissingReference) return NULL;
       else throw new \RuntimeException('Could not load file entity with ID "' . $targetId . '".');
@@ -265,9 +265,9 @@ class SermonAudio extends ContentEntityBase {
    * Initiates processing job(s) corresponding to the unprocessed audio file.
    *
    * Initiates audio processing, consisting of audio cleaning as well as (if
-   * requested) audio transcription transcription. Once the cleaning and
-   * (possibly) transcription job IDs are obtained, the corresponding entity
-   * fields are updated and the entity is saved.
+   * requested) audio transcription. Once the cleaning and (possibly)
+   * transcription job IDs are obtained, the corresponding entity fields are
+   * updated and the entity is saved.
    *
    * @param string $sermonName
    *   Sermon name corresponding to audio.
@@ -290,7 +290,7 @@ class SermonAudio extends ContentEntityBase {
    * @param bool $throwOnFailure
    *   TRUE if an exception should be thrown if the processing initiation fails
    *   for certain "expected" (and recoverable; that is, execution of the caller
-   *   should continue without worrying about program state corruption) reasons:
+   *   can continue without worrying about program state corruption) reasons:
    *   that is, because of 1) AWS or HTTP errors, 2) validation issues with this
    *   entity, or 3) missing linked entiti(es).
    * @param ?\Exception $failureException
@@ -354,7 +354,8 @@ class SermonAudio extends ContentEntityBase {
       $inputSubKey = self::getUnprocessedAudioSubKey($unprocessedAudio);
     }
     catch (\Exception $e) {
-      $throwIfDesired($e, fn($e) => !($e instanceof EntityValidationException || $e instanceof InvalidInputAudioFileException || $e instanceof \RuntimeException));
+      $throwIfDesired($e,
+        fn($e) => !($e instanceof EntityValidationException || $e instanceof InvalidInputAudioFileException || $e instanceof \RuntimeException));
       return;
     }
 
@@ -399,7 +400,7 @@ class SermonAudio extends ContentEntityBase {
         HttpMethod::POST);
     }
     catch (ClientExceptionInterface $e) {
-      $throwIfDesired(new ApiCallException('An error occurred when calling the audio processing job submission api.', $e->getCode(), $e));
+      $throwIfDesired(new ApiCallException('An error occurred when calling the audio processing job submission API.', $e->getCode(), $e));
       return;
     }
 
@@ -504,13 +505,11 @@ class SermonAudio extends ContentEntityBase {
         $originalFid = NULL;
         if ($originalEntity->hasTranslation($langcode)) {
           $originalTranslation = $originalEntity->getTranslation($langcode);
-          assert($originalTranslation instanceof SermonAudio);
           $originalFid = $originalTranslation->getUnprocessedAudioId();
         }
         $newFid = NULL;
         if ($this->hasTranslation($langcode)) {
           $newTranslation = $this->getTranslation($langcode);
-          assert($newTranslation instanceof SermonAudio);
           $newFid = $newTranslation->getUnprocessedAudioId();
         }
 
@@ -518,11 +517,11 @@ class SermonAudio extends ContentEntityBase {
         // usage values.
         if ($originalFid !== $newFid) {
           if ($originalFid !== NULL) {
-            if (!array_key_exists($originalFid, $usageChanges)) $usageChanges[$originalFid] = -1;
+            if (!isset($usageChanges[$originalFid])) $usageChanges[$originalFid] = -1;
             else $usageChanges[$originalFid]--;
           }
           if ($newFid !== NULL) {
-            if (!array_key_exists($newFid, $usageChanges)) $usageChanges[$newFid] = 1;
+            if (!isset($usageChanges[$newFid])) $usageChanges[$newFid] = 1;
             else $usageChanges[$newFid]++;
           }
         }
@@ -532,7 +531,7 @@ class SermonAudio extends ContentEntityBase {
       foreach ($this->iterateTranslations() as $translation) {
         $fid = $translation->getUnprocessedAudioId();
         if ($fid !== NULL) {
-          if (!array_key_exists($fid, $usageChanges)) $usageChanges[$fid] = 1;
+          if (!isset($usageChanges[$fid])) $usageChanges[$fid] = 1;
           else $usageChanges[$fid]++;
         }
       }
@@ -555,7 +554,7 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Handles any audio cleaning result.
+   * Handles any new audio cleaning result.
    *
    * If the "debug_mode" module setting is active, the processed audio field is
    * set to the unprocessed audio field, and the duration field is set to zero.
@@ -627,10 +626,8 @@ class SermonAudio extends ContentEntityBase {
    * attached to this entity, a check is made to see if the job has finished. If
    * so, the transcription sub-key field is updated with the new S3 sub-key and
    * the job ID is unset. Note that the "new transcription" event is not fired
-   * by this method. Also note that none of this happens (except for the job ID
-   * being unset) if the new sub-key is the same as this entity's current
-   * sub-key. If the job has not finished, but has failed, the job ID is unset
-   * and the job failure flag is set.
+   * by this method. If the job has not finished, but has failed, the job ID is
+   * unset and the job failure flag is set.
    *
    * This method performs its function even if the current transcription sub-key
    * field value is non-NULL.
@@ -704,9 +701,6 @@ class SermonAudio extends ContentEntityBase {
 
     if (Settings::isDebugModeEnabled()) {
       $unprocessedAudioId = $this->getUnprocessedAudioId() ?? throw self::getUnprocessedAudioFieldException();
-      if ($unprocessedAudioId < 0) {
-        throw new EntityValidationException('The unprocessed audio field target ID is negative.');
-      }
       return function () use($unprocessedAudioId) : bool {
         $this->setProcessedAudioTargetId($unprocessedAudioId);
         $this->unsetCleaningJob();
@@ -871,8 +865,8 @@ class SermonAudio extends ContentEntityBase {
    * exception).
    *
    * @param bool $newTranscriptionSubKeyObtained
-   *   (output) If a new transcription XML sub-key was found in the results for the
-   *   current job, this will be TRUE. Else, it will be FALSE.
+   *   (output) If a new transcription XML sub-key was found in the results for
+   *   the current job, this will be TRUE. Else, it will be FALSE.
    *
    * @return callable() : bool
    *   Setter returning TRUE if the entity may have been changed; else it
@@ -883,11 +877,20 @@ class SermonAudio extends ContentEntityBase {
     $newTranscriptionSubKeyObtained = FALSE;
 
     if (Settings::isDebugModeEnabled()) {
-      return function () : bool {
-        $this->setTranscriptionSubKey('transcription.xml');
-        $this->unsetTranscriptionJob();
-        return TRUE;
-      };
+      if ($this->getTranscriptionSubKey() === 'transcription.xml') {
+        return function () : bool {
+          $this->unsetTranscriptionJob();
+          return TRUE;
+        };
+      }
+      else {
+        $newTranscriptionSubKeyObtained = TRUE;
+        return function () : bool {
+          $this->setTranscriptionSubKey('transcription.xml');
+          $this->unsetTranscriptionJob();
+          return TRUE;
+        };
+      }
     }
 
     $transcriptionJobResultsApiEndpoint = Settings::getTranscriptionJobResultsApiEndpoint();
@@ -908,7 +911,7 @@ class SermonAudio extends ContentEntityBase {
         HttpMethod::GET);
     }
     catch (ClientExceptionInterface $e) {
-      throw new ApiCallException('An error occurred when calling the audio transcription job results api.', $e->getCode(), $e);
+      throw new ApiCallException('An error occurred when calling the audio transcription job results API.', $e->getCode(), $e);
     }
 
     $responseStatusCode = $response->getStatusCode();
@@ -948,7 +951,7 @@ class SermonAudio extends ContentEntityBase {
     if ($outputSubKey === $this->getTranscriptionSubKey()) {
       return function () : bool {
         $this->unsetTranscriptionJob();
-        return FALSE;
+        return TRUE;
       };
     }
     else {
@@ -975,35 +978,6 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Sets the transcription job ID to the given value.
-   *
-   * @phpstan-param non-empty-string $jobId
-   */
-  private function setTranscriptionJob(string $jobId) : void {
-    assert($jobId !== '');
-    /** @phpstan-ignore-next-line */
-    $this->transcription_job_failed = FALSE;
-    /** @phpstan-ignore-next-line */
-    $this->transcription_job_id = $jobId;
-  }
-
-  /**
-   * Sets the cleaning job ID to NULL.
-   */
-  private function unsetCleaningJob() : void {
-    /** @phpstan-ignore-next-line */
-    $this->cleaning_job_id = NULL;
-  }
-
-  /**
-   * Sets the transcription job ID to NULL.
-   */
-  private function unsetTranscriptionJob() : void {
-    /** @phpstan-ignore-next-line */
-    $this->transcription_job_id = NULL;
-  }
-
-  /**
    * Sets the audio duration to the given value.
    */
   private function setDuration(float $value) : void {
@@ -1021,6 +995,19 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
+   * Sets the transcription job ID to the given value.
+   *
+   * @phpstan-param non-empty-string $jobId
+   */
+  private function setTranscriptionJob(string $jobId) : void {
+    assert($jobId !== '');
+    /** @phpstan-ignore-next-line */
+    $this->transcription_job_failed = FALSE;
+    /** @phpstan-ignore-next-line */
+    $this->transcription_job_id = $jobId;
+  }
+
+  /**
    * Sets the transcription sub-key to the given value.
    * 
    * @phpstan-param non-empty-string $subKey
@@ -1029,6 +1016,22 @@ class SermonAudio extends ContentEntityBase {
     assert($subKey !== '');
     /** @phpstan-ignore-next-line */
     $this->transcription_sub_key = $subKey;
+  }
+
+  /**
+   * Sets the cleaning job ID to NULL.
+   */
+  private function unsetCleaningJob() : void {
+    /** @phpstan-ignore-next-line */
+    $this->cleaning_job_id = NULL;
+  }
+
+  /**
+   * Sets the transcription job ID to NULL.
+   */
+  private function unsetTranscriptionJob() : void {
+    /** @phpstan-ignore-next-line */
+    $this->transcription_job_id = NULL;
   }
 
   /**
@@ -1104,7 +1107,7 @@ class SermonAudio extends ContentEntityBase {
    * {@inheritdoc}
    */
   public static function postLoad(EntityStorageInterface $storage, array &$entities) : void {
-    /** @var null[] */
+    /** @var array<int, true> */
     static $finishedEntityIds = [];
     foreach ($entities as $entity) {
       if (!($entity instanceof SermonAudio)) {
@@ -1119,7 +1122,7 @@ class SermonAudio extends ContentEntityBase {
       // and refreshProcessedAudio() thus being called multiple times on the
       // same entity in the same request cycle (such as when it is called again
       // when the entity is saved).
-      if (array_key_exists($entityId, $finishedEntityIds)) continue;
+      if (isset($finishedEntityIds[$entityId])) continue;
 
       $requiresSave = FALSE;
 
@@ -1162,19 +1165,21 @@ class SermonAudio extends ContentEntityBase {
         }
         if ($translationTranscriptUpdate()) {
           $requiresSave = TRUE;
-          $translationsWithTranscriptEvents[] = $translation;
+          if ($shouldFireNewTranscriptionEvent) {
+            $translationsWithTranscriptEvents[] = $translation;
+          }
         }
       }
 
       if ($requiresSave) {
-        $eventDispatcher = \Drupal::service('event_dispatcher');
-        assert($eventDispatcher instanceof EventDispatcherInterface);
         // We add the entity ID to the $finishedEntityIds set before saving.
         // This is because the save process will invoke postLoad() again (when
         // loading the unchanged entity).
-        $finishedEntityIds[$entityId] = NULL;
+        $finishedEntityIds[$entityId] = TRUE;
         $entity->save();
 
+        $eventDispatcher = \Drupal::service('event_dispatcher');
+        assert($eventDispatcher instanceof EventDispatcherInterface);
         foreach ($translationsWithTranscriptEvents as $translation) {
           // As of this writing, dispatch() is declared without an explicit
           // $event_name parameter. This may change in later implementations of
@@ -1185,7 +1190,7 @@ class SermonAudio extends ContentEntityBase {
         }
       }
       else {
-        $finishedEntityIds[$entityId] = NULL;
+        $finishedEntityIds[$entityId] = TRUE;
       }
     }
   }
@@ -1196,7 +1201,7 @@ class SermonAudio extends ContentEntityBase {
    * @param string $text
    *   Text to transliterate.
    * @param string $langcode
-   *   Language code of $text language.
+   *   Language code for $text.
    * @phpstan-param non-empty-string $langcode
    *
    * @return string
@@ -1205,53 +1210,12 @@ class SermonAudio extends ContentEntityBase {
   private static function asciify(string $text, string $langcode) : string {
     // Try to "transliterate" the text to get an approximate ASCII
     // representation. It won't be perfect, but that's okay. Use "\" for unknown
-    // characters to ensure these characters don't get merged with whitespace,
-    // etc. in the processing below (and are instead later replaced with "-").
+    // characters.
     return \Drupal::transliteration()->transliterate($text, $langcode, '\\');
   }
 
   /**
-   * Gets the S3 bucket for processed and unprocessed audio.
-   *
-   * @return string
-   *   Bucket name.
-   * @phpstan-return non-empty-string
-   *
-   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   *   Thrown if the bucket name module setting is empty.
-   */
-  private static function getAudioBucket() : string {
-    $bucketName = Settings::getAudioBucketName();
-    if ($bucketName === '') {
-      throw new ModuleConfigurationException('The audio bucket name module setting is empty.');
-    }
-    return $bucketName;
-  }
-
-  /**
-   * Gets AWS credentials.
-   *
-   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   *   Thrown if there is no existing credentials instance, and the module's
-   *   "aws_credentials_file_path" configuration setting is empty or points to
-   *   an invalid or missing credentials file.
-   * 
-   */
-  private static function getAwsCredentials() : CredentialsInterface {
-    $credentialsRetriever = \Drupal::service('sermon_audio.credentials_retriever');
-    assert($credentialsRetriever instanceof AwsCredentialsRetriever);
-    $credentials = $credentialsRetriever->getCredentials();
-    if ($credentials === NULL) {
-      throw new ModuleConfigurationException('"aws_credentials_file_path" module setting is unset or consists only of whitespace.');
-    }
-    return $credentials;
-  }
-
-  /**
    * Attempts to decode the $response body as JSON.
-   *
-   * @param \Psr\Http\Message\ResponseInterface $response
-   *   Response whose body we should decode.
    *
    * @return ?array
    *   The response body, if it could be decoded, or NULL if not.
@@ -1269,6 +1233,41 @@ class SermonAudio extends ContentEntityBase {
     }
 
     return $decodedResponse;
+  }
+
+  /**
+   * Gets the name of the S3 bucket for processed and unprocessed audio.
+   *
+   * @phpstan-return non-empty-string
+   *
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
+   *   Thrown if the bucket name module setting is empty.
+   */
+  private static function getAudioBucket() : string {
+    $bucketName = Settings::getAudioBucketName();
+    if ($bucketName === '') {
+      throw new ModuleConfigurationException('The audio bucket name module setting is empty.');
+    }
+    return $bucketName;
+  }
+
+  /**
+   * Gets the AWS credentials.
+   *
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
+   *   Thrown if there is no existing credentials instance, and the module's
+   *   "aws_credentials_file_path" configuration setting is empty or points to
+   *   an invalid or missing credentials file.
+   * 
+   */
+  private static function getAwsCredentials() : CredentialsInterface {
+    $credentialsRetriever = \Drupal::service('sermon_audio.credentials_retriever');
+    assert($credentialsRetriever instanceof AwsCredentialsRetriever);
+    $credentials = $credentialsRetriever->getCredentials();
+    if ($credentials === NULL) {
+      throw new ModuleConfigurationException('"aws_credentials_file_path" module setting is unset or consists only of whitespace.');
+    }
+    return $credentials;
   }
 
   /**
@@ -1294,16 +1293,12 @@ class SermonAudio extends ContentEntityBase {
 
     $factory = \Drupal::service('sermon_audio.s3_client_factory');
     assert($factory instanceof S3ClientFactory);
-    // NOTE: We have to return S3Client instead of S3ClientInterface, becuase
-    // for some reason the interface doesn't contain the needed methods.
     return $factory->getClient($region);
   }
 
   /**
    * Gets the S3 key prefix for processed audio.
    *
-   * @return string
-   *   Non-empty key prefix.
    * @phpstan-return non-empty-string
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException

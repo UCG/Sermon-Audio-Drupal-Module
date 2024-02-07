@@ -16,10 +16,6 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 class SettingsForm extends ConfigFormBase {
 
-  public function __construct(ConfigFactoryInterface $configFactory) {
-    parent::__construct($configFactory);
-  }
-
   /**
    * {@inheritdoc}
    */

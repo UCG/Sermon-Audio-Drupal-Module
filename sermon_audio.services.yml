@@ -14,7 +14,7 @@ services:
       - { name: event_subscriber }
   sermon_audio.finished_job_processor:
     class: Drupal\sermon_audio\EventSubscriber\FinishedJobProcessor
-    arguments: ['@entity_type.manager']
+    arguments: ['@entity_type.manager', '@event_dispatcher']
     tags:
       - { name: event_subscriber }
   sermon_audio.site_token_retriever:

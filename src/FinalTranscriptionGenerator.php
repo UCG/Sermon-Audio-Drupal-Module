@@ -53,20 +53,10 @@ class FinalTranscriptionGenerator {
   public const TARGET_AVERAGE_PARAGRAPH_WORD_COUNT = 75;
 
   /**
-   * Resolution for floating-point comparisons.
-   *
-   * @var float
-   */
-  private const EPSILON = 1E-6;
-
-  /**
    * Module configuration.
    */
   private readonly ImmutableConfig $configuration;
 
-  /**
-   * Amazon S3 client factory.
-   */
   private readonly S3ClientFactory $s3ClientFactory;
 
   /**
@@ -74,14 +64,6 @@ class FinalTranscriptionGenerator {
    */
   private ?\XMLParser $xmlParser = NULL;
 
-  /**
-   * Creates a new final transcription generator.
-   *
-   * @param S3ClientFactory $s3ClientFactory
-   *   Amazon S3 client factory.
-   * @param \Drupal\Core\Config\ConfigFactoryInterface $configFactory
-   *   Configuration factory.
-   */
   public function __construct(S3ClientFactory $s3ClientFactory, ConfigFactoryInterface $configFactory) {
     $this->s3ClientFactory = $s3ClientFactory;
     $this->configuration = $configFactory->get('sermon_audio.settings');
@@ -105,7 +87,7 @@ class FinalTranscriptionGenerator {
    *   missing credentials file.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Thrown if the module's "connect_timeout" configuration setting is neither
-   *   empty nor castable to a positive integer.
+   *   empty nor casts to a positive integer.
    * @throws \Aws\S3\Exception\S3Exception
    *   Thrown if an error occurs when attempting to make/receive a GET request
    *   for the transcription XML file.
@@ -142,7 +124,8 @@ class FinalTranscriptionGenerator {
 
     $html = '';
     foreach (self::segmentsToParagraphs($segments) as $paragraph) {
-      $html .= '<p>' . htmlspecialchars($paragraph, ENT_QUOTES|ENT_SUBSTITUTE|ENT_HTML5, 'UTF-8') . "</p>\n";
+      if ($html !== '') $html .= "\n";
+      $html .= '<p>' . htmlspecialchars($paragraph, ENT_QUOTES|ENT_SUBSTITUTE|ENT_HTML5, 'UTF-8') . '</p>';
     }
 
     return $html;
@@ -162,15 +145,49 @@ class FinalTranscriptionGenerator {
   }
 
   /**
+   * Estimates and returns the word count of the given (trimmed) text.
+   */
+  private static function estimateWordCount(string $text) : int {
+    // Estimate word count by counting "separator" characters (whitespace) and
+    // adding one. The input text should already be trimmed, so we don't have to
+    // worry about that. We don't use str_word_count() because of the possible
+    // existence of Unicode characters.
+    $totalLength = strlen($text);
+    $numSpaces = 0;
+    for ($i = 0; $i < $totalLength; $i++) {
+      if (ctype_space($text[$i])) $numSpaces++;
+    }
+    return $numSpaces + 1;
+  }
+
+  /**
+   * Gets a random integer with a non-uniform "tent" probability distribution.
+   *
+   * @param int $center
+   *   Center of distribution.
+   * @param int $maxFluctuation
+   *   Maximum deviation from center.
+   */
+  private static function getRandomIntWithFluctuations(int $center, int $maxFluctuation) : int {
+    $unitNoise = rand() / getrandmax();
+
+    // Use inverse transform sampling on a linear "tent" distribution (to keep
+    // things simple haha).
+    if ($unitNoise > 0.5) $unitFluctuation = 1 - sqrt(2 * (1 - $unitNoise));
+    else $unitFluctuation = sqrt(2 * $unitNoise) - 1;
+
+    return (int) round($center + $unitFluctuation * $maxFluctuation);
+  }
+
+  /**
    * Gets the transcription segments from the input transcription XML.
    *
-   * @param string $xml
-   *   XML to parse.
-   *
    * @return \Drupal\sermon_audio\TranscriptionSegment[]
+   *   Segments. Every segment is trimmed, and every segment except possibly the
+   *   last ends in a period (".").
    *
    * @throws \Ranine\Exception\ParseException
-   *   Thrown if the input XML as an unexpected or invalid format.
+   *   Thrown if the input XML has an unexpected or invalid format.
    * @throws \RuntimeException
    *   Thrown if an error occurs while parsing, or if the parser produces an
    *   array with an unexpected structure.
@@ -227,9 +244,9 @@ class FinalTranscriptionGenerator {
       }
       $start = (float) $start;
       $end = (float) $end;
-      // If $start is a small negative value, clean it up.
-      if ($start < 0 && $start > -self::EPSILON) $start = 0;
-      // Tiny segments are discarded.
+      // If $start is a negative value, clean it up.
+      if ($start < 0) $start = 0;
+      // Tiny or incorrectly time-ordered segments are discarded.
       if ($end <= $start) continue;
 
       $text = $tagInfo['value'];
@@ -247,8 +264,8 @@ class FinalTranscriptionGenerator {
       else {
         assert($segmentEnd !== NULL);
         assert(!StringHelpers::isNullOrEmpty($segmentText));
-        // We merge together very nearby segments or segments that are not
-        // separated with a period (".").
+        // We merge together very nearby or overlapping segments, and segments
+        // that are not separated with a period (".").
         if (($start - $segmentEnd) < self::MIN_SEGMENT_SEPARATION || $segmentText[strlen($segmentText) - 1] !== '.') {
           // We use max() in case $end < $segmentEnd for some strange reason.
           $segmentEnd = (float) max($end, $segmentEnd);
@@ -273,25 +290,6 @@ class FinalTranscriptionGenerator {
   }
 
   /**
-   * Gets a random integer with a non-uniform "tent" probability distribution.
-   *
-   * @param int $center
-   *   Center of distribution.
-   * @param int $maxFluctuation
-   *   Maximum deviation from center.
-   */
-  private static function getRandomIntWithFluctuations(int $center, int $maxFluctuation) : int {
-    $unitNoise = rand() / getrandmax();
-
-    // Use inverse transform sampling on a linear "tent" distribution (to keep
-    // things simple haha).
-    if ($unitNoise > 0.5) $unitFluctuation = 1 - sqrt(2 * (1 - $unitNoise));
-    else $unitFluctuation = sqrt(2 * $unitNoise) - 1;
-
-    return (int) ($center + $unitFluctuation * $maxFluctuation);
-  }
-
-  /**
    * Gets the transcription S3 region from the module configuration.
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
@@ -303,22 +301,6 @@ class FinalTranscriptionGenerator {
       throw new ModuleConfigurationException('The "transcription_s3_aws_region" module setting is missing or empty.');
     }
     return $region;
-  }
-
-  /**
-   * Estimates and returns the word count of the given (trimmed) text.
-   */
-  private static function estimateWordCount(string $text) : int {
-    // Estimate word count by counting "separator" characters (whitespace) and
-    // adding one. The input text should already be trimmed, so we don't have to
-    // worry about that. We don't use str_word_count() because of the possible
-    // existence of Unicode characters.
-    $totalLength = strlen($text);
-    $numSpaces = 0;
-    for ($i = 0; $i < $totalLength; $i++) {
-      if (ctype_space($text[$i])) $numSpaces++;
-    }
-    return $numSpaces + 1;
   }
 
   /**
@@ -358,19 +340,19 @@ class FinalTranscriptionGenerator {
    *
    * @param array<int, \Drupal\sermon_audio\TranscriptionSegment> $segments
    *   Ordered array of segments to convert. Indexed consecutively from 0. The
-   *   text in each segment should be trimmed, and should end with a period
-   *   ("."). Segments closer than some the minimum separation should already be
-   *   joined.
+   *   text in each segment should be trimmed, and should end (with the possible
+   *   exception of the last segment) with a period ("."). Segments closer than
+   *   the minimum separation should already be joined.
    *
    * @return iterable<string>
    *   Output paragraphs. Need to be escaped before being added to HTML.
    *
    * @throws \InvalidArgumentException
-   *   Can be thrown if $segments[$i] does not exist for 0 <= $i <
-   *   count($segments).
+   *   Thrown if $segments[$i] does not exist for 0 <= $i < count($segments).
    */
   private static function segmentsToParagraphs(array $segments) : iterable {
     $numSegments = count($segments);
+    if ($numSegments === 0) return [];
 
     // Start by computing the word counts of all the segments. We'll need that
     // information later.
@@ -378,6 +360,9 @@ class FinalTranscriptionGenerator {
     $wordCounts = [];
     $totalWordCount = 0;
     for ($i = 0; $i < $numSegments; $i++) {
+      if (!isset($segments[$i])) {
+        throw new \InvalidArgumentException('Segment at index ' . $i . ' does not exist, but should, as $segments should be a consecutively numerically keyed array.');
+      }
       $wordCount = self::estimateWordCount($segments[$i]->getText());
       $wordCounts[$i] = $wordCount;
       $totalWordCount += $wordCount;
@@ -403,16 +388,16 @@ class FinalTranscriptionGenerator {
     //     long paragraphs that would result from a division generated by that
     //     separation time.
     // 2b) If there are no pathological paragraphs in step 2a), compute the
-    //     total word count of the paragraphs, and its distance from our target
-    //     value (target average paragraph word count * num paragraphs). If the
-    //     distance is zero, we are done.
+    //     distance between the total word count and our target value (target
+    //     average paragraph word count * num paragraphs). If the distance is
+    //     zero, we are done.
     // 3) If the results of steps 2a) and 2b) indicate the paragraphs are too
     //    short or too long, adjust the separation time up or down
     //    (respectively) by picking another separation from the middle of the
     //    corresponding "candidate times" subset of the sorted list (this subset
     //    shrinks by roughly half each iteration). If this subset is of size
     //    one, we are done.
-    // 4) Otherwise, repeat from step two.
+    // 4) Otherwise, repeat from step 2a).
     // The algorithm should run in O(n * log n) time, where n is the number of
     // segments.
     $candidateStartIndex = 0;
@@ -435,7 +420,7 @@ class FinalTranscriptionGenerator {
       $numParagraphs = 0;
       for ($i = 0; $i < $numSegments; $i++) {
         $wordCountCurrentParagraph += $wordCounts[$i];
-        if ($segmentSeparations[$i] > $testSeparation || $i === $lastSegmentIndex) {
+        if ($i === $lastSegmentIndex || $segmentSeparations[$i] > $testSeparation) {
           if ($wordCountCurrentParagraph < self::MIN_EXPECTED_PARAGRAPH_WORD_COUNT) {
             $smallParagraphsTotalWords += $wordCountCurrentParagraph;
           }
@@ -448,8 +433,11 @@ class FinalTranscriptionGenerator {
         }
       }
       if ($smallParagraphsTotalWords > $largeParagraphsTotalWords) {
-        // Separation may be too large.
-        $candidateEndIndex = $testIndex;
+        // Separation may be too small.
+        // This if() is necessary to ensure the start index is updated if the
+        // current gap is of size one.
+        if ($candidateStartIndex === $testIndex) $candidateStartIndex++;
+        else $candidateStartIndex = $testIndex;
       }
       elseif ($largeParagraphsTotalWords === 0) {
         // Check diff of total word count and optimal value. Too small or too
@@ -457,8 +445,6 @@ class FinalTranscriptionGenerator {
         $diff = $totalWordCount - self::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT * $numParagraphs;
         if ($diff > 0) $candidateEndIndex = $testIndex;
         elseif ($diff < 0) {
-          // This if() is necessary to ensure the start index is updated if the
-          // current gap is of size one.
           if ($candidateStartIndex === $testIndex) $candidateStartIndex++;
           else $candidateStartIndex = $testIndex;
         }
@@ -468,9 +454,8 @@ class FinalTranscriptionGenerator {
         }
       }
       else {
-        // Separation may be too small.
-        if ($candidateStartIndex === $testIndex) $candidateStartIndex++;
-        else $candidateStartIndex = $testIndex;
+        // Separation may be too large.
+        $candidateEndIndex = $testIndex;
       }
     }
     if ($testIndex === NULL) $separation = $sortedSeparations[$candidateStartIndex];
@@ -481,13 +466,16 @@ class FinalTranscriptionGenerator {
 
     // Compute the paragraph breaks, and note the pathologically long
     // paragraphs.
-    // The keys are the paragraph IDs, and the values are the segment indices
-    // following the paragraphs.
+
+    // The keys are the paragraph IDs, and the values are the last segment
+    // indices in the respective paragraphs.
     /** @var array<int, int> */
     $breaksByParagraph = [];
+    // Keys are the paragraph IDs.
     $longParagraphWordCounts = [];
     $wordCountCurrentParagraph = 0;
     $paragraphId = 0;
+
     for ($i = 0; $i < $lastSegmentIndex; $i++) {
       $wordCountCurrentParagraph += $wordCounts[$i];
       if ($segmentSeparations[$i] > $separation) {
@@ -501,7 +489,7 @@ class FinalTranscriptionGenerator {
     }
     // We use a sentinel value to indicate the "break" following the last
     // paragraph.
-    $breaksByParagraph[$paragraphId] = $lastSegmentIndex + 1;
+    $breaksByParagraph[$paragraphId] = $lastSegmentIndex;
     $wordCountCurrentParagraph += $wordCounts[$lastSegmentIndex];
     if ($wordCountCurrentParagraph > self::MAX_EXPECTED_PARAGRAPH_WORD_COUNT) {
       $longParagraphWordCounts[$paragraphId] = $wordCountCurrentParagraph;
@@ -509,70 +497,43 @@ class FinalTranscriptionGenerator {
 
     // Finally, create the paragraphs, splitting apart the long ones.
     $paragraphStart = 0;
-    foreach ($breaksByParagraph as $paragraphId => $break) {
+    foreach ($breaksByParagraph as $paragraphId => $lastSegmentId) {
       if (isset($longParagraphWordCounts[$paragraphId])) {
-        yield from self::splitLongParagraph((function () use ($segments, $break, $paragraphStart) : iterable {
-          for ($i = $paragraphStart; $i < $break; $i++) {
-            $segmentText = $segments[$paragraphStart]->getText();
-            $sentence = ltrim(strtok($segmentText, '.'));
-            while (($nextSentenceUntrimmed = strtok('.')) !== FALSE) {
-              yield $sentence . '.';
-              $sentence = ltrim($nextSentenceUntrimmed);
+        // Segments always contain an integral number of sentences (for our
+        // purposes), so split along segment boundaries.
+        $wordCountNotOutputtedAsParagraphs = $longParagraphWordCounts[$paragraphId];
+        $paragraph = '';
+        $paragraphWordCount = 0;
+        $targetParagraphSize = self::getRandomIntWithFluctuations(self::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT, self::SPLITTING_FLUCTUATION);
+        if (($wordCountNotOutputtedAsParagraphs - $targetParagraphSize) < self::MIN_EXPECTED_PARAGRAPH_WORD_COUNT) {
+          $targetParagraphSize = $longParagraphWordCount;
+        }
+        for ($i = $paragraphStart; $i <= $lastSegmentId; $i++) {
+          if ($paragraph !== '') $paragraph .= ' ';
+          $paragraph .= $segments[$i]->getText();
+          $paragraphWordCount += $wordCounts[$i];
+          if ($paragraphWordCount >= $targetParagraphSize) {
+            // Output the current paragraph and start a new one.
+            yield $currentParagraph;
+            $wordCountNotOutputtedAsParagraphs -= $paragraphWordCount;
+            $paragraph = '';
+            $paragraphWordCount = 0;
+            $targetParagraphSize = self::getRandomIntWithFluctuations(self::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT, self::SPLITTING_FLUCTUATION);
+            if (($wordCountNotOutputtedAsParagraphs - $targetParagraphSize) < self::MIN_EXPECTED_PARAGRAPH_WORD_COUNT) {
+              $targetParagraphSize = $wordCountNotOutputtedAsParagraphs;
             }
-            // If the segment doesn't end in a period, don't add a period.
-            if ($segmentText[strlen($segmentText) - 1] === '.') yield $sentence . '.';
-            else yield $sentence;
           }
-        })(), $longParagraphWordCounts[$paragraphId]);
+        }
       }
       else {
         $paragraph = '';
-        for ($i = $paragraphStart; $i < $break; $i++) {
+        for ($i = $paragraphStart; $i <= $lastSegmentId; $i++) {
           $paragraph .= $segments[$i]->getText();
         }
         yield $paragraph;
       }
-      $paragraphStart = $break;
+      $paragraphStart = $lastSegmentId + 1;
     }
-  }
-
-  /**
-   * Splits apart a long paragraph.
-   *
-   * The paragraph sizes are (roughly speaking) determined with a probability
-   * distribution whose average is our target value, and whose off-average
-   * values are described by a linear distribution with a finite cutoff.
-   *
-   * @param iterable<string> $sentences
-   *   Sentences to join. Should all be trimmed.
-   * @param int $totalWordCount
-   *   Total word count of the long paragraph we want to split.
-   * @phpstan-param positive-int $totalWordCount
-   *
-   * @return iterable<string>
-   *   Output paragraphs.
-   */
-  private static function splitLongParagraph(iterable $sentences, int $totalWordCount) : iterable {
-    $wordCountFutureParagraphs = $totalWordCount;
-    $currentParagraph = '';
-    $currentParagraphWordCount = 0;
-    $targetParagraphSize = self::getRandomIntWithFluctuations(self::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT, self::SPLITTING_FLUCTUATION);
-    foreach ($sentences as $sentence) {
-      $currentParagraph .= ($currentParagraph === '' ? $sentence : ' ' . $sentence);
-      if ($wordCountFutureParagraphs > $targetParagraphSize) {
-        $currentParagraphWordCount += self::estimateWordCount($sentence);
-        if ($currentParagraphWordCount >= $targetParagraphSize) {
-          // Output the current paragraph and start a new one.
-          yield $currentParagraph;
-          $currentParagraph = '';
-          $currentParagraphWordCount = 0;
-          $wordCountFutureParagraphs -= $currentParagraphWordCount;
-          $targetParagraphSize = self::getRandomIntWithFluctuations(self::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT, self::SPLITTING_FLUCTUATION);
-        }
-      }
-    }
-
-    yield $currentParagraph;
   }
 
 }

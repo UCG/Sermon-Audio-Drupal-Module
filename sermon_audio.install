@@ -47,7 +47,7 @@ function sermon_audio_update_9202() : void {
 function sermon_audio_update_9301() : void {
   // As in 9201, a new entity type property was set.
   _sermon_audio_update_entity_type(function (EntityTypeInterface $type) : void {
-    $type->setHandlerClass('storage_schema', 'Drupal\sermon_audio\SermonAudioStorageSchema');
+    $type->setHandlerClass('storage_schema', 'Drupal\\sermon_audio\\SermonAudioStorageSchema');
   });
 
   // We also had some new fields and removed an old one.
@@ -167,7 +167,7 @@ function _sermon_audio_update_entity_type(callable $update) : void {
 }
 
 /**
- * Sees if the given string config settings is set.
+ * Sees if the given string config setting is set.
  *
  * @param Config|ImmutableConfig $settings
  *   Settings to look in.
