@@ -6,6 +6,7 @@ namespace Drupal\sermon_audio\Plugin\QueueWorker;
 
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\sermon_audio\Entity\SermonAudio;
 use Drupal\sermon_audio\Helper\RefreshHelpers;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;

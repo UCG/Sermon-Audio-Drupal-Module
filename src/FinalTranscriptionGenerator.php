@@ -506,7 +506,7 @@ class FinalTranscriptionGenerator {
         $paragraphWordCount = 0;
         $targetParagraphSize = self::getRandomIntWithFluctuations(self::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT, self::SPLITTING_FLUCTUATION);
         if (($wordCountNotOutputtedAsParagraphs - $targetParagraphSize) < self::MIN_EXPECTED_PARAGRAPH_WORD_COUNT) {
-          $targetParagraphSize = $longParagraphWordCount;
+          $targetParagraphSize = $wordCountNotOutputtedAsParagraphs;
         }
         for ($i = $paragraphStart; $i <= $lastSegmentId; $i++) {
           if ($paragraph !== '') $paragraph .= ' ';
@@ -514,7 +514,7 @@ class FinalTranscriptionGenerator {
           $paragraphWordCount += $wordCounts[$i];
           if ($paragraphWordCount >= $targetParagraphSize) {
             // Output the current paragraph and start a new one.
-            yield $currentParagraph;
+            yield $paragraph;
             $wordCountNotOutputtedAsParagraphs -= $paragraphWordCount;
             $paragraph = '';
             $paragraphWordCount = 0;

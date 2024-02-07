@@ -65,12 +65,14 @@ class FinishedJobProcessor implements EventSubscriberInterface {
     if ($isTranscriptionJob) {
       /** @var \Drupal\sermon_audio\Entity\SermonAudio[] */
       $entities = $this->sermonAudioStorage->loadByProperties(['transcription_job_id' => $jobId]);
-      /** @var (callable (\Symfony\Component\EventDispatcher\EventDispatcherInterface $dispatcher) : void)[] */
+      /** @var (callable(\Symfony\Component\EventDispatcher\EventDispatcherInterface $dispatcher) : void)[] */
       $dispatchings = [];
       foreach ($entities as $entity) {
+        /** @var ?callable(\Symfony\Component\EventDispatcher\EventDispatcherInterface) */
         $dispatching = NULL;
         if (RefreshHelpers::refreshTranscriptionAllTranslations($entity, $dispatching)) {
           $entity->save();
+          assert(is_callable($dispatching));
           $dispatchings[] = $dispatching;
         }
       }
