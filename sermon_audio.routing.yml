@@ -17,7 +17,7 @@ sermon_audio.announce_clean_audio:
 sermon_audio.announce_transcription:
   path: /sermons/transcript/announce-transcription
   defaults:
-    _controller: \Drupal\sermon_audio\Controller\AnnouncementController::announceTranscription
+    _controller: \Drupal\sermon_audio\Controller\AnnouncementController::announceNewTranscription
   requirements:
     _access: 'TRUE'
   methods: [POST]

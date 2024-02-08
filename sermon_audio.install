@@ -45,7 +45,9 @@ function sermon_audio_update_9202() : void {
  * Implements hook_update_9301().
  */
 function sermon_audio_update_9301() : void {
-  // As in 9201, a new entity type property was set.
+  // As in 9201, a new entity type property was set. Make sure to set this
+  // before we add the new fields, as it sets some indices on those fields that
+  // we want to be included.
   _sermon_audio_update_entity_type(function (EntityTypeInterface $type) : void {
     $type->setHandlerClass('storage_schema', 'Drupal\\sermon_audio\\SermonAudioStorageSchema');
   });
