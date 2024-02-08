@@ -100,7 +100,14 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
     ]);
 
     /** @var \PHPUnit\Framework\MockObject\MockObject&\Aws\S3\S3Client */
-    $mockS3Client = $this->createMock('\\Aws\\S3\\S3Client');
+    $mockS3Client = $this->getMockBuilder('\\Aws\\S3\\S3Client')
+      // The getObject() method is magic, so we add it on.
+      ->addMethods(['getObject'])
+      ->disableOriginalConstructor()
+      ->disableOriginalClone()
+      ->disableArgumentCloning()
+      ->disallowMockingUnknownTypes()
+      ->getMock();
     $mockS3Client->method('getObject')->willReturnCallback(function (array $args) {
       if (!isset($args['Bucket'])) {
         throw new \InvalidArgumentException('Missing AWS bucket.');
