@@ -153,7 +153,9 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
    */
   private function getParagraphWordCounts(string $html, bool $skipLastParagraph = FALSE) : iterable {
     $paragraphsWithOpeningTag = explode('</p>', $html);
-    $numParagraphs = count($paragraphsWithOpeningTag);
+    // explode() is expected to produce be an empty string after the last </p>.
+    $numParagraphs = count($paragraphsWithOpeningTag) - 1;
+    $this->assertEmpty($paragraphsWithOpeningTag[$numParagraphs]);
     if ($skipLastParagraph) $numParagraphs--;
     for ($i = 0; $i < $numParagraphs; $i++) {
       $paragraphWithOpeningTag = trim($paragraphsWithOpeningTag[$i]);
