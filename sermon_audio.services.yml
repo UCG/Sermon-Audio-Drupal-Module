@@ -20,3 +20,6 @@ services:
   sermon_audio.site_token_retriever:
     class: Drupal\sermon_audio\SiteTokenRetriever
     arguments: ['@config.factory']
+  sermon_audio.aws_api_invoker:
+    class: Drupal\sermon_audio\AwsApiInvoker
+    arguments: ['@sermon_audio.aws_credentials_retriever', '@http_client', '@config.factory']

@@ -4,7 +4,6 @@ declare (strict_types = 1);
 
 namespace Drupal\sermon_audio\Entity;
 
-use Aws\Credentials\CredentialsInterface;
 use Aws\DynamoDb\Exception\DynamoDbException;
 use Aws\S3\Exception\S3Exception;
 use Aws\S3\S3Client;
@@ -19,7 +18,6 @@ use Drupal\file\FileInterface;
 use Drupal\file\FileStorageInterface;
 use Drupal\file\FileUsage\FileUsageInterface;
 use Drupal\s3fs\StreamWrapper\S3fsStream;
-use Drupal\sermon_audio\AwsCredentialsRetriever;
 use Drupal\sermon_audio\Event\SermonAudioEvents;
 use Drupal\sermon_audio\Event\TranscriptionAutoUpdatedEvent;
 use Drupal\sermon_audio\Exception\ApiCallException;
@@ -27,7 +25,7 @@ use Drupal\sermon_audio\Exception\EntityValidationException;
 use Drupal\sermon_audio\Exception\InvalidInputAudioFileException;
 use Drupal\sermon_audio\Settings;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
-use Drupal\sermon_audio\Helper\ApiHelpers;
+use Drupal\sermon_audio\AwsApiInvoker;
 use Drupal\sermon_audio\Helper\CastHelpers;
 use Drupal\sermon_audio\HttpMethod;
 use Drupal\sermon_audio\S3ClientFactory;
@@ -391,8 +389,7 @@ class SermonAudio extends ContentEntityBase {
       'sermon-congregation' => $sermonCongregation,
     ];
     try {
-      $response = ApiHelpers::callApi(\Drupal::httpClient(),
-        self::getAwsCredentials(),
+      $response = self::getApiInvoker()->callApi(
         $jobSubmissionApiEndpoint,
         $jobSubmissionApiRegion,
         $processingRequestData,
@@ -718,8 +715,7 @@ class SermonAudio extends ContentEntityBase {
       throw new ModuleConfigurationException('The "cleaning_job_results_endpoint_aws_region" module setting is empty.');
     }
     try {
-      $response = ApiHelpers::callApi(\Drupal::httpClient(),
-        self::getAwsCredentials(),
+      $response = self::getApiInvoker()->callApi(
         $cleaningJobResultsApiEndpoint,
         $cleaningJobResultsApiRegion,
         [],
@@ -902,8 +898,7 @@ class SermonAudio extends ContentEntityBase {
       throw new ModuleConfigurationException('The "transcription_job_results_endpoint_aws_region" module setting is empty.');
     }
     try {
-      $response = ApiHelpers::callApi(\Drupal::httpClient(),
-        self::getAwsCredentials(),
+      $response = self::getApiInvoker()->callApi(
         $transcriptionJobResultsApiEndpoint,
         $transcriptionJobResultsApiRegion,
         [],
@@ -1240,6 +1235,15 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
+   * Gets the AWS API invoker service.
+   */
+  private static function getApiInvoker() : AwsApiInvoker {
+    $invoker = \Drupal::service('sermon_audio.aws_api_invoker');
+    assert($invoker instanceof AwsApiInvoker);
+    return $invoker;
+  }
+
+  /**
    * Gets the name of the S3 bucket for processed and unprocessed audio.
    *
    * @phpstan-return non-empty-string
@@ -1253,25 +1257,6 @@ class SermonAudio extends ContentEntityBase {
       throw new ModuleConfigurationException('The audio bucket name module setting is empty.');
     }
     return $bucketName;
-  }
-
-  /**
-   * Gets the AWS credentials.
-   *
-   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   *   Thrown if there is no existing credentials instance, and the module's
-   *   "aws_credentials_file_path" configuration setting is empty or points to
-   *   an invalid or missing credentials file.
-   * 
-   */
-  private static function getAwsCredentials() : CredentialsInterface {
-    $credentialsRetriever = \Drupal::service('sermon_audio.aws_credentials_retriever');
-    assert($credentialsRetriever instanceof AwsCredentialsRetriever);
-    $credentials = $credentialsRetriever->getCredentials();
-    if ($credentials === NULL) {
-      throw new ModuleConfigurationException('"aws_credentials_file_path" module setting is unset or consists only of whitespace.');
-    }
-    return $credentials;
   }
 
   /**

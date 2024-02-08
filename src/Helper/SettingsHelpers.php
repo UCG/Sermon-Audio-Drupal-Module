@@ -28,7 +28,7 @@ final class SettingsHelpers {
    *   Module settings.
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   *   Thrown the module's "connect_timeout" configuration setting is neither
+   *   Thrown if the module's "connect_timeout" configuration setting is neither
    *   NULL nor casts to a positive a integer.
    */
   public static function getConnectionTimeout(Config|ImmutableConfig $moduleSettings) : ?int {
@@ -46,8 +46,8 @@ final class SettingsHelpers {
    *   Module settings.
    *
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
-   *   Thrown the module's "endpoint_timeout" configuration setting is neither
-   *   NULL nor casts to a positive integer.
+   *   Thrown if the module's "endpoint_timeout" configuration setting is
+   *   neither NULL nor casts to a positive integer.
    */
   public static function getEndpointTimeout(Config|ImmutableConfig $moduleSettings) : ?int {
     $endpointTimeout = CastHelpers::intyToNullableInt($moduleSettings->get('endpoint_timeout'));
