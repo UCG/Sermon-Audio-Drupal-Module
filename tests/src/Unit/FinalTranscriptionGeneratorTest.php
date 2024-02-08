@@ -81,10 +81,9 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
     // what would otherwise be acceptable.
     $minWords = FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT - FinalTranscriptionGenerator::SPLITTING_FLUCTUATION;
     $maxWords = FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT + FinalTranscriptionGenerator::SPLITTING_FLUCTUATION;
-    foreach ($this->getParagraphWordCounts($result) as $wordCount) {
-      $this->assertGreaterThanOrEqual($minWords, $previousWordCount);
-      $this->assertLessThanOrEqual($maxWords, $previousWordCount);
-      $previousWordCount = $wordCount;
+    foreach ($this->getParagraphWordCounts($result, TRUE) as $wordCount) {
+      $this->assertGreaterThanOrEqual($minWords, $wordCount);
+      $this->assertLessThanOrEqual($maxWords, $wordCount);
     }
   }
 
@@ -107,7 +106,7 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
         throw new \InvalidArgumentException('Missing AWS bucket.');
       }
       if ($args['Bucket'] !== self::TRANSCRIPTION_BUCKET_NAME) {
-        throw new S3Exception('Invalid bucket.', new Command(), ['code' => 'NoSuchBucket']);
+        throw new S3Exception('Invalid bucket.', new Command('GetObject'), ['code' => 'NoSuchBucket']);
       }
 
       if (!isset($args['Key']) || !is_string($args['Key'])) {
@@ -115,13 +114,13 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
       }
       $key = $args['Key'];
       if (!str_starts_with($key, self::TRANSCRIPTION_KEY_PREFIX)) {
-        throw new S3Exception('Invalid key.', new Command(), ['code' => 'NoSuchKey']);
+        throw new S3Exception('Invalid key.', new Command('GetObject'), ['code' => 'NoSuchKey']);
       }
       $prefixLength = strlen(self::TRANSCRIPTION_KEY_PREFIX);
       $subKey = strlen($key) > $prefixLength ? substr($key, $prefixLength) : '';
 
       if (!isset(self::$inputTranscriptionDatums[$subKey])) {
-        throw new S3Exception('Invalid key.', new Command(), ['code' => 'NoSuchKey']);
+        throw new S3Exception('Invalid key.', new Command('GetObject'), ['code' => 'NoSuchKey']);
       }
       return ['Body' => self::$inputTranscriptionDatums[$subKey]];
     });
@@ -139,12 +138,19 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
    *
    * @param string $html
    *   HTML. Assumed to be trimmed.
+   * @param bool $skipLastParagraph
+   *   Whether to skip the last paragraph when returning the word counts. This
+   *   can be useful if that paragraph should be ignored, e.g. because its
+   *   expected word count range may be different from the others.
    *
    * @return iterable<int>
    */
-  private function getParagraphWordCounts(string $html) : iterable {
+  private function getParagraphWordCounts(string $html, bool $skipLastParagraph = FALSE) : iterable {
     $paragraphsWithOpeningTag = explode('</p>', $html);
-    foreach ($paragraphsWithOpeningTag as $paragraphWithOpeningTag) {
+    $numParagraphs = count($paragraphsWithOpeningTag);
+    if ($skipLastParagraph) $numParagraphs--;
+    for ($i = 0; $i < $numParagraphs; $i++) {
+      $paragraphWithOpeningTag = $paragraphsWithOpeningTag[$i];
       $this->assertStringStartsWith('<p>', $paragraphWithOpeningTag);
       $paragraph = substr($paragraphWithOpeningTag, 3);
       yield self::getNumWordsInParagraph($paragraph);
@@ -159,14 +165,13 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
   }
 
   /**
-   * Gets the number of words in the given paragraph by couunting spaces.
+   * Gets the number of words in the given paragraph by counting spaces.
    *
-   * @phpstan-param non-empty-string $paragraph
-   *
-   * @phpstan-return positive-int
+   * @phpstan-return int<0, max>
    */
   private static function getNumWordsInParagraph(string $paragraph) : int {
-    assert($paragraph !== '');
+    $paragraph = trim($paragraph);
+    if ($paragraph === '') return 0;
     return substr_count($paragraph, ' ') + 1;
   }
 

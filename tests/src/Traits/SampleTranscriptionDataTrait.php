@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace Drupal\Tests\sermon_audio\Traits;
 
+use Drupal\sermon_audio\FinalTranscriptionGenerator;
+
 /**
  * Stores sample data for transcription tests.
  */
@@ -161,7 +163,7 @@ EOS;
    *   Separation (in seconds) between segments.
    * @param int $numSegments
    *   Number of segments.
-   * @phpstan-parm positive-int $numSegments
+   * @phpstan-param positive-int $numSegments
    */
   private static function generateRepeatedTranscriptionXmlData(string $text, float $segmentSeparation, int $numSegments) : string {
     assert($segmentSeparation > 0);
