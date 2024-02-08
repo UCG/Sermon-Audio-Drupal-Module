@@ -1,10 +1,10 @@
 services:
-  sermon_audio.credentials_retriever:
-    class: Drupal\sermon_audio\CredentialsRetriever
+  sermon_audio.aws_credentials_retriever:
+    class: Drupal\sermon_audio\AwsCredentialsRetriever
     arguments: ['@config.factory']
   sermon_audio.s3_client_factory:
     class: Drupal\sermon_audio\S3ClientFactory
-    arguments: ['@config.factory', '@sermon_audio.credentials_retriever']
+    arguments: ['@config.factory', '@sermon_audio.aws_credentials_retriever']
   sermon_audio.file_rename_pseudo_extension_repository:
     class: Drupal\sermon_audio\FileRenamePseudoExtensionRepository
   sermon_audio.uploaded_file_rename_subscriber:

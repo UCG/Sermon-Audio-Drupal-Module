@@ -1265,7 +1265,7 @@ class SermonAudio extends ContentEntityBase {
    * 
    */
   private static function getAwsCredentials() : CredentialsInterface {
-    $credentialsRetriever = \Drupal::service('sermon_audio.credentials_retriever');
+    $credentialsRetriever = \Drupal::service('sermon_audio.aws_credentials_retriever');
     assert($credentialsRetriever instanceof AwsCredentialsRetriever);
     $credentials = $credentialsRetriever->getCredentials();
     if ($credentials === NULL) {
