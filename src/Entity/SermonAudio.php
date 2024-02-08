@@ -1131,42 +1131,46 @@ class SermonAudio extends ContentEntityBase {
       /** @var \Drupal\sermon_audio\Entity\SermonAudio[] */
       $translationsWithTranscriptEvents = [];
       foreach ($entity->iterateTranslations() as $translation) {
-        try {
-          $translationAudioUpdate = $translation->prepareToRefreshProcessedAudio();
-        }
-        catch (\Exception $e) {
-          if ($e instanceof DynamoDbException
-            || $e instanceof S3Exception
-            || $e instanceof EntityStorageException
-            || $e instanceof InvalidInputAudioFileException
-            || $e instanceof ModuleConfigurationException
-            || $e instanceof ApiCallException
-            || $e instanceof ParseException) {
-            // For "expected exceptions," we don't want to blow up in
-            // postLoad(). Instead, we simply log the exception, and continue to
-            // the next translation.
-            watchdog_exception('sermon_audio', $e, NULL, [], RfcLogLevel::WARNING);
-            continue;
+        if ($translation->hasCleaningJob()) {
+          try {
+            $translationAudioUpdate = $translation->prepareToRefreshProcessedAudio();
           }
-          else throw $e;
+          catch (\Exception $e) {
+            if ($e instanceof DynamoDbException
+              || $e instanceof S3Exception
+              || $e instanceof EntityStorageException
+              || $e instanceof InvalidInputAudioFileException
+              || $e instanceof ModuleConfigurationException
+              || $e instanceof ApiCallException
+              || $e instanceof ParseException) {
+              // For "expected exceptions," we don't want to blow up in
+              // postLoad(). Instead, we simply log the exception, and continue to
+              // the next translation.
+              watchdog_exception('sermon_audio', $e, NULL, [], RfcLogLevel::WARNING);
+              continue;
+            }
+            else throw $e;
+          }
+          if ($translationAudioUpdate()) $requiresSave = TRUE;
         }
-        if ($translationAudioUpdate()) $requiresSave = TRUE;
 
-        try {
-          $shouldFireNewTranscriptionEvent = FALSE;
-          $translationTranscriptUpdate = $translation->prepareToRefreshTranscription($shouldFireNewTranscriptionEvent);
-        }
-        catch (\Exception $e) {
-          if ($e instanceof ApiCallException || $e instanceof ModuleConfigurationException) {
-            watchdog_exception('sermon_audio', $e, NULL, [], RfcLogLevel::WARNING);
-            continue;
+        if ($translation->hasTranscriptionJob()) {
+          try {
+            $shouldFireNewTranscriptionEvent = FALSE;
+            $translationTranscriptUpdate = $translation->prepareToRefreshTranscription($shouldFireNewTranscriptionEvent);
           }
-          else throw $e;
-        }
-        if ($translationTranscriptUpdate()) {
-          $requiresSave = TRUE;
-          if ($shouldFireNewTranscriptionEvent) {
-            $translationsWithTranscriptEvents[] = $translation;
+          catch (\Exception $e) {
+            if ($e instanceof ApiCallException || $e instanceof ModuleConfigurationException) {
+              watchdog_exception('sermon_audio', $e, NULL, [], RfcLogLevel::WARNING);
+              continue;
+            }
+            else throw $e;
+          }
+          if ($translationTranscriptUpdate()) {
+            $requiresSave = TRUE;
+            if ($shouldFireNewTranscriptionEvent) {
+              $translationsWithTranscriptEvents[] = $translation;
+            }
           }
         }
       }
