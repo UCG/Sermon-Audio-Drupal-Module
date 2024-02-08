@@ -49,9 +49,8 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
     // There should be no leading or trailing whitespace.
     $this->assertEquals(trim($result), $result);
     // There should be no pathologically large paragraphs.
-    $maxWords = FinalTranscriptionGenerator::MAX_EXPECTED_PARAGRAPH_WORD_COUNT;
     foreach ($this->getParagraphWordCounts($result) as $wordCount) {
-      $this->assertLessThanOrEqual($maxWords, $wordCount);
+      $this->assertLessThanOrEqual(FinalTranscriptionGenerator::MAX_EXPECTED_PARAGRAPH_WORD_COUNT, $wordCount);
     }
   }
 
@@ -157,7 +156,7 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
     $numParagraphs = count($paragraphsWithOpeningTag);
     if ($skipLastParagraph) $numParagraphs--;
     for ($i = 0; $i < $numParagraphs; $i++) {
-      $paragraphWithOpeningTag = $paragraphsWithOpeningTag[$i];
+      $paragraphWithOpeningTag = trim($paragraphsWithOpeningTag[$i]);
       $this->assertStringStartsWith('<p>', $paragraphWithOpeningTag);
       $paragraph = substr($paragraphWithOpeningTag, 3);
       yield self::getNumWordsInParagraph($paragraph);

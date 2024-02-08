@@ -53,6 +53,11 @@ class FinalTranscriptionGenerator {
   public const TARGET_AVERAGE_PARAGRAPH_WORD_COUNT = 75;
 
   /**
+   * Small value to assist in floating point comparisons.
+   */
+  private const EPSILON = 1E-4;
+
+  /**
    * Module configuration.
    */
   private readonly ImmutableConfig $configuration;
@@ -226,7 +231,7 @@ class FinalTranscriptionGenerator {
     /** @var ?string */
     $segmentText = NULL;
     for ($i = 1; $i < $parseOutputLastIndex; $i++) {
-      if (!isset($parseOutput[$i]['tag']) || !isset($parseOutput[$i]['type']) || !isset($parseOutput[$i]['value'])){
+      if (!isset($parseOutput[$i]['tag']) || !isset($parseOutput[$i]['type'])){
         throw new \RuntimeException('Unexpected XML parser output structure at index ' . $i . '.');
       }
       $tagInfo = $parseOutput[$i];
@@ -234,11 +239,11 @@ class FinalTranscriptionGenerator {
         throw new ParseException('Transcription XML parse error: Invalid <transcription> sub-element at index ' . $i . '.');
       }
 
-      if (!isset($tagInfo['attributes']['start']) || !isset($tagInfo['attributes']['end'])) {
+      if (!isset($tagInfo['attributes']['START']) || !isset($tagInfo['attributes']['END'])) {
         throw new \RuntimeException('Transcription XML parse error: <segment> tag at index ' . $i . ' is missing "start" and/or "end" attributes.');
       }
-      $start = $tagInfo['attributes']['start'];
-      $end = $tagInfo['attributes']['end'];
+      $start = $tagInfo['attributes']['START'];
+      $end = $tagInfo['attributes']['END'];
       if (!is_numeric($start) || !is_numeric($end)) {
         throw new \RuntimeException('Transcription XML parse error: <segment> tag at index ' . $i . ' has non-numeric "start" and/or "end" attributes.');
       }
@@ -249,7 +254,8 @@ class FinalTranscriptionGenerator {
       // Tiny or incorrectly time-ordered segments are discarded.
       if ($end <= $start) continue;
 
-      $text = $tagInfo['value'];
+      if (isset($tagInfo['value'])) $text = $tagInfo['value'];
+      else continue;
       if (!is_scalar($text) && $text !== NULL) {
         throw new \RuntimeException('Transcription XML parse error: <segment> tag at index ' . $i . ' has a non-scalar, non-NULL "value" attribute.');
       }
@@ -410,7 +416,9 @@ class FinalTranscriptionGenerator {
       // midpoints are handled correctly (and not incorrectly rounded down to
       // the integer below).
       $testIndex = (int) floor(($candidateStartIndex + $candidateEndIndex) / 2 + 0.1);
-      $testSeparation = $sortedSeparations[$testIndex];
+      // Subtract a small value to ensure the separation comparisons catch
+      // instances where the semgent separation is equal to the test separation.
+      $testSeparation = $sortedSeparations[$testIndex] - self::EPSILON;
 
       // Compute the number of paragraphs and the pathalogical word counts from
       // the test separation.
@@ -487,8 +495,6 @@ class FinalTranscriptionGenerator {
         $paragraphId++;
       }
     }
-    // We use a sentinel value to indicate the "break" following the last
-    // paragraph.
     $breaksByParagraph[$paragraphId] = $lastSegmentIndex;
     $wordCountCurrentParagraph += $wordCounts[$lastSegmentIndex];
     if ($wordCountCurrentParagraph > self::MAX_EXPECTED_PARAGRAPH_WORD_COUNT) {
@@ -497,7 +503,7 @@ class FinalTranscriptionGenerator {
 
     // Finally, create the paragraphs, splitting apart the long ones.
     $paragraphStart = 0;
-    foreach ($breaksByParagraph as $paragraphId => $lastSegmentId) {
+    foreach ($breaksByParagraph as $paragraphId => $lastSegmentIdInParagraph) {
       if (isset($longParagraphWordCounts[$paragraphId])) {
         // Segments always contain an integral number of sentences (for our
         // purposes), so split along segment boundaries.
@@ -508,7 +514,7 @@ class FinalTranscriptionGenerator {
         if (($wordCountNotOutputtedAsParagraphs - $targetParagraphSize) < self::MIN_EXPECTED_PARAGRAPH_WORD_COUNT) {
           $targetParagraphSize = $wordCountNotOutputtedAsParagraphs;
         }
-        for ($i = $paragraphStart; $i <= $lastSegmentId; $i++) {
+        for ($i = $paragraphStart; $i <= $lastSegmentIdInParagraph; $i++) {
           if ($paragraph !== '') $paragraph .= ' ';
           $paragraph .= $segments[$i]->getText();
           $paragraphWordCount += $wordCounts[$i];
@@ -527,12 +533,12 @@ class FinalTranscriptionGenerator {
       }
       else {
         $paragraph = '';
-        for ($i = $paragraphStart; $i <= $lastSegmentId; $i++) {
+        for ($i = $paragraphStart; $i <= $lastSegmentIdInParagraph; $i++) {
           $paragraph .= $segments[$i]->getText();
         }
         yield $paragraph;
       }
-      $paragraphStart = $lastSegmentId + 1;
+      $paragraphStart = $lastSegmentIdInParagraph + 1;
     }
   }
 
