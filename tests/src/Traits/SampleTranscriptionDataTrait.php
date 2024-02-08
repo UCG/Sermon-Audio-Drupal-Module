@@ -9,7 +9,8 @@ namespace Drupal\Tests\sermon_audio\Traits;
  */
 trait SampleTranscriptionDataTrait {
 
-  private const NORMAL_TRANSCRIPTION_DATUM = <<<'EOS'
+  /** @todo Make into a constant in PHP 8.2. */
+  private static string $normalTranscriptionDatum = <<<'EOS'
 <transcription>
   <segment start="0.00" end="9.64">Well, good morning, everyone.</segment>
   <segment start="9.64" end="11.44">Welcome back to Acts.</segment>
@@ -182,7 +183,7 @@ EOS;
    */
   private static function setUpTranscriptionDatums() : void {
     self::$inputTranscriptionDatums = [
-      'normal.xml' => self::NORMAL_TRANSCRIPTION_DATUM,
+      'normal.xml' => self::$normalTranscriptionDatum,
       'very-short-segment-gaps.xml' => self::generateRepeatedTranscriptionXmlData('My name is Bob.',
         FinalTranscriptionGenerator::MIN_SEGMENT_SEPARATION / 2,
         FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT),
