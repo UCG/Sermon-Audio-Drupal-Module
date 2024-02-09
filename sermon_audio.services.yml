@@ -23,3 +23,6 @@ services:
   sermon_audio.aws_api_invoker:
     class: Drupal\sermon_audio\AwsApiInvoker
     arguments: ['@sermon_audio.aws_credentials_retriever', '@http_client', '@config.factory']
+  sermon_audio.final_transcription_generator:
+    class: Drupal\sermon_audio\FinalTranscriptionGenerator
+    arguments: ['@sermon_audio.s3_client_factory', '@config.factory']
