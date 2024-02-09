@@ -901,7 +901,7 @@ class SermonAudio extends ContentEntityBase {
       $response = self::getApiInvoker()->callApi(
         $transcriptionJobResultsApiEndpoint,
         $transcriptionJobResultsApiRegion,
-        [],
+        NULL,
         ['id' => $this->getTranscriptionJobId()],
         HttpMethod::GET);
     }
