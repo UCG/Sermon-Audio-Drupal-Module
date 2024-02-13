@@ -12,11 +12,11 @@ namespace Drupal\sermon_audio\Event;
 final class SermonAudioEvents {
 
   /**
-   * Name of event fired when audio transcription is spontaneously updated.
+   * Name of event fired when transcription sub-key is spontaneously updated.
    *
    * @var string
    */
-  public const TRANSCRIPTION_AUTO_UPDATED = 'sermon_audio.transcription_auto_updated';
+  public const TRANSCRIPTION_SPONTANEOUSLY_UPDATED = 'sermon_audio.transcription_spontaneously_updated';
 
   /**
    * Empty private constructor to ensure no one instantiates this class.

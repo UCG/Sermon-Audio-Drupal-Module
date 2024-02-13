@@ -85,7 +85,7 @@ final class RefreshHelpers {
             // of Drupal/Symfony, but for now we have to suppress the related
             // PHPStan error.
             /** @phpstan-ignore-next-line */
-            $dispatcher->dispatch(new TranscriptionSpontaneouslyUpdatedEvent($translation), SermonAudioEvents::TRANSCRIPTION_AUTO_UPDATED);
+            $dispatcher->dispatch(new TranscriptionSpontaneouslyUpdatedEvent($translation), SermonAudioEvents::TRANSCRIPTION_SPONTANEOUSLY_UPDATED);
           }
         };
       }
