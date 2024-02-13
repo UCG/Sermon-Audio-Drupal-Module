@@ -54,11 +54,12 @@ abstract class EntityRefresherQueueWorker extends QueueWorkerBase implements Con
         // Ignore nonexistent entities.
         if ($entity === NULL) return;
         assert($entity instanceof SermonAudio);
-        $this->processEntity($entity);
+        $finalization = $this->processEntity($entity);
       }
       finally {
         SermonAudio::enablePostLoadAutoRefreshes($data);
       }
+      if ($finalization !== NULL) $finalization();
     }
     catch (\Exception $e) {
       // Mark the item for immediate re-queing, because we want to make sure
@@ -69,7 +70,11 @@ abstract class EntityRefresherQueueWorker extends QueueWorkerBase implements Con
 
   /**
    * Processes the given sermon audio entity.
+   *
+   * @return ?callable() : void
+   *   Called after the lock is released on the entity's postLoad() auto
+   *   refreshing. Can be used to, e.g., invoke an event. Ignored if NULL.
    */
-  protected abstract function processEntity(SermonAudio $entity) : void;
+  protected abstract function processEntity(SermonAudio $entity) : ?callable;
 
 }

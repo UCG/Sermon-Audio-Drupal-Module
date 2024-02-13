@@ -52,14 +52,17 @@ class TranscriptionRefresherQueueWorker extends EntityRefresherQueueWorker {
    * @throws \Drupal\Core\Entity\EntityStorageException
    *   Thrown if an error occurs when trying to save the entity.
    */
-  protected function processEntity(SermonAudio $entity) : void {
+  protected function processEntity(SermonAudio $entity) : ?callable {
     /** @var ?callable (\Symfony\Component\EventDispatcher\EventDispatcherInterface $dispatcher) : void */
     $dispatching = NULL;
     if (RefreshHelpers::refreshTranscriptionAllTranslations($entity, $dispatching)) {
       $entity->save();
       assert($dispatching !== NULL);
-      $dispatching($this->eventDispatcher);
+      return function () use ($dispatching) : void {
+        $dispatching($this->eventDispatcher);
+      };
     }
+    else return NULL;
   }
 
   /**

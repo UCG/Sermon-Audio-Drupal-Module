@@ -26,10 +26,11 @@ class AudioRefresherQueueWorker extends EntityRefresherQueueWorker {
    * @throws \Drupal\Core\Entity\EntityStorageException
    *   Thrown if an error occurs when trying to save the entity.
    */
-  protected function processEntity(SermonAudio $entity) : void {
+  protected function processEntity(SermonAudio $entity) : ?callable {
     if (RefreshHelpers::refreshProcessedAudioAllTranslations($entity)) {
       $entity->save();
     }
+    return NULL;
   }
 
   /**

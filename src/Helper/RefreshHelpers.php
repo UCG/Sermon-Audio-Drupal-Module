@@ -60,7 +60,7 @@ final class RefreshHelpers {
    *   FALSE if $audio was definitely not modified during this method; TRUE if
    *   $audio may have been modified and should therefore be saved.
    */
-  public static function refreshTranscriptionAllTranslations(SermonAudio $audio, callable|null|false $dispatching = FALSE) : bool {
+  public static function refreshTranscriptionAllTranslations(SermonAudio $audio, callable|null|false &$dispatching = FALSE) : bool {
     $requiresSave = FALSE;
     /** @var \Drupal\sermon_audio\Entity\SermonAudio[] */
     $translationsWithUpdatedTranscriptionSubKey = [];
