@@ -6,6 +6,7 @@ namespace Drupal\sermon_audio\EventSubscriber;
 
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\sermon_audio\Entity\SermonAudio;
 use Drupal\sermon_audio\Helper\RefreshHelpers;
 use Ranine\Helper\StringHelpers;
 use Ranine\Helper\ThrowHelpers;
@@ -63,8 +64,23 @@ class FinishedJobProcessor implements EventSubscriberInterface {
     if (StringHelpers::isNullOrEmpty($jobId)) return;
 
     if ($isTranscriptionJob) {
+      $entityIds = $this->sermonAudioStorage->getQuery()
+        ->accessCheck(FALSE)
+        ->condition('transcription_job_id', $jobId)
+        ->execute();
+      // We don't want "double invocation" of the transcription refresh or
+      // anything like that:
+      foreach ($entityIds as $id) {
+        SermonAudio::disablePostLoadAutoRefreshes((int) $id);
+      }
+
       /** @var \Drupal\sermon_audio\Entity\SermonAudio[] */
-      $entities = $this->sermonAudioStorage->loadByProperties(['transcription_job_id' => $jobId]);
+      $entities = $this->sermonAudioStorage->loadMultiple($entityIds);
+
+      foreach ($entityIds as $id) {
+        SermonAudio::enablePostLoadAutoRefreshes((int) $id);
+      }
+
       /** @var (callable(\Symfony\Component\EventDispatcher\EventDispatcherInterface $dispatcher) : void)[] */
       $dispatchings = [];
       foreach ($entities as $entity) {

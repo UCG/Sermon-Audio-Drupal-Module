@@ -43,7 +43,12 @@ abstract class EntityRefresherQueueWorker extends QueueWorkerBase implements Con
         throw new \InvalidArgumentException('Queue data is not an integer');
       }
 
+      // Before loading, ensure we have no "dual invocation" of sermon audio
+      // refreshes.
+      SermonAudio::disablePostLoadAutoRefreshes($data);
       $entity = $this->sermonAudioStorage->load($data);
+      SermonAudio::enablePostLoadAutoRefreshes($data);
+
       // Ignore nonexistent entities.
       if ($entity === NULL) return;
       assert($entity instanceof SermonAudio);

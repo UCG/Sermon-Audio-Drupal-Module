@@ -9,8 +9,13 @@ use Drupal\sermon_audio\Entity\SermonAudio;
 
 /**
  * Fired when transcription sub-key for sermon audio is spontaneously changed.
+ *
+ * A "spontaneous change" occurs when the transcription sub-key is changed
+ * because it was updated in a cron job, or because it was updated by an
+ * announcement controller. It does not include the case when the sub-key is
+ * changed in SermonAudio::postLoad().
  */
-class TranscriptionAutoUpdatedEvent extends Event {
+class TranscriptionSpontaneouslyUpdatedEvent extends Event {
 
   /**
    * Translation whose transcription sub-key was updated.

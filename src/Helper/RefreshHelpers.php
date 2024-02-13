@@ -6,7 +6,7 @@ namespace Drupal\sermon_audio\Helper;
 
 use Drupal\sermon_audio\Entity\SermonAudio;
 use Drupal\sermon_audio\Event\SermonAudioEvents;
-use Drupal\sermon_audio\Event\TranscriptionAutoUpdatedEvent;
+use Drupal\sermon_audio\Event\TranscriptionSpontaneouslyUpdatedEvent;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -85,7 +85,7 @@ final class RefreshHelpers {
             // of Drupal/Symfony, but for now we have to suppress the related
             // PHPStan error.
             /** @phpstan-ignore-next-line */
-            $dispatcher->dispatch(new TranscriptionAutoUpdatedEvent($translation), SermonAudioEvents::TRANSCRIPTION_AUTO_UPDATED);
+            $dispatcher->dispatch(new TranscriptionSpontaneouslyUpdatedEvent($translation), SermonAudioEvents::TRANSCRIPTION_AUTO_UPDATED);
           }
         };
       }

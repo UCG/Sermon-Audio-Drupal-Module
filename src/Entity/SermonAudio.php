@@ -18,8 +18,6 @@ use Drupal\file\FileInterface;
 use Drupal\file\FileStorageInterface;
 use Drupal\file\FileUsage\FileUsageInterface;
 use Drupal\s3fs\StreamWrapper\S3fsStream;
-use Drupal\sermon_audio\Event\SermonAudioEvents;
-use Drupal\sermon_audio\Event\TranscriptionAutoUpdatedEvent;
 use Drupal\sermon_audio\Exception\ApiCallException;
 use Drupal\sermon_audio\Exception\EntityValidationException;
 use Drupal\sermon_audio\Exception\InvalidInputAudioFileException;
@@ -36,7 +34,6 @@ use Ranine\Exception\ParseException;
 use Ranine\Helper\ParseHelpers;
 use Ranine\Helper\ThrowHelpers;
 use Ranine\Iteration\ExtendableIterable;
-use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 /**
  * An entity representing audio for a sermon.
@@ -65,6 +62,13 @@ use Symfony\Component\EventDispatcher\EventDispatcherInterface;
  * )
  */
 class SermonAudio extends ContentEntityBase {
+
+  /**
+   * Keys are sermon audio entity IDs where postLoad() is disabled.
+   *
+   * @var array<int, true>
+   */
+  private static array $idsWherePostLoadIsDisabled = [];
 
   /**
    * {@inheritdoc}
@@ -1099,6 +1103,28 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
+   * Stops auto audio/transcription refreshes aft. loading sermon audio entity.
+   *
+   * @param int $entityId
+   *   Sermon audio entity ID for which to disable automatic refreshes.
+   */
+  public static function disablePostLoadAutoRefreshes(int $entityId) : void {
+    self::$idsWherePostLoadIsDisabled[$entityId] = TRUE;
+  }
+
+  /**
+   * Re-enables post-load auto audio/transcription refreshes.
+   *
+   * @see self::disablePostLoadAutoRefreshes()
+   *
+   * @param int $entityId
+   *   Sermon audio entity ID for which to re-enable automatic refreshes.
+   */
+  public static function enablePostLoadAutoRefreshes(int $entityId) : void {
+    unset(self::$idsWherePostLoadIsDisabled[$entityId]);
+  }
+
+  /**
    * {@inheritdoc}
    */
   public static function postLoad(EntityStorageInterface $storage, array &$entities) : void {
@@ -1111,6 +1137,9 @@ class SermonAudio extends ContentEntityBase {
 
       $entityId = $entity->id();
       assert($entityId !== NULL);
+      $entityId = (int) $entityId;
+
+      if (isset(self::$idsWherePostLoadIsDisabled[$entityId])) continue;
 
       // Don't do anything if postLoad() has already been run for this entity.
       // This avoids various problems with the static entity cache being cleared
@@ -1123,8 +1152,6 @@ class SermonAudio extends ContentEntityBase {
 
       // We'll have to refresh for all translations, as postLoad() is only
       // called once for all translations.
-      /** @var \Drupal\sermon_audio\Entity\SermonAudio[] */
-      $translationsWithTranscriptEvents = [];
       foreach ($entity->iterateTranslations() as $translation) {
         if ($translation->hasCleaningJob()) {
           try {
@@ -1151,8 +1178,7 @@ class SermonAudio extends ContentEntityBase {
 
         if ($translation->hasTranscriptionJob()) {
           try {
-            $shouldFireNewTranscriptionEvent = FALSE;
-            $translationTranscriptUpdate = $translation->prepareToRefreshTranscription($shouldFireNewTranscriptionEvent);
+            $translationTranscriptUpdate = $translation->prepareToRefreshTranscription();
           }
           catch (\Exception $e) {
             if ($e instanceof ApiCallException || $e instanceof ModuleConfigurationException) {
@@ -1161,12 +1187,7 @@ class SermonAudio extends ContentEntityBase {
             }
             else throw $e;
           }
-          if ($translationTranscriptUpdate()) {
-            $requiresSave = TRUE;
-            if ($shouldFireNewTranscriptionEvent) {
-              $translationsWithTranscriptEvents[] = $translation;
-            }
-          }
+          if ($translationTranscriptUpdate()) $requiresSave = TRUE;
         }
       }
 
@@ -1176,17 +1197,6 @@ class SermonAudio extends ContentEntityBase {
         // loading the unchanged entity).
         $finishedEntityIds[$entityId] = TRUE;
         $entity->save();
-
-        $eventDispatcher = \Drupal::service('event_dispatcher');
-        assert($eventDispatcher instanceof EventDispatcherInterface);
-        foreach ($translationsWithTranscriptEvents as $translation) {
-          // As of this writing, dispatch() is declared without an explicit
-          // $event_name parameter. This may change in later implementations of
-          // Drupal/Symfony, but for now we have to suppress the related PHPStan
-          // error.
-          /** @phpstan-ignore-next-line */
-          $eventDispatcher->dispatch(new TranscriptionAutoUpdatedEvent($translation), SermonAudioEvents::TRANSCRIPTION_AUTO_UPDATED);
-        }
       }
       else {
         $finishedEntityIds[$entityId] = TRUE;
