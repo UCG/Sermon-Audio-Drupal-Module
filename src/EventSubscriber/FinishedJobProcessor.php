@@ -68,6 +68,7 @@ class FinishedJobProcessor implements EventSubscriberInterface {
         ->accessCheck(FALSE)
         ->condition('transcription_job_id', $jobId)
         ->execute();
+      assert(is_array($entityIds));
       // We don't want "double invocation" of the transcription refresh or
       // anything like that:
       foreach ($entityIds as $id) {
