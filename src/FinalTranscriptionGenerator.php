@@ -545,6 +545,7 @@ class FinalTranscriptionGenerator {
       else {
         $paragraph = '';
         for ($i = $paragraphStart; $i <= $lastSegmentIdInParagraph; $i++) {
+          if ($paragraph !== '') $paragraph .= ' ';
           $paragraph .= $segments[$i]->getText();
         }
         yield $paragraph;

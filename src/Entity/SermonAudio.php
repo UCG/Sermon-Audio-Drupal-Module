@@ -1107,6 +1107,8 @@ class SermonAudio extends ContentEntityBase {
    *
    * @param int $entityId
    *   Sermon audio entity ID for which to disable automatic refreshes.
+   *
+   * @internal
    */
   public static function disablePostLoadAutoRefreshes(int $entityId) : void {
     self::$idsWherePostLoadIsDisabled[$entityId] = TRUE;
@@ -1119,6 +1121,8 @@ class SermonAudio extends ContentEntityBase {
    *
    * @param int $entityId
    *   Sermon audio entity ID for which to re-enable automatic refreshes.
+   *
+   * @internal
    */
   public static function enablePostLoadAutoRefreshes(int $entityId) : void {
     unset(self::$idsWherePostLoadIsDisabled[$entityId]);
