@@ -63,14 +63,15 @@ class FinishedJobProcessor implements EventSubscriberInterface {
     self::getPostResponseJob($jobId, $isTranscriptionJob);
     if (StringHelpers::isNullOrEmpty($jobId)) return;
 
-    if ($isTranscriptionJob) {
-      $entityIds = $this->sermonAudioStorage->getQuery()
-        ->accessCheck(FALSE)
-        ->condition('transcription_job_id', $jobId)
-        ->execute();
-      assert(is_array($entityIds));
+    $entityIds = $this->sermonAudioStorage->getQuery()
+      ->accessCheck(FALSE)
+      ->condition($isTranscriptionJob ? 'transcription_job_id' : 'cleaning_job_id', $jobId)
+      ->execute();
+    assert(is_array($entityIds));
+    try {
       // We don't want "double invocation" of the transcription refresh or
-      // anything like that:
+      // anything like that (which can happen on load or save, as saving can
+      // trigger a load).
       foreach ($entityIds as $id) {
         SermonAudio::disablePostLoadAutoRefreshes((int) $id);
       }
@@ -78,34 +79,38 @@ class FinishedJobProcessor implements EventSubscriberInterface {
       /** @var \Drupal\sermon_audio\Entity\SermonAudio[] */
       $entities = $this->sermonAudioStorage->loadMultiple($entityIds);
 
+      if ($isTranscriptionJob) {
+        /** @var (callable(\Symfony\Component\EventDispatcher\EventDispatcherInterface $dispatcher) : void)[] */
+        $dispatchings = [];
+        foreach ($entities as $entity) {
+          /** @var ?callable(\Symfony\Component\EventDispatcher\EventDispatcherInterface) */
+          $dispatching = NULL;
+          if (RefreshHelpers::refreshTranscriptionAllTranslations($entity, $dispatching)) {
+            $entity->save();
+            assert(is_callable($dispatching));
+            $dispatchings[] = $dispatching;
+          }
+        }
+      }
+      else {
+        foreach ($entities as $entity) {
+          if (RefreshHelpers::refreshProcessedAudioAllTranslations($entity)) {
+            $entity->save();
+          }
+        }
+      }
+    }
+    finally {
       foreach ($entityIds as $id) {
         SermonAudio::enablePostLoadAutoRefreshes((int) $id);
       }
+    }
 
-      /** @var (callable(\Symfony\Component\EventDispatcher\EventDispatcherInterface $dispatcher) : void)[] */
-      $dispatchings = [];
-      foreach ($entities as $entity) {
-        /** @var ?callable(\Symfony\Component\EventDispatcher\EventDispatcherInterface) */
-        $dispatching = NULL;
-        if (RefreshHelpers::refreshTranscriptionAllTranslations($entity, $dispatching)) {
-          $entity->save();
-          assert(is_callable($dispatching));
-          $dispatchings[] = $dispatching;
-        }
-      }
+    if ($isTranscriptionJob) {
       // We do all the dispatchings at once, so we don't have to worry as much
       // about them throwing exceptions.
       foreach ($dispatchings as $dispatching) {
         $dispatching($this->eventDispatcher);
-      }
-    }
-    else {
-      /** @var \Drupal\sermon_audio\Entity\SermonAudio[] */
-      $entities = $this->sermonAudioStorage->loadByProperties(['cleaning_job_id' => $jobId]);
-      foreach ($entities as $entity) {
-        if (RefreshHelpers::refreshProcessedAudioAllTranslations($entity)) {
-          $entity->save();
-        }
       }
     }
   }

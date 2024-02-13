@@ -9,8 +9,6 @@ declare (strict_types = 1);
 
 use Drupal\Component\Utility\Html;
 use Drupal\file\FileInterface;
-use Drupal\sermon_audio\QueueItem\CleaningRefreshJob;
-use Drupal\sermon_audio\QueueItem\TranscriptionRefreshJob;
 
 /**
  * Implements hook_cron().
