@@ -338,23 +338,6 @@ class FinalTranscriptionGenerator {
       $totalWordCount += $wordCount;
     }
 
-    // Next, compute separation times between segments. The keys are the indices
-    // of the segments preceding the respective separations.
-    /** @var array<int, float> */
-    $segmentSeparations = [];
-    for ($i = 0, $j = 1; $j < $numSegments; $i++, $j++) {
-      $separation = $segments[$j]->getStart() - $segments[$i]->getEnd();
-      $segmentSeparations[$i] = $separation;
-    }
-    // We now make a sorted list of separations (for a reason which will become
-    // shortly apparent).
-    $sortedSeparations = $segmentSeparations;
-    sort($sortedSeparations, SORT_NUMERIC);
-
-    // Compute the paragraph breaks, and note the pathologically long
-    // paragraphs that result from our breaks. If there is just one segment,
-    // we don't need to do much.
-
     // The keys are the paragraph IDs, and the values are the last segment
     // indices in the respective paragraphs.
     /** @var array<int, int> */
@@ -369,6 +352,30 @@ class FinalTranscriptionGenerator {
       }
     }
     else {
+      // Next, compute separation times between segments. The keys are the indices
+      // of the segments preceding the respective separations.
+      /** @var array<int, float> */
+      $segmentSeparations = [];
+      for ($i = 0, $j = 1; $j < $numSegments; $i++, $j++) {
+        $separation = $segments[$j]->getStart() - $segments[$i]->getEnd();
+        $segmentSeparations[$i] = $separation;
+      }
+
+      // We now make a sorted list of unique separations (for a reason which
+      // will become shortly apparent). We add on a small "fake" value to the
+      // top of the list to make sure we also have the extreme case of a
+      // separation that results in a single paragraph.
+      // (This should really be done using insertions into something like a
+      // red-black tree, but it is not worth it to implement such a thing in
+      // PHP).
+      $sortedPossibleSeparations = array_unique($segmentSeparations, SORT_NUMERIC);
+      sort($sortedPossibleSeparations, SORT_NUMERIC);
+      $sortedPossibleSeparations[] = $sortedPossibleSeparations[count($sortedPossibleSeparations) - 1] + 1;
+
+      // Compute the paragraph breaks, and note the pathologically long
+      // paragraphs that result from our breaks. If there is just one segment,
+      // we don't need to do much.
+
       // Estimate the optimal separation time using the following midpoint
       // algorithm:
       // 1) Pick a separation time in the middle of the sorted list above.
@@ -389,19 +396,20 @@ class FinalTranscriptionGenerator {
       // The algorithm should run in O(n * log n) time, where n is the number of
       // segments.
       $candidateStartIndex = 0;
-      $candidateEndIndex = count($sortedSeparations) - 1;
+      $candidateEndIndex = count($sortedPossibleSeparations) - 1;
       $lastSegmentIndex = $numSegments - 1;
-      /** @var ?int */
-      $testIndex = NULL;
       while ($candidateStartIndex < $candidateEndIndex) {
         // A small value is added to the argument of floor() to ensure integer
         // midpoints are handled correctly (and not incorrectly rounded down to
-        // the integer below).
+        // the integer below). Note that using floor() instead of ceil() here is
+        // appropriate, as we prefer to have larger paragraphs (which are split
+        // apart) than to have smaller ones (which we don't join). By using
+        // floor(), the smaller values tend to be tested (and rejected) first.
         $testIndex = (int) floor(($candidateStartIndex + $candidateEndIndex) / 2 + 0.1);
         // Subtract a small value to ensure the separation comparisons catch
         // instances where the semgent separation is equal to the test
         // separation.
-        $testSeparation = $sortedSeparations[$testIndex] - self::EPSILON;
+        $testSeparation = $sortedPossibleSeparations[$testIndex] - self::EPSILON;
 
         // Compute the number of paragraphs and the pathalogical word counts
         // from the test separation.
@@ -434,14 +442,15 @@ class FinalTranscriptionGenerator {
           // Check diff of total word count and optimal value. Too small or too
           // big?
           $diff = $totalWordCount - self::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT * $numParagraphs;
-          if ($diff > 0) $candidateEndIndex = $testIndex;
-          elseif ($diff < 0) {
+          if ($diff > self::EPSILON) $candidateEndIndex = $testIndex;
+          elseif ($diff < -self::EPSILON) {
             if ($candidateStartIndex === $testIndex) $candidateStartIndex++;
             else $candidateStartIndex = $testIndex;
           }
           else {
             // Optimal!
-            break;
+            $candidateStartIndex = $testIndex;
+            $candidateEndIndex = $testIndex;
           }
         }
         else {
@@ -449,11 +458,9 @@ class FinalTranscriptionGenerator {
           $candidateEndIndex = $testIndex;
         }
       }
-      if ($testIndex === NULL) $separation = $sortedSeparations[$candidateStartIndex];
-      else {
-        assert(isset($testSeparation));
-        $separation = $testSeparation;
-      }
+      assert($candidateStartIndex === $candidateEndIndex);
+      // We subtract epsilon for the same reason as before.
+      $separation = $sortedPossibleSeparations[$candidateStartIndex] - self::EPSILON;
 
       $wordCountCurrentParagraph = 0;
       $paragraphId = 0;
@@ -497,6 +504,7 @@ class FinalTranscriptionGenerator {
             // Output the current paragraph and start a new one.
             yield $paragraph;
             $wordCountNotOutputtedAsParagraphs -= $paragraphWordCount;
+            if ($wordCountNotOutputtedAsParagraphs <= 0) break;
             $paragraph = '';
             $paragraphWordCount = 0;
             $targetParagraphSize = self::getRandomIntWithFluctuations(self::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT, self::SPLITTING_FLUCTUATION);

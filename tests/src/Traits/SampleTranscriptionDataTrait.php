@@ -161,7 +161,7 @@ EOS;
    * @phpstan-param non-empty-string $text
    * @param float $segmentLength
    *   Length (in seconds) of segments.
-   * @param float $semgentSeparation
+   * @param float $segmentSeparation
    *   Separation (in seconds) between segments.
    * @param int $numSegments
    *   Number of segments.
@@ -190,7 +190,7 @@ EOS;
   private static function setUpTranscriptionDatums() : void {
     self::$inputTranscriptionDatums = [
       'normal.xml' => self::$normalTranscriptionDatum,
-      'zero-segment-gaps.xml' => self::generateRepeatedTranscriptionXmlData('My name is Bob.', 2, 0, 1000),
+      'zero-segment-gaps.xml' => self::generateRepeatedTranscriptionXmlData('My name is Bob.', 2, 0, 500),
       'empty-or-very-short-segments.xml' => '<transcription><segment start="0" end="1"></segment><segment start="1" end="1"></segment></transcription>',
       'very-short-datum.xml' => '<transcription><segment start="0" end="1">Hi guys!</segment></transcription>',
     ];
