@@ -159,21 +159,25 @@ EOS;
    * @param string $text
    *   Text in each segment.
    * @phpstan-param non-empty-string $text
-   * @param float $segmentSeparation
+   * @param float $segmentLength
+   *   Length (in seconds) of segments.
+   * @param float $semgentSeparation
    *   Separation (in seconds) between segments.
    * @param int $numSegments
    *   Number of segments.
    * @phpstan-param positive-int $numSegments
    */
-  private static function generateRepeatedTranscriptionXmlData(string $text, float $segmentSeparation, int $numSegments) : string {
-    assert($segmentSeparation > 0);
+  private static function generateRepeatedTranscriptionXmlData(string $text, float $segmentLength, float $segmentSeparation, int $numSegments) : string {
+    assert($segmentSeparation >= 0);
+    assert($segmentLength > 0);
 
     $xml = '<transcription>';
     $lastEndTime = 0;
     for ($i = 0; $i < $numSegments; $i++) {
-      $newEndTime = $lastEndTime + $segmentSeparation;
-      $xml .= '<segment start="' . $lastEndTime . '" end = "' . $newEndTime . '">' . $text . '</segment>';
-      $lastEndTime = $newEndTime;
+      $startTime = $lastEndTime + $segmentSeparation;
+      $endTime = $startTime + $segmentLength;
+      $xml .= '<segment start="' . $startTime . '" end = "' . $endTime . '">' . $text . '</segment>';
+      $lastEndTime = $endTime;
     }
     $xml .= '</transcription>';
 
@@ -186,9 +190,7 @@ EOS;
   private static function setUpTranscriptionDatums() : void {
     self::$inputTranscriptionDatums = [
       'normal.xml' => self::$normalTranscriptionDatum,
-      'very-short-segment-gaps.xml' => self::generateRepeatedTranscriptionXmlData('My name is Bob.',
-        FinalTranscriptionGenerator::MIN_SEGMENT_SEPARATION / 2,
-        FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT),
+      'zero-segment-gaps.xml' => self::generateRepeatedTranscriptionXmlData('My name is Bob.', 2, 0, 1000),
       'empty-or-very-short-segments.xml' => '<transcription><segment start="0" end="1"></segment><segment start="1" end="1"></segment></transcription>',
       'very-short-datum.xml' => '<transcription><segment start="0" end="1">Hi guys!</segment></transcription>',
     ];

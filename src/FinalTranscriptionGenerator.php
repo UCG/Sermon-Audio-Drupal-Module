@@ -23,15 +23,6 @@ class FinalTranscriptionGenerator {
   public const MIN_EXPECTED_PARAGRAPH_WORD_COUNT = 30;
 
   /**
-   * Minimum separation time (in seconds) between transcription segments.
-   *
-   * Segments closer than this are joined together.
-   *
-   * @var float
-   */
-  public const MIN_SEGMENT_SEPARATION = 5E-2;
-
-  /**
    * Paragraphs larger than this are considered "pathological."
    *
    * @var int
@@ -224,12 +215,8 @@ class FinalTranscriptionGenerator {
 
     /** @var \Drupal\sermon_audio\TranscriptionSegment[] */
     $segments = [];
-    /** @var ?float */
-    $segmentStart = NULL;
-    /** @var ?float */
-    $segmentEnd = NULL;
-    /** @var ?string */
-    $segmentText = NULL;
+    /** @var float */
+    $previousEnd = 0;
     for ($i = 1; $i < $parseOutputLastIndex; $i++) {
       if (!isset($parseOutput[$i]['tag']) || !isset($parseOutput[$i]['type'])){
         throw new \RuntimeException('Unexpected XML parser output structure at index ' . $i . '.');
@@ -251,9 +238,12 @@ class FinalTranscriptionGenerator {
       $end = (float) $end;
       // If $start is a negative value, clean it up.
       if ($start < 0) $start = 0;
-      // Tiny or incorrectly time-ordered segments are discarded.
+      // Force a proper ordering of segments.
+      if ($start < $previousEnd) $start = $previousEnd; 
+      // Tiny or too pathological segments are discarded.
       if ($end <= $start) continue;
 
+      // Here we grab the segment text, and discard empty segments.
       if (isset($tagInfo['value'])) $text = $tagInfo['value'];
       else continue;
       if (!is_scalar($text) && $text !== NULL) {
@@ -262,34 +252,8 @@ class FinalTranscriptionGenerator {
       $text = trim((string) $text);
       if ($text === '') continue;
 
-      if ($segmentStart === NULL) {
-        $segmentStart = $start;
-        $segmentEnd = $end;
-        $segmentText = $text;
-      }
-      else {
-        assert($segmentEnd !== NULL);
-        assert(!StringHelpers::isNullOrEmpty($segmentText));
-        // We merge together very nearby or overlapping segments, and segments
-        // that are not separated with a period (".").
-        if (($start - $segmentEnd) < self::MIN_SEGMENT_SEPARATION || $segmentText[strlen($segmentText) - 1] !== '.') {
-          // We use max() in case $end < $segmentEnd for some strange reason.
-          $segmentEnd = (float) max($end, $segmentEnd);
-          $segmentText .= ' ' . $text;
-        }
-        else {
-          // Save the previous segment and start a new one.
-          $segments[] = new TranscriptionSegment($segmentStart, $segmentEnd, $segmentText);
-          $segmentStart = $start;
-          $segmentEnd = $end;
-          $segmentText = $text;
-        }
-      }
-    }
-    if ($segmentStart !== NULL) {
-      assert($segmentEnd !== NULL);
-      assert(!StringHelpers::isNullOrEmpty($segmentText));
-      $segments[] = new TranscriptionSegment($segmentStart, $segmentEnd, $segmentText);
+      $segments[] = new TranscriptionSegment($start, $end, $text);
+      $previousEnd = $end;
     }
 
     return $segments;

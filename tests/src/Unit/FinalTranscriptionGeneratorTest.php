@@ -65,12 +65,12 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
   }
 
   /**
-   * Tests the generate() method for the datum w/ very short inter-segment gaps.
+   * Tests the generate() method for the datum w/ zero-time inter-segment gaps.
    *
    * @covers ::generate
    */
-  public function testGenerateVeryShortGapsDatum() : void {
-    $result = $this->finalTranscriptionGenerator->generateTranscriptionHtml('very-short-segment-gaps.xml');
+  public function testGenerateZeroGapsDatum() : void {
+    $result = $this->finalTranscriptionGenerator->generateTranscriptionHtml('zero-segment-gaps.xml');
 
     // There should be no leading or trailing whitespace.
     $this->assertEquals(trim($result), $result);
