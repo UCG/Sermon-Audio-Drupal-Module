@@ -10,7 +10,10 @@ use Drupal\sermon_audio\Exception\ModuleConfigurationException;
 use Drupal\sermon_audio\Helper\CastHelpers;
 use Psr\Http\Message\StreamInterface;
 use Ranine\Exception\ParseException;
-use Ranine\Helper\StringHelpers;
+
+// @todo Eventually, we might want to handle quotation marks ("", etc.) when
+// determining sentence breaks. Right now, we don't have Whisper set to even
+// generate those, though.
 
 /**
  * Downloads transcription XML and generates HTML output given an input sub-key.
@@ -180,7 +183,7 @@ class FinalTranscriptionGenerator {
    *
    * @return \Drupal\sermon_audio\TranscriptionSegment[]
    *   Segments. Every segment is trimmed, and every segment except possibly the
-   *   last ends in a period (".").
+   *   last ends in a sentence break character.
    *
    * @throws \Ranine\Exception\ParseException
    *   Thrown if the input XML has an unexpected or invalid format.
@@ -213,10 +216,18 @@ class FinalTranscriptionGenerator {
       throw new ParseException('Transcription XML does not have a valid closing <transcription> tag.');
     }
 
+    // The segments produced may differ slightly from the segments in the XML.
+    // In particular, we discard certain segments, and join a segment to its
+    // successor if it does not end in a period (".").
+
     /** @var \Drupal\sermon_audio\TranscriptionSegment[] */
     $segments = [];
     /** @var float */
-    $previousEnd = 0;
+    $segmentStart = 0;
+    /** @var float */
+    $segmentEnd = 0;
+    /** @var string */
+    $segmentText = '';
     for ($i = 1; $i < $parseOutputLastIndex; $i++) {
       if (!isset($parseOutput[$i]['tag']) || !isset($parseOutput[$i]['type'])){
         throw new \RuntimeException('Unexpected XML parser output structure at index ' . $i . '.');
@@ -239,7 +250,7 @@ class FinalTranscriptionGenerator {
       // If $start is a negative value, clean it up.
       if ($start < 0) $start = 0;
       // Force a proper ordering of segments.
-      if ($start < $previousEnd) $start = $previousEnd; 
+      if ($start < $segmentEnd) $start = $previousEnd; 
       // Tiny or too pathological segments are discarded.
       if ($end <= $start) continue;
 
@@ -252,8 +263,21 @@ class FinalTranscriptionGenerator {
       $text = trim((string) $text);
       if ($text === '') continue;
 
-      $segments[] = new TranscriptionSegment($start, $end, $text);
-      $previousEnd = $end;
+      // Join the segments if one does not end in a period.
+      if ($segmentText === '' || !self::isSentenceBreakCharacter($segmentText[strlen($segmentText) - 1])) {
+        $segmentEnd = $end;
+        $segmentText .= ' ' . $text;
+      }
+      else {
+        // Save the previous segment and start a new one.
+        $segments[] = new TranscriptionSegment($segmentStart, $segmentEnd, $segmentText);
+        $segmentStart = $start;
+        $segmentEnd = $end;
+        $segmentText = $text;
+      }
+    }
+    if ($segmentText !== '') {
+      $segments[] = new TranscriptionSegment($segmentStart, $segmentEnd, $segmentText);
     }
 
     return $segments;
@@ -271,6 +295,13 @@ class FinalTranscriptionGenerator {
       throw new ModuleConfigurationException('The "transcription_s3_aws_region" module setting is missing or empty.');
     }
     return $region;
+  }
+
+  /**
+   * Tells if $char is a sentence break character.
+   */
+  private static function isSentenceBreakCharacter(string $char) : bool {
+    return ($char === '.' || $char === '!' || $char === '?') ? TRUE : FALSE;
   }
 
   /**
@@ -311,8 +342,7 @@ class FinalTranscriptionGenerator {
    * @param array<int, \Drupal\sermon_audio\TranscriptionSegment> $segments
    *   Ordered array of segments to convert. Indexed consecutively from 0. The
    *   text in each segment should be trimmed, and should end (with the possible
-   *   exception of the last segment) with a period ("."). Segments closer than
-   *   the minimum separation should already be joined.
+   *   exception of the last segment) with a sentence break character.
    *
    * @return iterable<string>
    *   Output paragraphs. Need to be escaped before being added to HTML.
@@ -487,8 +517,6 @@ class FinalTranscriptionGenerator {
     $paragraphStart = 0;
     foreach ($lastSegmentIdsInParagraphs as $paragraphId => $lastSegmentIdInParagraph) {
       if (isset($longParagraphWordCounts[$paragraphId])) {
-        // Segments always contain an integral number of sentences (for our
-        // purposes), so split along segment boundaries.
         $wordCountNotOutputtedAsParagraphs = $longParagraphWordCounts[$paragraphId];
         $paragraph = '';
         $paragraphWordCount = 0;
@@ -496,10 +524,13 @@ class FinalTranscriptionGenerator {
         if (($wordCountNotOutputtedAsParagraphs - $targetParagraphSize) < self::MIN_EXPECTED_PARAGRAPH_WORD_COUNT) {
           $targetParagraphSize = $wordCountNotOutputtedAsParagraphs;
         }
-        for ($i = $paragraphStart; $i <= $lastSegmentIdInParagraph; $i++) {
-          if ($paragraph !== '') $paragraph .= ' ';
-          $paragraph .= $segments[$i]->getText();
-          $paragraphWordCount += $wordCounts[$i];
+        // Split along sentence boundaries.
+        foreach (self::appendSentencesFromSegments((function () use($segments, $wordCounts, $paragraphStart, $lastSegmentIdInParagraph) : iterable {
+          for ($i = $paragraphStart; $i <= $lastSegmentIdInParagraph; $i++) {
+            yield $segments[$i]->getText() => $wordCounts[$i];
+          }
+        })(), $paragraph) as $wordCount) {
+          $paragraphWordCount += $wordCount;
           if ($paragraphWordCount >= $targetParagraphSize) {
             // Output the current paragraph and start a new one.
             yield $paragraph;
@@ -523,6 +554,96 @@ class FinalTranscriptionGenerator {
         yield $paragraph;
       }
       $paragraphStart = $lastSegmentIdInParagraph + 1;
+    }
+  }
+
+  /**
+   * Appends sentences from the given segments to the given string.
+   *
+   * Also trims each sentence and separates them with spaces.
+   *
+   * @param iterable<string, int> $segments
+   *   Keys are the segments, and values are the corresponding word counts.
+   * @phpstan-param iterable<non-empty-string, positive-int> $segments
+   * @param string $toAppendTo
+   *   (reference) String to append to. Can be modified by caller in between
+   *   iterator yields.
+   *
+   * @return iterable<int>
+   *   Word counts of sentences just appended to $toAppendTo.
+   *
+   * @throws \RuntimeException
+   *   Thrown if a regex error occurs.
+   */
+  private static function appendSentencesFromSegments(iterable $segments, string &$toAppendTo) : iterable {
+    if ($segments === []) return [];
+
+    $matches = [];
+    $runningSentence = '';
+    $runningSentenceWordCount = 0;
+    foreach ($segments as $segment => $segmentWordCount) {
+      assert($segment !== '');
+      assert($segmentWordCount > 0);
+
+      $numMatches = preg_match_all('/(?:.*?[.!?]+\s)|(?:.+$)/', $segment, $matches, PREG_SET_ORDER);
+      if ($numMatches === FALSE) {
+        throw new \RuntimeException('Sentence matching regex error.');
+      }
+      assert(is_int($numMatches));
+      assert($numMatches > 0);
+
+      $currentMatchIndex = 0;
+      // If we can, terminate the current "running sentence" and append it (and
+      // output its word count).
+      if ($runningSentence !== '') {
+        $trimmedFirstMatch = trim($matches[0][0]);
+        assert($trimmedFirstMatch !== '');
+        if ($numMatches > 1 || self::isSentenceBreakCharacter($trimmedFirstMatch[strlen($trimmedFirstMatch) - 1])) {
+          if ($toAppendTo !== '') $toAppendTo .= ' ';
+          $toAppendTo .= $runningSentence . ' ' . $trimmedFirstMatch;
+          if ($numMatches === 1) {
+            yield $runningSentenceWordCount + $segmentWordCount;
+          }
+          else {
+            yield $runningSentenceWordCount + self::estimateWordCount($trimmedFirstMatch);
+          }
+
+          $currentMatchIndex = 1;
+          $runningSentence = '';
+          $runningSentenceWordCount = 0;
+        }
+      }
+
+      $lastMatchIndex = $numMatches - 1;
+      for ($currentMatchIndex; $currentMatchIndex < $lastMatchIndex; $currentMatchIndex++) {
+        $trimmedMatch = trim($matches[$currentMatchIndex][0]);
+        assert($trimmedMatch !== '');
+        if ($toAppendTo !== '') $toAppendTo .= ' ';
+        $toAppendTo .= $trimmedMatch;
+        yield self::estimateWordCount($trimmedMatch);
+      }
+
+      // If there was only one match, we may have already handled it in the
+      // "running sentence" code earlier, so we add this if() statement.
+      if ($lastMatchIndex === $currentMatchIndex) {
+        // For the last match, append if it ends in a sentence break character.
+        $trimmedLastMatch = trim($matches[$lastMatchIndex][0]);
+        if (self::isSentenceBreakCharacter($trimmedLastMatch[strlen($trimmedLastMatch) - 1])) {
+          if ($toAppendTo !== '') $toAppendTo .= ' ';
+          $toAppendTo .= $trimmedLastMatch;
+          // No need to estimate the word count if the match consists of the
+          // entire segment.
+          if ($numMatches === 1) yield $segmentWordCount;
+          else yield self::estimateWordCount($trimmedLastMatch);
+        }
+        else {
+          // Add to the current "running sentence."
+          if ($runningSentence !== '') $runningSentence .= ' ';
+          $runningSentence .= $trimmedLastMatch;
+          if ($numMatches === 1) $runningSentenceWordCount += $segmentWordCount;
+          else $runningSentenceWordCount += self::estimateWordCount($trimmedLastMatch);
+        }
+      }
     }
   }
 
