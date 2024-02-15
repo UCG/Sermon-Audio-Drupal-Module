@@ -190,7 +190,8 @@ EOS;
   private static function setUpTranscriptionDatums() : void {
     self::$inputTranscriptionDatums = [
       'normal.xml' => self::$normalTranscriptionDatum,
-      'zero-segment-gaps.xml' => self::generateRepeatedTranscriptionXmlData('My name is Bob.', 2, 0, 500),
+      'zero-segment-gaps.xml' => self::generateRepeatedTranscriptionXmlData('My name is Bob!', 2, 0, 500),
+      'one-big-segment.xml' => '<transcription><segment start="0" end="500">' . str_repeat('Is my name Bob? ', 500) . '</segment></transcription>',
       'empty-or-very-short-segments.xml' => '<transcription><segment start="0" end="1"></segment><segment start="1" end="1"></segment></transcription>',
       'very-short-datum.xml' => '<transcription><segment start="0" end="1">Hi guys!</segment></transcription>',
     ];

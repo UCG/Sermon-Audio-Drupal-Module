@@ -87,6 +87,25 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
   }
 
   /**
+   * Tests the generate() method for the datum w/ one long segment.
+   *
+   * @covers ::generate
+   */
+  public function testGenerateOneLongSegmentDatum() : void {
+    $result = $this->finalTranscriptionGenerator->generateTranscriptionHtml('one-big-segment.xml');
+
+    // There should be no leading or trailing whitespace.
+    $this->assertEquals(trim($result), $result);
+    // See self::testGenerateZeroGapsDatum() to understand the following.
+    $minWords = FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT - FinalTranscriptionGenerator::SPLITTING_FLUCTUATION;
+    $maxWords = FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT + FinalTranscriptionGenerator::SPLITTING_FLUCTUATION;
+    foreach ($this->getParagraphWordCounts($result, TRUE) as $wordCount) {
+      $this->assertGreaterThanOrEqual($minWords, $wordCount);
+      $this->assertLessThanOrEqual($maxWords, $wordCount);
+    }
+  }
+
+  /**
    * {@inheritdoc}
    */
   protected function setUp() : void {
