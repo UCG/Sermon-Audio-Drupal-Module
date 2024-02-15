@@ -96,6 +96,8 @@ class FinalTranscriptionGenerator {
    *   metadata or could not be converted to a string, or if the body is a PSR
    *   stream and an error occurs when attempting to perform some operation on
    *   it.
+   * @throws \RuntimeException
+   *   Thrown if a regex error occurs.
    */
   public function generateTranscriptionHtml(string $inputTranscriptionXmlSubKey) : string {
     $s3Client = $this->s3ClientFactory->getClient($this->getTranscriptionS3Region());
@@ -355,6 +357,8 @@ class FinalTranscriptionGenerator {
    *
    * @throws \InvalidArgumentException
    *   Thrown if $segments[$i] does not exist for 0 <= $i < count($segments).
+   * @throws \RuntimeException
+   *   Thrown if a regex error occurs.
    */
   private static function segmentsToParagraphs(array $segments) : iterable {
     $numSegments = count($segments);
