@@ -154,11 +154,12 @@ EOS;
   /**
    * Generates and returns transcription XML data with repeated text.
    *
-   * Each segment has the same text ($text).
-   *
-   * @param string $text
-   *   Text in each segment.
-   * @phpstan-param non-empty-string $text
+   * @param string $firstSegmentText
+   *   Text in first segment.
+   * @phpstan-param non-empty-string $firstSegmentText
+   * @param string $subsequentSegmentsText
+   *   Text in following segments.
+   * @phpstan-param non-empty-string $subsequentSegmentsText
    * @param float $segmentLength
    *   Length (in seconds) of segments.
    * @param float $segmentSeparation
@@ -167,16 +168,18 @@ EOS;
    *   Number of segments.
    * @phpstan-param positive-int $numSegments
    */
-  private static function generateRepeatedTranscriptionXmlData(string $text, float $segmentLength, float $segmentSeparation, int $numSegments) : string {
+  private static function generateRepeatedTranscriptionXmlData(string $firstSegmentText, string $subsequentSegmentsText, float $segmentLength, float $segmentSeparation, int $numSegments) : string {
     assert($segmentSeparation >= 0);
     assert($segmentLength > 0);
+    assert($firstSegmentText !== '');
+    assert($subsequentSegmentsText !== '');
 
-    $xml = '<transcription>';
-    $lastEndTime = 0;
-    for ($i = 0; $i < $numSegments; $i++) {
+    $xml = '<transcription><segment start="0" end="' . $segmentLength . '">' . $firstSegmentText . '</segment>';
+    $lastEndTime = $segmentLength;
+    for ($i = 1; $i < $numSegments; $i++) {
       $startTime = $lastEndTime + $segmentSeparation;
       $endTime = $startTime + $segmentLength;
-      $xml .= '<segment start="' . $startTime . '" end = "' . $endTime . '">' . $text . '</segment>';
+      $xml .= '<segment start="' . $startTime . '" end = "' . $endTime . '">' . $subsequentSegmentsText . '</segment>';
       $lastEndTime = $endTime;
     }
     $xml .= '</transcription>';
@@ -190,7 +193,7 @@ EOS;
   private static function setUpTranscriptionDatums() : void {
     self::$inputTranscriptionDatums = [
       'normal.xml' => self::$normalTranscriptionDatum,
-      'zero-segment-gaps.xml' => self::generateRepeatedTranscriptionXmlData('My name is Bob!', 2, 0, 500),
+      'zero-segment-gaps.xml' => self::generateRepeatedTranscriptionXmlData('My name is Bob! My name', 'is Bob! My name', 2, 0, 500),
       'one-big-segment.xml' => '<transcription><segment start="0" end="500">' . str_repeat('Is my name Bob? ', 500) . '</segment></transcription>',
       'empty-or-very-short-segments.xml' => '<transcription><segment start="0" end="1"></segment><segment start="1" end="1"></segment></transcription>',
       'very-short-datum.xml' => '<transcription><segment start="0" end="1">Hi guys!</segment></transcription>',

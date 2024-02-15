@@ -250,7 +250,7 @@ class FinalTranscriptionGenerator {
       // If $start is a negative value, clean it up.
       if ($start < 0) $start = 0;
       // Force a proper ordering of segments.
-      if ($start < $segmentEnd) $start = $previousEnd; 
+      if ($start < $segmentEnd) $start = $segmentEnd; 
       // Tiny or too pathological segments are discarded.
       if ($end <= $start) continue;
 
@@ -263,8 +263,14 @@ class FinalTranscriptionGenerator {
       $text = trim((string) $text);
       if ($text === '') continue;
 
-      // Join the segments if one does not end in a period.
-      if ($segmentText === '' || !self::isSentenceBreakCharacter($segmentText[strlen($segmentText) - 1])) {
+      if ($segmentText === '') {
+        $segmentStart = $start;
+        $segmentEnd = $end;
+        $segmentText = $text;
+      }
+      // Join the segments if the current output segment text does not end in a
+      // period.
+      elseif (!self::isSentenceBreakCharacter($segmentText[strlen($segmentText) - 1])) {
         $segmentEnd = $end;
         $segmentText .= ' ' . $text;
       }
@@ -527,6 +533,7 @@ class FinalTranscriptionGenerator {
         // Split along sentence boundaries.
         foreach (self::appendSentencesFromSegments((function () use($segments, $wordCounts, $paragraphStart, $lastSegmentIdInParagraph) : iterable {
           for ($i = $paragraphStart; $i <= $lastSegmentIdInParagraph; $i++) {
+            assert($wordCounts[$i] > 0);
             yield $segments[$i]->getText() => $wordCounts[$i];
           }
         })(), $paragraph) as $wordCount) {
@@ -583,7 +590,6 @@ class FinalTranscriptionGenerator {
     $runningSentenceWordCount = 0;
     foreach ($segments as $segment => $segmentWordCount) {
       assert($segment !== '');
-      assert($segmentWordCount > 0);
 
       $numMatches = preg_match_all('/(?:.*?[.!?]+\s)|(?:.+$)/', $segment, $matches, PREG_SET_ORDER);
       if ($numMatches === FALSE) {
