@@ -651,6 +651,12 @@ class FinalTranscriptionGenerator {
         }
       }
     }
+    // Append the last "running sentence" if it exists.
+    if ($runningSentence !== '') {
+      if ($toAppendTo !== '') $toAppendTo .= ' ';
+      $toAppendTo .= $runningSentence;
+      yield $runningSentenceWordCount;
+    }
   }
 
 }
