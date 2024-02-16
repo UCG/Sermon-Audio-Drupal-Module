@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Drupal\sermon_audio\Event;
 
 use Drupal\Component\EventDispatcher\Event;
+use Drupal\sermon_audio\Entity\SermonAudio;
 
 /**
  * Fired when processed audio for sermon audio is spontaneously changed.

@@ -4,10 +4,12 @@ declare(strict_types = 1);
 
 namespace Drupal\sermon_audio\Plugin\QueueWorker;
 
+use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\sermon_audio\Entity\SermonAudio;
 use Drupal\sermon_audio\Helper\RefreshHelpers;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 /**
  * Refreshes processed audio for certain sermon audio entities.
@@ -69,10 +71,13 @@ class AudioRefresherQueueWorker extends EntityRefresherQueueWorker {
   public static function create(ContainerInterface $container, array $configuration, mixed $plugin_id, mixed $plugin_definition) : self {
     $entityTypeManager = $container->get('entity_type.manager');
     assert($entityTypeManager instanceof EntityTypeManagerInterface);
+    $eventDispatcher = $container->get('event_dispatcher');
+    assert($eventDispatcher instanceof EventDispatcherInterface);
     return new self($configuration,
       $plugin_id,
       $plugin_definition,
-      $entityTypeManager->getStorage('sermon_audio'));
+      $entityTypeManager->getStorage('sermon_audio'),
+      $eventDispatcher);
   }
 
 }

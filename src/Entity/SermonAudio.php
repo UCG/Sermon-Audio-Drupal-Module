@@ -349,9 +349,11 @@ class SermonAudio extends ContentEntityBase {
     ThrowHelpers::throwIfEmptyString($sermonCongregation, 'sermonCongregation');
     ThrowHelpers::throwIfEmptyString($sermonLanguageCode, 'sermonLanguageCode');
     ThrowHelpers::throwIfLessThanOrEqualToZero($sermonYear, 'sermonYear');
+    /** @phpstan-ignore-next-line */
     if ($sermonMonth < 1 || $sermonMonth > 12) {
       throw new \InvalidArgumentException('$sermonMonth must be between 1 and 12 (inclusive).');
     }
+    /** @phpstan-ignore-next-line */
     if ($sermonDay < 1 || $sermonDay > 31) {
       throw new \InvalidArgumentException('$sermonDay must be between 1 and 31 (inclusive).');
     }
