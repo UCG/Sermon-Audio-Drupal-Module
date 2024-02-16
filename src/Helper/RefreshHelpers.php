@@ -5,6 +5,7 @@ declare (strict_types = 1);
 namespace Drupal\sermon_audio\Helper;
 
 use Drupal\sermon_audio\Entity\SermonAudio;
+use Drupal\sermon_audio\Event\AudioSpontaneouslyUpdatedEvent;
 use Drupal\sermon_audio\Event\SermonAudioEvents;
 use Drupal\sermon_audio\Event\TranscriptionSpontaneouslyUpdatedEvent;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
@@ -29,19 +30,45 @@ final class RefreshHelpers {
    *
    * @param \Drupal\sermon_audio\Entity\SermonAudio $audio
    *   Sermon audio entity whose processed audio should be refreshed.
+   * @param false|null|callable (\Symfony\Component\EventDispatcher\EventDispatcherInterface $dispatcher) : void $dispatching
+   *   (output) If not FALSE, when returned this can be used to invoke the
+   *   "processed audio auto-updated" event with the provided dispatcher.
    *
    * @return bool
    *   FALSE if $audio was definitely not modified during this method; TRUE if
    *   $audio may have been modified and should therefore be saved.
    */
-  public static function refreshProcessedAudioAllTranslations(SermonAudio $audio) : bool {
+  public static function refreshProcessedAudioAllTranslations(SermonAudio $audio, callable|null|false &$dispatching = FALSE) : bool {
     $requiresSave = FALSE;
+    /** @var \Drupal\sermon_audio\Entity\SermonAudio[] */
+    $translationsWithUpdatedProcessedAudio = [];
     foreach ($audio->iterateTranslations() as $translation) {
       if ($translation->hasCleaningJob()) {
-        if ($translation->refreshProcessedAudio()) $requiresSave = TRUE;
+        $audioUpdated = FALSE;
+        if ($translation->refreshProcessedAudio($audioUpdated)) {
+          $requiresSave = TRUE;
+          if ($dispatching !== FALSE && $audioUpdated) {
+            $translationsWithUpdatedProcessedAudio[] = $translation;
+          }
+        }
       }
     }
 
+    if ($dispatching !== FALSE) {
+      if ($requiresSave) {
+        $dispatching = function (EventDispatcherInterface $dispatcher) use ($translationsWithUpdatedProcessedAudio) : void {
+          foreach ($translationsWithUpdatedProcessedAudio as $translation) {
+            // As of this writing, dispatch() is declared without an explicit
+            // $event_name parameter. This may change in later implementations
+            // of Drupal/Symfony, but for now we have to suppress the related
+            // PHPStan error.
+            /** @phpstan-ignore-next-line */
+            $dispatcher->dispatch(new AudioSpontaneouslyUpdatedEvent($translation), SermonAudioEvents::AUDIO_SPONTANEOUSLY_UPDATED);
+          }
+        };
+      }
+      else $dispatching = function ($d) : void {};
+    }
     return $requiresSave;
   }
 
@@ -80,10 +107,6 @@ final class RefreshHelpers {
       if ($requiresSave) {
         $dispatching = function (EventDispatcherInterface $dispatcher) use ($translationsWithUpdatedTranscriptionSubKey) : void {
           foreach ($translationsWithUpdatedTranscriptionSubKey as $translation) {
-            // As of this writing, dispatch() is declared without an explicit
-            // $event_name parameter. This may change in later implementations
-            // of Drupal/Symfony, but for now we have to suppress the related
-            // PHPStan error.
             /** @phpstan-ignore-next-line */
             $dispatcher->dispatch(new TranscriptionSpontaneouslyUpdatedEvent($translation), SermonAudioEvents::TRANSCRIPTION_SPONTANEOUSLY_UPDATED);
           }

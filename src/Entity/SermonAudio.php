@@ -593,6 +593,10 @@ class SermonAudio extends ContentEntityBase {
    *
    * This entity is not saved in this method -- that is up to the caller.
    *
+   * @param bool $newProcessedAudioObtained
+   *   (output) If new processed audio was found in the results for the current
+   *   job, this will be TRUE. Else, it will be FALSE.
+   *
    * @return bool
    *   TRUE if this entity may have been changed, else FALSE.
    *
@@ -627,12 +631,12 @@ class SermonAudio extends ContentEntityBase {
    * @throws \Drupal\sermon_audio\Exception\ApiCallException
    *   Thrown if an error occurs when making a call to the job results API.
    */
-  public function refreshProcessedAudio() : bool {
+  public function refreshProcessedAudio(bool &$newProcessedAudioObtained = FALSE) : bool {
     if (!$this->hasCleaningJob()) {
       throw new InvalidOperationException('There is no cleaning job ID associated with this entity.');
     }
 
-    return $this->prepareToRefreshProcessedAudio()();
+    return $this->prepareToRefreshProcessedAudio($newProcessedAudioObtained)();
   }
 
   /**
@@ -711,12 +715,17 @@ class SermonAudio extends ContentEntityBase {
    * (everything except the \Ranine\Exception\InvalidOperationException
    * exception).
    *
+   * @param bool $newProcessedAudioObtained
+   *   (output) If new processed audio was found in the results for the current
+   *   job, this will be TRUE. Else, it will be FALSE.
+   *
    * @return callable() : bool
    *   Setter returning TRUE if the entity may have been changed; else it
    *   returns FALSE.
    */
-  private function prepareToRefreshProcessedAudio() : callable {
+  private function prepareToRefreshProcessedAudio(bool &$newProcessedAudioObtained = FALSE) : callable {
     assert($this->hasCleaningJob());
+    $newProcessedAudioObtained = FALSE;
 
     if (Settings::isDebugModeEnabled()) {
       $unprocessedAudioId = $this->getUnprocessedAudioId() ?? throw self::getUnprocessedAudioFieldException();
@@ -864,6 +873,7 @@ class SermonAudio extends ContentEntityBase {
     $newProcessedAudio->save();
     $newProcessedAudioId = (int) $newProcessedAudio->id();
 
+    $newProcessedAudioObtained = TRUE;
     return function() use ($newProcessedAudioId, $duration) : bool {
       $this->setProcessedAudioTargetId($newProcessedAudioId);
       $this->setDuration($duration);

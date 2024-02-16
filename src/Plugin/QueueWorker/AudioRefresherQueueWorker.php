@@ -20,6 +20,30 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 class AudioRefresherQueueWorker extends EntityRefresherQueueWorker {
 
+  private readonly EventDispatcherInterface $eventDispatcher;
+
+  /**
+   * Creates a new sermon audio processed audio refresher queue worker.
+   *
+   * @param array $configuration
+   *   Plugin instance configuration.
+   * @param string $plugin_id
+   *   Plugin ID for plugin instance.
+   * @param mixed $plugin_definition
+   *   Plugin implementation definition.
+   * @param \Drupal\Core\Entity\EntityStorageInterface $sermonAudioStorage
+   * @param \Symfony\Component\EventDispatcher\EventDispatcherInterface $eventDispatcher
+   */
+  public function __construct(array $configuration,
+    $plugin_id,
+    $plugin_definition,
+    EntityStorageInterface $sermonAudioStorage,
+    EventDispatcherInterface $eventDispatcher) {
+    parent::__construct($configuration, $plugin_id, $plugin_definition, $sermonAudioStorage);
+
+    $this->eventDispatcher = $eventDispatcher;
+  }
+
   /**
    * {@inheritdoc}
    *
@@ -27,10 +51,16 @@ class AudioRefresherQueueWorker extends EntityRefresherQueueWorker {
    *   Thrown if an error occurs when trying to save the entity.
    */
   protected function processEntity(SermonAudio $entity) : ?callable {
-    if (RefreshHelpers::refreshProcessedAudioAllTranslations($entity)) {
+    /** @var ?callable (\Symfony\Component\EventDispatcher\EventDispatcherInterface $dispatcher) : void */
+    $dispatching = NULL;
+    if (RefreshHelpers::refreshProcessedAudioAllTranslations($entity, $dispatching)) {
       $entity->save();
+      assert($dispatching !== NULL);
+      return function () use ($dispatching) : void {
+        $dispatching($this->eventDispatcher);
+      };
     }
-    return NULL;
+    else return NULL;
   }
 
   /**

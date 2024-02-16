@@ -78,10 +78,10 @@ class FinishedJobProcessor implements EventSubscriberInterface {
 
       /** @var \Drupal\sermon_audio\Entity\SermonAudio[] */
       $entities = $this->sermonAudioStorage->loadMultiple($entityIds);
+      /** @var (callable(\Symfony\Component\EventDispatcher\EventDispatcherInterface $dispatcher) : void)[] */
+      $dispatchings = [];
 
       if ($isTranscriptionJob) {
-        /** @var (callable(\Symfony\Component\EventDispatcher\EventDispatcherInterface $dispatcher) : void)[] */
-        $dispatchings = [];
         foreach ($entities as $entity) {
           /** @var ?callable(\Symfony\Component\EventDispatcher\EventDispatcherInterface) */
           $dispatching = NULL;
@@ -94,8 +94,12 @@ class FinishedJobProcessor implements EventSubscriberInterface {
       }
       else {
         foreach ($entities as $entity) {
-          if (RefreshHelpers::refreshProcessedAudioAllTranslations($entity)) {
+          /** @var ?callable(\Symfony\Component\EventDispatcher\EventDispatcherInterface) */
+          $dispatching = NULL;
+          if (RefreshHelpers::refreshProcessedAudioAllTranslations($entity, $dispatching)) {
             $entity->save();
+            assert(is_callable($dispatching));
+            $dispatchings[] = $dispatching;
           }
         }
       }
@@ -106,12 +110,10 @@ class FinishedJobProcessor implements EventSubscriberInterface {
       }
     }
 
-    if ($isTranscriptionJob) {
-      // We do all the dispatchings at once, so we don't have to worry as much
-      // about them throwing exceptions.
-      foreach ($dispatchings as $dispatching) {
-        $dispatching($this->eventDispatcher);
-      }
+    // We do all the dispatchings at once, so we don't have to worry as much
+    // about them throwing exceptions.
+    foreach ($dispatchings as $dispatching) {
+      $dispatching($this->eventDispatcher);
     }
   }
 
