@@ -281,6 +281,12 @@ class SermonAudio extends ContentEntityBase {
    * @param int $sermonYear
    *   Sermon year corresponding to audio.
    * @phpstan-param positive-int $sermonYear
+   * @param int $sermonMonth
+   *   Sermon month corresponding to audio.
+   * @phpstan-param int<1, 12> $sermonMonth
+   * @param int $sermonDay
+   *   Sermon day corresponding to audio.
+   * @phpstan-param int<1, 31> $sermonDay
    * @param string $sermonCongregation
    *   Sermon congregation corresponding to audio.
    * @phpstan-param non-empty-string $sermonCongregation
@@ -313,13 +319,15 @@ class SermonAudio extends ContentEntityBase {
    *   Can be thrown if module's "connect_timeout" or "endpoint_timeout"
    *   configuration setting is invalid.
    * @throws \InvalidArgumentException
-   *   Thrown if $sermonName, $sermonYear, $sermonCongregation, or
-   *   $sermonLanguageCode is empty.
+   *   Thrown if $sermonName, $sermonCongregation, or $sermonLanguageCode is
+   *   empty.
    * @throws \InvalidArgumentException
    *   Thrown if both $sermonSpeakerFirstNames and $sermonSpeakerLastName are
    *   consist only of whitespace.
    * @throws \InvalidArgumentException
-   *   Thrown if $sermonYear is less than or equal to zero.
+   *   Thrown if $sermonYear is less than or equal to zero, if $sermonMonth is
+   *   not between 1 and 12 (inclusive), or if $sermonDay is not between 1 and
+   *   31 (inclusive).
    * @throws \RuntimeException
    *   Thrown if the unprocessed audio file entity could not be loaded.
    * @throws \Drupal\sermon_audio\Exception\ApiCallException
@@ -330,6 +338,8 @@ class SermonAudio extends ContentEntityBase {
     string $sermonSpeakerFirstNames,
     string $sermonSpeakerLastName,
     int $sermonYear,
+    int $sermonMonth,
+    int $sermonDay,
     string $sermonCongregation,
     string $sermonLanguageCode,
     bool $transcribe = TRUE,
@@ -339,6 +349,12 @@ class SermonAudio extends ContentEntityBase {
     ThrowHelpers::throwIfEmptyString($sermonCongregation, 'sermonCongregation');
     ThrowHelpers::throwIfEmptyString($sermonLanguageCode, 'sermonLanguageCode');
     ThrowHelpers::throwIfLessThanOrEqualToZero($sermonYear, 'sermonYear');
+    if ($sermonMonth < 1 || $sermonMonth > 12) {
+      throw new \InvalidArgumentException('$sermonMonth must be between 1 and 12 (inclusive).');
+    }
+    if ($sermonDay < 1 || $sermonDay > 31) {
+      throw new \InvalidArgumentException('$sermonDay must be between 1 and 31 (inclusive).');
+    }
 
     $sermonSpeakerFirstNames = trim($sermonSpeakerFirstNames);
     $sermonSpeakerLastName = trim($sermonSpeakerLastName);
@@ -390,6 +406,8 @@ class SermonAudio extends ContentEntityBase {
       'sermon-speaker' => $sermonSpeakerFullName,
       'sermon-speaker-normalized' => $sermonSpeakerNormalized,
       'sermon-year' => $sermonYear,
+      'sermon-month' => $sermonMonth,
+      'sermon-day' => $sermonDay,
       'sermon-congregation' => $sermonCongregation,
     ];
     try {
