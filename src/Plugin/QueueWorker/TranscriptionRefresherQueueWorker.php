@@ -12,7 +12,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 /**
- * Refreshes transcription for certain sermon audio entities.
+ * Refreshes transcription sub-key for certain sermon audio entities.
  *
  * @QueueWorker(
  *   id = "sermon_audio_transcription_refresher",
@@ -25,7 +25,7 @@ class TranscriptionRefresherQueueWorker extends EntityRefresherQueueWorker {
   private readonly EventDispatcherInterface $eventDispatcher;
 
   /**
-   * Creates a new sermon audio entity refresher queue worker.
+   * Creates a new sermon audio transcription sub-key refresher queue worker.
    *
    * @param array $configuration
    *   Plugin instance configuration.
