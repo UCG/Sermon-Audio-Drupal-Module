@@ -58,11 +58,6 @@ class FinalTranscriptionGenerator {
 
   private readonly S3ClientFactory $s3ClientFactory;
 
-  /**
-   * XML parser, if it is set yet.
-   */
-  private ?\XMLParser $xmlParser = NULL;
-
   public function __construct(S3ClientFactory $s3ClientFactory, ConfigFactoryInterface $configFactory) {
     $this->s3ClientFactory = $s3ClientFactory;
     $this->configuration = $configFactory->get('sermon_audio.settings');
@@ -133,16 +128,12 @@ class FinalTranscriptionGenerator {
   }
 
   /**
-   * Ensures the XML parser is created.
-   *
-   * @phpstan-assert !null $this->xmlParser
+   * Creates and prepares a new XML parser.
    */
-  private function ensureXmlParserCreated() : void {
-    if (!isset($this->xmlParser)) {
-      $this->xmlParser = xml_parser_create('UTF-8');
-      xml_parser_set_option($this->xmlParser, XML_OPTION_CASE_FOLDING, 1);
-      xml_parser_set_option($this->xmlParser, XML_OPTION_SKIP_WHITE, 1);
-    }
+  private function createXmlParser() : \XMLParser {
+    $parser = xml_parser_create('UTF-8');
+    xml_parser_set_option($xmlParser, XML_OPTION_CASE_FOLDING, 1);
+    xml_parser_set_option($xmlParser, XML_OPTION_SKIP_WHITE, 1);
   }
 
   /**
@@ -196,12 +187,15 @@ class FinalTranscriptionGenerator {
   private function getSegmentsFromTranscriptionXml(string $xml) : array {
     $xml = trim($xml);
     if ($xml === '') return [];
-    $this->ensureXmlParserCreated();
+    // We create a new parser every time we run this, as it seems parsers can't
+    // be re-used.
+    $parser = $this->createXmlParser();
 
     $parseOutput = [];
-    $parseResultCode = xml_parse_into_struct($this->xmlParser, $xml, $parseOutput);
+    $parseResultCode = xml_parse_into_struct($parser, $xml, $parseOutput);
     if ($parseResultCode !== 1) {
-      throw new \RuntimeException('An error occurred during XML parsing.');
+      $errorCode = xml_get_error_code($parser);
+      throw new \RuntimeException('An error occurred during XML parsing.' . $errorCode ? (' Error code: ' . xml_error_string($errorCode) . '.') : '');
     }
 
     $parseOutputLastIndex = count($parseOutput) - 1;
