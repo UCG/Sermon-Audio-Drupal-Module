@@ -128,12 +128,13 @@ class FinalTranscriptionGenerator {
   }
 
   /**
-   * Creates and prepares a new XML parser.
+   * Creates, prepares and returns a new XML parser.
    */
   private function createXmlParser() : \XMLParser {
     $parser = xml_parser_create('UTF-8');
-    xml_parser_set_option($xmlParser, XML_OPTION_CASE_FOLDING, 1);
-    xml_parser_set_option($xmlParser, XML_OPTION_SKIP_WHITE, 1);
+    xml_parser_set_option($parser, XML_OPTION_CASE_FOLDING, 1);
+    xml_parser_set_option($parser, XML_OPTION_SKIP_WHITE, 1);
+    return $parser;
   }
 
   /**
@@ -195,6 +196,7 @@ class FinalTranscriptionGenerator {
     $parseResultCode = xml_parse_into_struct($parser, $xml, $parseOutput);
     if ($parseResultCode !== 1) {
       $errorCode = xml_get_error_code($parser);
+      /** @phpstan-ignore-next-line */
       throw new \RuntimeException('An error occurred during XML parsing.' . $errorCode ? (' Error code: ' . xml_error_string($errorCode) . '.') : '');
     }
 
