@@ -27,7 +27,7 @@ use Drupal\sermon_audio\AwsApiInvoker;
 use Drupal\sermon_audio\Helper\CastHelpers;
 use Drupal\sermon_audio\HttpMethod;
 use Drupal\sermon_audio\S3ClientFactory;
-use Psr\Http\Client\ClientExceptionInterface;
+use GuzzleHttp\Exception\GuzzleException;
 use Psr\Http\Message\ResponseInterface;
 use Ranine\Exception\InvalidOperationException;
 use Ranine\Exception\ParseException;
@@ -420,7 +420,7 @@ class SermonAudio extends ContentEntityBase {
         [],
         HttpMethod::POST);
     }
-    catch (ClientExceptionInterface $e) {
+    catch (GuzzleException $e) {
       $throwIfDesired(new ApiCallException('An error occurred when calling the audio processing job submission API.', $e->getCode(), $e));
       return;
     }
@@ -755,7 +755,7 @@ class SermonAudio extends ContentEntityBase {
         ['id' => $this->getCleaningJobId()],
         HttpMethod::GET);
     }
-    catch (ClientExceptionInterface $e) {
+    catch (GuzzleException $e) {
       throw new ApiCallException('An error occurred when calling the audio cleaning job results api.', $e->getCode(), $e);
     }
 
@@ -939,7 +939,7 @@ class SermonAudio extends ContentEntityBase {
         ['id' => $this->getTranscriptionJobId()],
         HttpMethod::GET);
     }
-    catch (ClientExceptionInterface $e) {
+    catch (GuzzleException $e) {
       throw new ApiCallException('An error occurred when calling the audio transcription job results API.', $e->getCode(), $e);
     }
 
