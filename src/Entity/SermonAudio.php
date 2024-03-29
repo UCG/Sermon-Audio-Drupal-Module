@@ -688,13 +688,17 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Unsets the cleaning job ID and records a cleaning job failure.
+   * Unsets cleaning/transcription job IDs and records a cleaning job failure.
    */
   private function failCleaningJob() : void {
     /** @phpstan-ignore-next-line */
     $this->cleaning_job_failed = TRUE;
     /** @phpstan-ignore-next-line */
     $this->cleaning_job_id = NULL;
+    // We also unset the transcription job ID, as it is unlikely a transcription
+    // operation will succeed after the cleaning job has failed.
+    /** @phpstan-ignore-next-line */
+    $this->transcription_job_id = NULL;
   }
 
   /**
