@@ -106,6 +106,13 @@ class SermonAudioFieldItem extends EntityReferenceItem {
   }
 
   /**
+   * {@inheritdoc}
+   */
+  public static function getPreconfiguredOptions() : array {
+    return [];
+  }
+
+  /**
    * Returns unprocessed audio upload validators for the given field settings.
    *
    * @param array $settings
