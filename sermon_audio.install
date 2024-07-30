@@ -152,6 +152,16 @@ function sermon_audio_update_9301() : void {
 }
 
 /**
+ * Implements hook_update_9302().
+ */
+function sermon_audio_update_9302() : void {
+  // As in 9201, a new entity type property was set.
+  _sermon_audio_update_entity_type(function (EntityTypeInterface $type) : void {
+    $type->setHandlerClass('views_data', 'Drupal\\sermon_audio\\SermonAudioViewsData');
+  });
+}
+
+/**
  * Updates the sermon audio entity type.
  *
  * Grabs the "last installed" entity type, makes the requested change, and

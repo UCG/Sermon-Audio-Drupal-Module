@@ -52,6 +52,7 @@ use Ranine\Iteration\ExtendableIterable;
  *   handlers = {
  *     "access" = "Drupal\sermon_audio\SermonAudioAccessControlHandler",
  *     "storage_schema" = "Drupal\sermon_audio\SermonAudioStorageSchema",
+ *     "views_data" = "Drupal\sermon_audio\SermonAudioViewsData",
  *   },
  *   constraints = {
  *     "SermonProcessedAudioAndDurationMatchingNullity" = {},

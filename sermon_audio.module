@@ -8,6 +8,7 @@
 declare (strict_types = 1);
 
 use Drupal\Component\Utility\Html;
+use Drupal\field\FieldStorageConfigInterface;
 use Drupal\file\FileInterface;
 
 /**
@@ -55,6 +56,42 @@ function sermon_audio_cron() : void {
       $queue->createItem((int) $id);
     }
   }
+}
+
+/**
+ * Implements hook_field_views_data().
+ *
+ * Adds a Views relationship for the target sermon audio entity.
+ *
+ * @see core_field_views_data()
+ */
+function sermon_audio_field_views_data(FieldStorageConfigInterface $field_storage) {
+  $data = views_field_default_views_data($field_storage);
+
+  if ($field_storage->getType() != 'sermon_audio') {
+    return $data;
+  }
+  if ($field_storage->getSetting('target_type') != 'sermon_audio') {
+    // Something is wrong...
+    return $data;
+  }
+
+  $fieldName = $field_storage->getName();
+  $args = ['@field_name' => $fieldName];
+  foreach ($data as $tableName => $d) {
+    $data[$tableName][$fieldName]['relationship'] = [
+      'title' => t('Sermon Audio referenced from @field_name', $args),
+      'label' => t('@field_name: Sermon Audio', $args),
+      'group' => t('Sermon Audio'),
+      'help' => t('Appears in: @bundles.', ['@bundles' => implode(', ', $field_storage->getBundles())]),
+      'id' => 'standard',
+      'base' => 'sermon_audio_field_data',
+      'base field' => 'entity_id',
+      'relationship field' => ($fieldName . '_target_id'),
+    ];
+  }
+
+  return $data;
 }
 
 /**
