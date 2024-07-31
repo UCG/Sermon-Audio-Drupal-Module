@@ -86,7 +86,7 @@ function sermon_audio_field_views_data(FieldStorageConfigInterface $field_storag
       'help' => t('Appears in: @bundles.', ['@bundles' => implode(', ', $field_storage->getBundles())]),
       'id' => 'standard',
       'base' => 'sermon_audio_field_data',
-      'base field' => 'entity_id',
+      'base field' => 'id',
       'relationship field' => ($fieldName . '_target_id'),
     ];
   }
