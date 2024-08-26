@@ -68,12 +68,13 @@ class TranscriptionRefresherQueueWorker extends EntityRefresherQueueWorker {
   /**
    * {@inheritdoc}
    */
-  public static function create(ContainerInterface $container, array $configuration, mixed $plugin_id, mixed $plugin_definition) : self {
+  public static function create(ContainerInterface $container, array $configuration, mixed $plugin_id, mixed $plugin_definition) : static {
     $entityTypeManager = $container->get('entity_type.manager');
     assert($entityTypeManager instanceof EntityTypeManagerInterface);
     $eventDispatcher = $container->get('event_dispatcher');
     assert($eventDispatcher instanceof EventDispatcherInterface);
-    return new self($configuration,
+    /** @phpstan-ignore-next-line */
+    return new static($configuration,
       $plugin_id,
       $plugin_definition,
       $entityTypeManager->getStorage('sermon_audio'),

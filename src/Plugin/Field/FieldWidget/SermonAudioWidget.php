@@ -278,7 +278,7 @@ class SermonAudioWidget extends WidgetBase {
   /**
    * {@inheritdoc}
    */
-  public static function create(ContainerInterface $container, array $configuration, mixed $plugin_id, mixed $plugin_definition) : self {
+  public static function create(ContainerInterface $container, array $configuration, mixed $plugin_id, mixed $plugin_definition) : static {
     $translationManager = $container->get('string_translation');
     assert($translationManager instanceof TranslationInterface);
     $configFactory = $container->get('config.factory');
@@ -287,7 +287,8 @@ class SermonAudioWidget extends WidgetBase {
     assert($entityTypeManager instanceof EntityTypeManagerInterface);
     $elementInfoManager = $container->get('element_info');
     assert($elementInfoManager instanceof ElementInfoManagerInterface);
-    return new self($plugin_id,
+    /** @phpstan-ignore-next-line */
+    return new static($plugin_id,
       $plugin_definition,
       $configuration['field_definition'],
       $configuration['settings'],
@@ -506,9 +507,9 @@ class SermonAudioWidget extends WidgetBase {
         }
         assert($file instanceof FileInterface);
         $filename = (string) $file->getFilename();
-        if ($filename === '') $extension = pathinfo($file->getFileUri(), PATHINFO_EXTENSION);
+        if ($filename === '') $extension = pathinfo($file->getFileUri() ?? '', PATHINFO_EXTENSION);
         else $extension = pathinfo($filename, PATHINFO_EXTENSION);
-        
+
         if (strcasecmp($extension, 'm4a') === 0 || strcasecmp($extension, 'mp4') === 0) {
           if ($file->getMimeType() !== 'audio/mp4') {
             $file->setMimeType('audio/mp4');

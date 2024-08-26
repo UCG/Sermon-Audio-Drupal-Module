@@ -58,11 +58,6 @@ final class RefreshHelpers {
       if ($requiresSave) {
         $dispatching = function (EventDispatcherInterface $dispatcher) use ($translationsWithUpdatedProcessedAudio) : void {
           foreach ($translationsWithUpdatedProcessedAudio as $translation) {
-            // As of this writing, dispatch() is declared without an explicit
-            // $event_name parameter. This may change in later implementations
-            // of Drupal/Symfony, but for now we have to suppress the related
-            // PHPStan error.
-            /** @phpstan-ignore-next-line */
             $dispatcher->dispatch(new AudioSpontaneouslyUpdatedEvent($translation), SermonAudioEvents::AUDIO_SPONTANEOUSLY_UPDATED);
           }
         };
@@ -107,7 +102,6 @@ final class RefreshHelpers {
       if ($requiresSave) {
         $dispatching = function (EventDispatcherInterface $dispatcher) use ($translationsWithUpdatedTranscriptionSubKey) : void {
           foreach ($translationsWithUpdatedTranscriptionSubKey as $translation) {
-            /** @phpstan-ignore-next-line */
             $dispatcher->dispatch(new TranscriptionSpontaneouslyUpdatedEvent($translation), SermonAudioEvents::TRANSCRIPTION_SPONTANEOUSLY_UPDATED);
           }
         };

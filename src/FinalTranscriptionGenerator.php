@@ -106,6 +106,7 @@ class FinalTranscriptionGenerator {
     }
 
     $s3GetResult = $s3Client->getObject(['Bucket' => $s3Bucket, 'Key' => $s3KeyPrefix . $inputTranscriptionXmlSubKey]);
+    assert(is_array($s3GetResult) || $s3GetResult instanceof \ArrayAccess);
     if (!isset($s3GetResult['Body'])) {
       throw new \RuntimeException('The transcription XML file body is missing.');
     }
@@ -337,7 +338,10 @@ class FinalTranscriptionGenerator {
       if ($body->isSeekable()) $body->rewind();
       return $body->getContents();
     }
-    else return $body;
+    else {
+      assert(is_string($body));
+      return $body;
+    }
   }
 
   /**

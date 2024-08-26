@@ -350,11 +350,9 @@ class SermonAudio extends ContentEntityBase {
     ThrowHelpers::throwIfEmptyString($sermonCongregation, 'sermonCongregation');
     ThrowHelpers::throwIfEmptyString($sermonLanguageCode, 'sermonLanguageCode');
     ThrowHelpers::throwIfLessThanOrEqualToZero($sermonYear, 'sermonYear');
-    /** @phpstan-ignore-next-line */
     if ($sermonMonth < 1 || $sermonMonth > 12) {
       throw new \InvalidArgumentException('$sermonMonth must be between 1 and 12 (inclusive).');
     }
-    /** @phpstan-ignore-next-line */
     if ($sermonDay < 1 || $sermonDay > 31) {
       throw new \InvalidArgumentException('$sermonDay must be between 1 and 31 (inclusive).');
     }
@@ -837,6 +835,7 @@ class SermonAudio extends ContentEntityBase {
       // HEAD request for the file.
       $s3Client = self::getProcessedAudioS3Client();
       $result = $s3Client->headObject(['Bucket' => self::getAudioBucket(), 'Key' => self::getS3ProcessedAudioKeyPrefix() . $outputSubKey]);
+      assert(is_array($result) || $result instanceof \ArrayAccess);
       if (!isset($result['ContentLength'])) {
         throw new \RuntimeException('Could not retrieve file size for processed audio file.');
       }
@@ -1265,7 +1264,7 @@ class SermonAudio extends ContentEntityBase {
   /**
    * Attempts to decode the $response body as JSON.
    *
-   * @return ?array
+   * @return ?mixed[]
    *   The response body, if it could be decoded, or NULL if not.
    */
   private static function decodeJsonResponseBody(ResponseInterface $response) : ?array {
@@ -1368,7 +1367,7 @@ class SermonAudio extends ContentEntityBase {
    *   defined in the module settings) or is otherwise invalid.
    */
   private static function getUnprocessedAudioSubKey(FileInterface $file) : string {
-    $uri = $file->getFileUri();
+    $uri = $file->getFileUri() ?? '';
 
     $prefix = Settings::getUnprocessedAudioUriPrefix();
     if (!str_starts_with($uri, $prefix)) {

@@ -169,14 +169,15 @@ class AnnouncementController extends ControllerBase {
   /**
    * {@inheritdoc}
    */
-  public static function create(ContainerInterface $container) : self {
+  public static function create(ContainerInterface $container) : static {
     $requestStack = $container->get('request_stack');
     assert($requestStack instanceof RequestStack);
     $tokenRetriever = $container->get('sermon_audio.site_token_retriever');
     assert($tokenRetriever instanceof SiteTokenRetriever);
     $finishedJobProcessor = $container->get('sermon_audio.finished_job_processor');
     assert($finishedJobProcessor instanceof FinishedJobProcessor);
-    return new self($requestStack, $tokenRetriever, $finishedJobProcessor);
+    /** @phpstan-ignore-next-line */
+    return new static($requestStack, $tokenRetriever, $finishedJobProcessor);
   }
 
   /**

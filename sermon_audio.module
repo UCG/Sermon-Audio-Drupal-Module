@@ -65,7 +65,7 @@ function sermon_audio_cron() : void {
  *
  * @see core_field_views_data()
  */
-function sermon_audio_field_views_data(FieldStorageConfigInterface $field_storage) {
+function sermon_audio_field_views_data(FieldStorageConfigInterface $field_storage) : array {
   $data = views_field_default_views_data($field_storage);
 
   if ($field_storage->getType() != 'sermon_audio') {
@@ -107,12 +107,14 @@ function sermon_audio_preprocess_file_link(array &$variables) : void {
     // override the "link" variable with the sanitized plain-text filename (it
     // should be sanitized by Twig automatically, but we do so here just in case
     // a template is used which suppresses this sanitization, etc).
-    $variables['link'] = Html::escape($file->getFilename());
+    $variables['link'] = Html::escape($file->getFilename() ?? '');
   }
 }
 
 /**
  * Implements hook_theme().
+ *
+ * @return string[][]
  */
 function sermon_audio_theme() : array {
   return [
@@ -138,6 +140,7 @@ function sermon_audio_theme_registry_alter(array &$registry) : void {
   // Add a "sermon_audio_suppress_link" variable to the set of "file_link" theme
   // hook variables.
   if (!empty($registry['file_link'])) {
+    assert(is_array($registry['file_link']));
     $registry['file_link']['variables']['sermon_audio_suppress_link'] = NULL;
   }
 }

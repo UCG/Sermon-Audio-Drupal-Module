@@ -220,10 +220,11 @@ EOS
   /**
    * {@inheritdoc}
    */
-  public static function create(ContainerInterface $container) : self {
+  public static function create(ContainerInterface $container) : static {
     $configFactory = $container->get('config.factory');
     assert($configFactory instanceof ConfigFactoryInterface);
-    return new self($configFactory);
+    /** @phpstan-ignore-next-line */
+    return new static($configFactory);
   }
 
 }
