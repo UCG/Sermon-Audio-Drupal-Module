@@ -7,9 +7,9 @@ namespace Drupal\sermon_audio;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ImmutableConfig;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
-use Drupal\sermon_audio\Helper\CastHelpers;
 use Psr\Http\Message\StreamInterface;
 use Ranine\Exception\ParseException;
+use Ranine\Helper\CastHelpers;
 
 // @todo Eventually, we might want to handle quotation marks ("", etc.) when
 // determining sentence breaks. Right now, we don't have Whisper set to even

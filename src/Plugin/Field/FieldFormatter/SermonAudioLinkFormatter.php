@@ -10,7 +10,7 @@ use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\Core\Field\Plugin\Field\FieldFormatter\EntityReferenceFormatterBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\sermon_audio\Entity\SermonAudio;
-use Drupal\sermon_audio\Helper\CastHelpers;
+use Ranine\Helper\CastHelpers;
 
 /**
  * Formatter for sermon audio fields that displays a link to proc. audio file.

@@ -8,7 +8,7 @@ use Aws\Credentials\Credentials;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ImmutableConfig;
 use Drupal\sermon_audio\Exception\ModuleConfigurationException;
-use Drupal\sermon_audio\Helper\CastHelpers;
+use Ranine\Helper\CastHelpers;
 use Ranine\Helper\StringHelpers;
 
 /**

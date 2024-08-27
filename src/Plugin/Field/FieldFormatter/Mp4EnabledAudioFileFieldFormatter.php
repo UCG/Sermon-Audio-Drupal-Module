@@ -7,7 +7,7 @@ namespace Drupal\sermon_audio\Plugin\Field\FieldFormatter;
 use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\file\Plugin\Field\FieldFormatter\FileMediaFormatterBase;
-use Drupal\sermon_audio\Helper\CastHelpers;
+use Ranine\Helper\CastHelpers;
 use Ranine\Iteration\ExtendableIterable;
 
 /**
