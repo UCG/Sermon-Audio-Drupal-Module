@@ -120,15 +120,19 @@ function sermon_audio_theme() : array {
   return [
     'sermon_audio_player_no_processed_audio' => [
       'template' => 'sermon-audio-player-no-processed-audio',
+      'variables' => [],
     ],
     'sermon_audio_player_broken_processed_audio' => [
       'template' => 'sermon-audio-player-broken-processed-audio',
+      'variables' => [],
     ],
     'sermon_audio_link_no_processed_audio' => [
       'template' => 'sermon-audio-link-no-processed-audio',
+      'variables' => [],
     ],
     'sermon_audio_link_broken_processed_audio' => [
       'template' => 'sermon-audio-link-broken-processed-audio',
+      'variables' => [],
     ],
   ];
 }
