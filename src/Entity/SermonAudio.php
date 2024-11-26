@@ -113,6 +113,20 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
+   * Duplicates this entity without any attached processing jobs.
+   *
+   * @return self
+   *   Duplicated entity, with all identifiers unset. Saving it will create a
+   *   new entity in the storage.
+   */
+  public function duplicateWithoutProcessingJobs() : self {
+    $duplicate = $this->createDuplicate();
+    $duplicate->unsetCleaningJob();
+    $duplicate->unsetTranscriptionJob();
+    return $duplicate;
+  }
+
+  /**
    * Gets the audio cleaning job ID, or NULL if there is no active job.
    */
   public function getCleaningJobId() : ?string {
