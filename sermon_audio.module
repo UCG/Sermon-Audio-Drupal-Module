@@ -113,8 +113,6 @@ function sermon_audio_preprocess_file_link(array &$variables) : void {
 
 /**
  * Implements hook_theme().
- *
- * @return string[][]
  */
 function sermon_audio_theme() : array {
   return [

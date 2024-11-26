@@ -157,11 +157,9 @@ class SermonAudioFieldItem extends EntityReferenceItem {
 
     $value = 0;
     if (!ParseHelpers::tryParseInt($unparsedValue, $value)) {
-      /** @phpstan-ignore-next-line */
       $formState->setError($element, t('The maximum file size provided is non-integral.'));
     }
     if ($value <= 0) {
-      /** @phpstan-ignore-next-line */
       $formState->setError($element, t('The maximum file size provided is not positive.'));
     }
 
@@ -188,14 +186,12 @@ class SermonAudioFieldItem extends EntityReferenceItem {
    */
   public static function validateUploadFileExtensions(array $element, FormStateInterface $formState) : void {
     if (!isset($element['#value'])) {
-      /** @phpstan-ignore-next-line */
       $formState->setError($element, t('There is no extensions list value.'));
       return;
     }
 
     $extensions = (string) $element['#value'];
     if (trim($extensions) === "") {
-      /** @phpstan-ignore-next-line */
       $formState->setError($element, t('The extensions list provided is empty or consists only of whitespace.'));
       return;
     }
@@ -205,7 +201,6 @@ class SermonAudioFieldItem extends EntityReferenceItem {
       throw new \RuntimeException('Regex error.');
     }
     if ($matchResult !== 1) {
-      /** @phpstan-ignore-next-line */
       $formState->setError($element, t('The extensions list provided is invalid.'));
     }
   }
