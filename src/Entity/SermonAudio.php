@@ -113,20 +113,6 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Duplicates this entity without any attached processing jobs.
-   *
-   * @return self
-   *   Duplicated entity, with all identifiers unset. Saving it will create a
-   *   new entity in the storage.
-   */
-  public function duplicateWithoutProcessingJobs() : self {
-    $duplicate = $this->createDuplicate();
-    $duplicate->unsetCleaningJob();
-    $duplicate->unsetTranscriptionJob();
-    return $duplicate;
-  }
-
-  /**
    * Gets the audio cleaning job ID, or NULL if there is no active job.
    */
   public function getCleaningJobId() : ?string {
@@ -178,6 +164,20 @@ class SermonAudio extends ContentEntityBase {
   public function getProcessedAudioId() : ?int {
     /** @phpstan-ignore-next-line */
     return CastHelpers::intyToNullableInt($this->processed_audio->target_id);
+  }
+
+  /**
+   * Gets a clone of this entity with mostly just unprocessed audio present.
+   *
+   * The cloned entity does not include anything related to processed audio or
+   * cleaning/transcription jobs, and this entity is a new entity, which will be
+   * inserted when saved.
+   */
+  public function getPurifiedUnprocessedClone() : self {
+    return self::create([
+      'langcode' => $this->language()->getId(),
+      'unprocessed_audio' => $this->getUnprocessedAudioId(),
+    ])->enforceIsNew();
   }
 
   /**
@@ -585,6 +585,18 @@ class SermonAudio extends ContentEntityBase {
       if ($change > 0) $fileUsageManager->add($file, 'sermon_audio', $entityTypeId, (string) $entityId, $change);
       else $fileUsageManager->delete($file, 'sermon_audio', $entityTypeId, (string) $entityId, -$change);
     }
+  }
+
+  /**
+   * Tells whether only audio-related field data present is unprocessed audio.
+   */
+  public function isPureUnprocessedAudio() : bool {
+    return ($this->getProcessedAudioId() === NULL
+      && $this->getTranscriptionSubKey() === NULL
+      && $this->getCleaningJobId() === NULL
+      && $this->getTranscriptionJobId() === NULL
+      && !$this->didCleaningFail()
+      && !$this->didTranscriptionFail()) ? TRUE : FALSE;
   }
 
   /**
