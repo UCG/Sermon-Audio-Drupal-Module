@@ -883,13 +883,13 @@ class SermonAudio extends ContentEntityBase {
     else $owner = 1;
 
     $filename = trim(basename($outputSubKey));
-    if ($filename === '') $filename = 'audio.mp4';
+    if ($filename === '') $filename = 'audio.mp3';
 
     $newProcessedAudioFieldInitValues = [
       'uri' => $processedAudioUri,
       'uid' => $owner,
       'filename' => $filename,
-      'filemime' => 'audio/mp4',
+      'filemime' => 'audio/mpeg',
       'status' => TRUE,
     ];
 
@@ -1143,7 +1143,7 @@ class SermonAudio extends ContentEntityBase {
       ->setCardinality(1)
       ->setRequired(FALSE)
       ->setTranslatable(TRUE)
-      ->setSetting('file_extensions', 'mp4');
+      ->setSetting('file_extensions', 'mp4 m4a aac mp3');
     // We use an entity reference instead of a file field because 1) we do not
     // need the extra features provided by the file field type, and 2) we would
     // rather not have restrictions on the possible file extensions (these can
