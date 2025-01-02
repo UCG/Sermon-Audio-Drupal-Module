@@ -12,6 +12,8 @@ use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeInterface;
 use Drupal\Core\Field\BaseFieldDefinition;
+use Drupal\Core\File\Exception\InvalidStreamWrapperException;
+use Drupal\Core\File\FileUrlGeneratorInterface;
 use Drupal\Core\Logger\RfcLogLevel;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\file\FileInterface;
@@ -29,6 +31,7 @@ use Drupal\sermon_audio\S3ClientFactory;
 use GuzzleHttp\Exception\GuzzleException;
 use Psr\Http\Message\ResponseInterface;
 use Ranine\Exception\InvalidOperationException;
+use Ranine\Exception\NotImplementedException;
 use Ranine\Exception\ParseException;
 use Ranine\Helper\CastHelpers;
 use Ranine\Helper\ParseHelpers;
@@ -492,6 +495,179 @@ class SermonAudio extends ContentEntityBase {
 
     $this->setCleaningJob($cleaningJobId);
     if (isset($transcriptionJobId)) $this->setTranscriptionJob($transcriptionJobId);
+
+    $this->save();
+  }
+
+  /**
+   * Initiates (re-)transcription for the processed sermon audio.
+   *
+   * @param string $sermonLanguageCode
+   *   Sermon language code corresponding to audio.
+   * @phpstan-param non-empty-string $sermonLanguageCode
+   * @param bool $isProcessedExternalUrlSafe
+   *   Whether the external URL generated for the processed audio is accessible
+   *   enough to pass to the external transcription generator (e.g., this would
+   *   not be so if the URL expires).
+   * @param bool $throwOnFailure
+   *   TRUE if an exception should be thrown if the processing initiation fails
+   *   for certain "expected" (and recoverable; that is, execution of the caller
+   *   can continue without worrying about program state corruption) reasons:
+   *   that is, because of 1) AWS or HTTP errors, 2) validation issues with this
+   *   entity, or 3) missing linked entiti(es).
+   * @param ?\Exception $failureException
+   *   (output) If $throwOnFailure is FALSE and an "expected" exception occurs
+   *   (see above), this parameter is set to the exception that occurred. This
+   *   is NULL if no error occurs, or if $throwOnFailure is TRUE.
+   *
+   * @throws \Drupal\Core\File\Exception\InvalidStreamWrapperException
+   *   Thrown if $isProcessedExternalUrlSafe is TRUE, but no stream wrapper
+   *   could be found with which to generate the external URL.
+   * @throws \Drupal\sermon_audio\Exception\ApiCallException
+   *   Thrown if an error occurs when making an HTTP request to the audio
+   *   transcription job submission API, or if the response is invalid.
+   * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
+   *   Can be thrown if one of this module's settings is missing or invalid.
+   * @throws \InvalidArgumentException
+   *   Thrown if $sermonLanguageCode is empty.
+   * @throws \Ranine\Exception\InvalidOperationException
+   *   Thrown if the processed audio file field is not set, if the processed
+   *   audio URI is empty, or if the processed audio URI is otherwise invalid.
+   * @throws \Ranine\Exception\NotImplementedException
+   *   Thrown if $isProcessedExternalUrlSafe is FALSE and the URI does not have
+   *   the default S3 processed audio prefix (we do not currently support
+   *   arbitrary external processed URLs which are not safe).
+   */
+  public function initiateTranscription(string $sermonLanguageCode, bool $isProcessedExternalUrlSafe = FALSE, bool $throwOnFailure = TRUE, \Exception &$failureException = NULL) : void {
+    ThrowHelpers::throwIfEmptyString($sermonLanguageCode, 'sermonLanguageCode');
+
+    $throwIfDesired = function(\Exception $e, ?callable $alwaysThrowPredicate = NULL) use ($throwOnFailure, &$failureException) {
+      if ($throwOnFailure || ($alwaysThrowPredicate !== NULL && $alwaysThrowPredicate($e))) throw $e;
+      else $failureException = $e;
+    };
+
+    if (!$this->hasProcessedAudio())
+    $processedAudio = $this->getProcessedAudio();
+    if (!$processedAudio) {
+      $throwIfDesired(new InvalidOperationException('The processed audio field has no value.'));
+      return;
+    }
+    $processedAudioUri = $processedAudio->getFileUri() ?? '';
+    if ($processedAudioUri === '') {
+      $throwIfDesired(new InvalidOperationException('The processed audio URI is empty.'));
+      return;
+    }
+
+    $processedAudioSubKey = NULL;
+    $processedAudioExternalUrl = NULL;
+    if ($isProcessedExternalUrlSafe) {
+      $urlGenerator = \Drupal::service('file_url_generator');
+      assert($urlGenerator instanceof FileUrlGeneratorInterface);
+      try {
+        $processedAudioExternalUrl = $urlGenerator->generateAbsoluteString($processedAudioUri);
+      }
+      catch (InvalidStreamWrapperException $e) {
+        $throwIfDesired($e);
+        return;
+      }
+    }
+    else {
+      // Check to see if the URI has the appropriate prefix.
+
+      $processedUriPrefix = Settings::getProcessedAudioUriPrefix();
+      if (!str_starts_with($processedAudioUri, $processedUriPrefix)) {
+        $throwIfDesired(new NotImplementedException('Unsafe processed external URLs are not supported unless the processed audio URI has the default processed prefix.'));
+        return;
+      }
+
+      $processedAudioSubKey = substr($uri, strlen($prefix));
+      if (!is_string($processedAudioSubKey) || $processedAudioSubKey === '') {
+        $throwIfDesired(new InvalidOperationException('Processed audio file URI has an empty or invalid sub-key.'));
+        return;
+      }
+    }
+    assert($processedAudioSubKey !== NULL || $processedAudioExternalUrl !== NULL);
+
+    // Don't actually start any audio processing jobs if we're in "debug mode,"
+    // but do set the job IDs to fake values.
+    if (Settings::isDebugModeEnabled()) {
+      $this->setCleaningJob('abcdef');
+      if ($transcribe) $this->setTranscriptionJob('123456');
+      return;
+    }
+
+    // Don't actually start any transcription jobs if we're in "debug mode,"
+    // but do set the job ID to a fake value.
+    if (Settings::isDebugModeEnabled()) {
+      $this->setTranscriptionJob('123456');
+      return;
+    }
+
+    $jobSubmissionApiEndpoint = Settings::getTranscriptionJobSubmissionApiEndpoint();
+    if ($jobSubmissionApiEndpoint === '') {
+      throw new ModuleConfigurationException('The "transcription_job_submission_api_endpoint" module setting is empty.');
+    }
+    $jobSubmissionApiRegion = Settings::getTranscriptionJobSubmissionApiRegion();
+    if ($jobSubmissionApiRegion === '') {
+      throw new ModuleConfigurationException('The "transcription_job_submission_api_region" module setting is empty.');
+    }
+
+    $transcriptionRequestData = ['sermon-language' => $sermonLanguageCode];
+    if ($processedAudioExternalUrl !== NULL) {
+      $transcriptionRequestData['processed-audio-external-url'] = $processedAudioExternalUrl;
+    }
+    else {
+      $transcriptionRequestData['processed-audio-sub-key'] = $processedAudioSubKey;
+    }
+    try {
+      $response = self::getApiInvoker()->callApi(
+        $jobSubmissionApiEndpoint,
+        $jobSubmissionApiRegion,
+        $transcriptionRequestData,
+        [],
+        HttpMethod::POST);
+    }
+    catch (GuzzleException $e) {
+      $throwIfDesired(new ApiCallException('An error occurred when calling the transcription job submission API.', $e->getCode(), $e));
+      return;
+    }
+
+    $responseStatusCode = $response->getStatusCode();
+    if (!self::isResponseStatusCodeValid($responseStatusCode)) {
+      $throwIfDesired(new ApiCallException('The transcription job submission API returned a faulty status code of ' . $responseStatusCode . '.'));
+      return;
+    }
+
+    try {
+      $responseBody = $response->getBody()->getContents();
+    }
+    catch (\RuntimeException $e) {
+      $throwIfDesired(new ApiCallException('An error occurred when trying to read the response body from the transcription job submission API.', $e->getCode(), $e));
+      return;
+    }
+
+    $decodedResponse = json_decode($responseBody, TRUE);
+    if (!is_array($decodedResponse)) {
+      $throwIfDesired(new ApiCallException('The transcription job submission API returned an invalid response body.'));
+      return;
+    }
+
+    if (!isset($decodedResponse['transcription-job-id'])) {
+      $throwIfDesired(new ApiCallException('The audio processing job submission API returned a response body that did not contain a "transcription-job-id" property.'));
+      return;
+    }
+    $transcriptionJobId = $decodedResponse['transcription-job-id'];
+    if (!is_scalar($transcriptionJobId)) {
+      $throwIfDesired(new ApiCallException('The transcription job submission API returned a response body that contained an invalid "transcription-job-id" property.'));
+      return;
+    }
+    $transcriptionJobId = (string) $transcriptionJobId;
+    if ($transcriptionJobId === '') {
+      $throwIfDesired(new ApiCallException('The transcription job submission API returned a response body that contained an empty "transcription-job-id" property.'));
+      return;
+    }
+
+    $this->setTranscriptionJob($transcriptionJobId);
 
     $this->save();
   }
