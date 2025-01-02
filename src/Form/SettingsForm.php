@@ -98,6 +98,20 @@ class SettingsForm extends ConfigFormBase {
       '#description' => $this->t('Transcription job results AWS HTTP endpoint.'),
       '#required' => TRUE,
     ];
+    $form['transcription_job_submission_endpoint_aws_region'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Transcription Job Submission Endpoint AWS Region'),
+      '#default_value' => CastHelpers::stringyToString($configuration->get('transcription_job_submission_endpoint_aws_region')),
+      '#description' => $this->t('AWS region where transcription-only job submission endpoint resides.'),
+      '#required' => TRUE,
+    ];
+    $form['transcription_job_submission_endpoint'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Transcription Job Submission Endpoint'),
+      '#default_value' => CastHelpers::stringyToString($configuration->get('transcription_job_submission_endpoint')),
+      '#description' => $this->t('Transcription-only job submission AWS HTTP endpoint.'),
+      '#required' => TRUE,
+    ];
     $form['transcription_s3_aws_region'] = [
       '#type' => 'textfield',
       '#title' => $this->t('Transcription S3 AWS Region'),
@@ -201,6 +215,8 @@ EOS
     $configuration->set('job_submission_endpoint', CastHelpers::stringyToString($form_state->getValue('job_submission_endpoint')));
     $configuration->set('transcription_job_results_endpoint_aws_region', CastHelpers::stringyToString($form_state->getValue('transcription_job_results_endpoint_aws_region')));
     $configuration->set('transcription_job_results_endpoint', CastHelpers::stringyToString($form_state->getValue('transcription_job_results_endpoint')));
+    $configuration->set('transcription_job_submission_endpoint_aws_region', CastHelpers::stringyToString($form_state->getValue('transcription_job_submission_endpoint_aws_region')));
+    $configuration->set('transcription_job_submission_endpoint', CastHelpers::stringyToString($form_state->getValue('transcription_job_submission_endpoint')));
     $configuration->set('transcription_s3_aws_region', CastHelpers::stringyToString($form_state->getValue('transcription_s3_aws_region')));
     $configuration->set('transcription_bucket_name', CastHelpers::stringyToString($form_state->getValue('transcription_bucket_name')));
     $configuration->set('transcription_key_prefix', CastHelpers::stringyToString($form_state->getValue('transcription_key_prefix')));
