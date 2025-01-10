@@ -309,8 +309,8 @@ class SermonAudio extends ContentEntityBase {
    *   Sermon congregation corresponding to audio.
    * @phpstan-param non-empty-string $sermonCongregation
    * @param string $sermonLanguageCode
-   *   Sermon language code corresponding to audio.
-   * @phpstan-param non-empty-string $sermonLanguageCode
+   *   2-letter ISO sermon language code corresponding to audio language.
+   * @phpstan-param non-empty-string&lowercase-string $sermonLanguageCode
    * @param bool $transcribe
    *   Whether to transcribe the audio.
    * @param bool $throwOnFailure
@@ -337,8 +337,9 @@ class SermonAudio extends ContentEntityBase {
    *   Can be thrown if module's "connect_timeout" or "endpoint_timeout"
    *   configuration setting is invalid.
    * @throws \InvalidArgumentException
-   *   Thrown if $sermonName, $sermonCongregation, or $sermonLanguageCode is
-   *   empty.
+   *   Thrown if $sermonName or $sermonCongregation is empty.
+   * @throws \InvalidArgumentException
+   *   Thrown if $sermonLanguageCode is not of length equal to 2.
    * @throws \InvalidArgumentException
    *   Thrown if both $sermonSpeakerFirstNames and $sermonSpeakerLastName are
    *   consist only of whitespace.
@@ -365,20 +366,22 @@ class SermonAudio extends ContentEntityBase {
     \Exception &$failureException = NULL) : void {
     ThrowHelpers::throwIfEmptyString($sermonName, 'sermonName');
     ThrowHelpers::throwIfEmptyString($sermonCongregation, 'sermonCongregation');
-    ThrowHelpers::throwIfEmptyString($sermonLanguageCode, 'sermonLanguageCode');
     ThrowHelpers::throwIfLessThanOrEqualToZero($sermonYear, 'sermonYear');
-    if ($sermonMonth < 1 || $sermonMonth > 12) {
-      throw new \InvalidArgumentException('$sermonMonth must be between 1 and 12 (inclusive).');
-    }
-    if ($sermonDay < 1 || $sermonDay > 31) {
-      throw new \InvalidArgumentException('$sermonDay must be between 1 and 31 (inclusive).');
-    }
+    self::throwIfInvalidSermonLanguageCode($sermonLanguageCode, 'sermonLanguageCode');
+    self::throwIfInvalidSermonMonth($sermonMonth, 'sermonMonth');
+    self::throwIfInvalidSermonDay($sermonDay, 'sermonDay');
 
-    $sermonSpeakerFirstNames = trim($sermonSpeakerFirstNames);
-    $sermonSpeakerLastName = trim($sermonSpeakerLastName);
-    if ($sermonSpeakerFirstNames === '' && $sermonSpeakerLastName === '') {
-      throw new \InvalidArgumentException('Both $sermonSpeakerFirstNames and $sermonSpeakerLastName are empty or are only whitespace.');
-    }
+    $sermonSpeakerFullName = '';
+    $sermonSpeakerNormalized = '';
+    self::prepareSermonSpeakerNamesFromArguments($sermonSpeakerFirstNames,
+      $sermonSpeakerLastName,
+      'sermonSpeakerFirstNames',
+      'sermonSpeakerLastName',
+      $sermonLanguageCode,
+      $sermonSpeakerFullName,
+      $sermonSpeakerNormalized);
+
+    $sermonNameNormalized = self::asciify($sermonName, $sermonLanguageCode);
 
     $throwIfDesired = function(\Exception $e, ?callable $alwaysThrowPredicate = NULL) use ($throwOnFailure, &$failureException) {
       if ($throwOnFailure || ($alwaysThrowPredicate !== NULL && $alwaysThrowPredicate($e))) throw $e;
@@ -402,10 +405,6 @@ class SermonAudio extends ContentEntityBase {
       if ($transcribe) $this->setTranscriptionJob('123456');
       return;
     }
-
-    $sermonSpeakerFullName = $sermonSpeakerFirstNames . ' ' . $sermonSpeakerLastName;
-    $sermonSpeakerNormalized = self::asciify($sermonSpeakerLastName . ' ' . $sermonSpeakerFirstNames, $sermonLanguageCode);
-    $sermonNameNormalized = self::asciify($sermonName, $sermonLanguageCode);
 
     $jobSubmissionApiEndpoint = Settings::getJobSubmissionApiEndpoint();
     if ($jobSubmissionApiEndpoint === '') {
@@ -502,6 +501,25 @@ class SermonAudio extends ContentEntityBase {
   /**
    * Initiates (re-)transcription for the processed sermon audio.
    *
+   * @param string $sermonName
+   *   Sermon name corresponding to audio.
+   * @phpstan-param non-empty-string $sermonName
+   * @param string $sermonSpeakerFirstNames
+   *   First name(s) of sermon speaker corresponding to audio.
+   * @param string $sermonSpeakerLastName
+   *   Last name of sermon speaker corresponding to audio.
+   * @param int $sermonYear
+   *   Sermon year corresponding to audio.
+   * @phpstan-param positive-int $sermonYear
+   * @param int $sermonMonth
+   *   Sermon month corresponding to audio.
+   * @phpstan-param int<1, 12> $sermonMonth
+   * @param int $sermonDay
+   *   Sermon day corresponding to audio.
+   * @phpstan-param int<1, 31> $sermonDay
+   * @param string $sermonCongregation
+   *   Sermon congregation corresponding to audio.
+   * @phpstan-param non-empty-string $sermonCongregation
    * @param string $sermonLanguageCode
    *   Sermon language code corresponding to audio.
    * @phpstan-param non-empty-string $sermonLanguageCode
@@ -529,7 +547,15 @@ class SermonAudio extends ContentEntityBase {
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
    *   Can be thrown if one of this module's settings is missing or invalid.
    * @throws \InvalidArgumentException
-   *   Thrown if $sermonLanguageCode is empty.
+   *   Thrown if $sermonName, $sermonCongregation, or $sermonLanguageCode is
+   *   empty.
+   * @throws \InvalidArgumentException
+   *   Thrown if both $sermonSpeakerFirstNames and $sermonSpeakerLastName are
+   *   consist only of whitespace.
+   * @throws \InvalidArgumentException
+   *   Thrown if $sermonYear is less than or equal to zero, if $sermonMonth is
+   *   not between 1 and 12 (inclusive), or if $sermonDay is not between 1 and
+   *   31 (inclusive).
    * @throws \Ranine\Exception\InvalidOperationException
    *   Thrown if the processed audio file field is not set, if the processed
    *   audio URI is empty, or if the processed audio URI is otherwise invalid.
@@ -538,8 +564,36 @@ class SermonAudio extends ContentEntityBase {
    *   the default S3 processed audio prefix (we do not currently support
    *   arbitrary external processed URLs which are not safe).
    */
-  public function initiateTranscription(string $sermonLanguageCode, bool $isProcessedExternalUrlSafe = FALSE, bool $throwOnFailure = TRUE, \Exception &$failureException = NULL) : void {
-    ThrowHelpers::throwIfEmptyString($sermonLanguageCode, 'sermonLanguageCode');
+  public function initiateTranscription(string $sermonName,
+    string $sermonSpeakerFirstNames,
+    string $sermonSpeakerLastName,
+    int $sermonYear,
+    int $sermonMonth,
+    int $sermonDay,
+    string $sermonCongregation,
+    string $sermonLanguageCode,
+    bool $isProcessedExternalUrlSafe = FALSE,
+    bool $throwOnFailure = TRUE,
+    \Exception &$failureException = NULL) : void {
+
+    ThrowHelpers::throwIfEmptyString($sermonName, 'sermonName');
+    ThrowHelpers::throwIfEmptyString($sermonCongregation, 'sermonCongregation');
+    ThrowHelpers::throwIfLessThanOrEqualToZero($sermonYear, 'sermonYear');
+    self::throwIfInvalidSermonLanguageCode($sermonLanguageCode, 'sermonLanguageCode');
+    self::throwIfInvalidSermonMonth($sermonMonth, 'sermonMonth');
+    self::throwIfInvalidSermonDay($sermonDay, 'sermonDay');
+
+    $sermonSpeakerFullName = '';
+    $sermonSpeakerNormalized = '';
+    self::prepareSermonSpeakerNamesFromArguments($sermonSpeakerFirstNames,
+      $sermonSpeakerLastName,
+      'sermonSpeakerFirstNames',
+      'sermonSpeakerLastName',
+      $sermonLanguageCode,
+      $sermonSpeakerFullName,
+      $sermonSpeakerNormalized);
+
+    $sermonNameNormalized = self::asciify($sermonName, $sermonLanguageCode);
 
     $throwIfDesired = function(\Exception $e, ?callable $alwaysThrowPredicate = NULL) use ($throwOnFailure, &$failureException) {
       if ($throwOnFailure || ($alwaysThrowPredicate !== NULL && $alwaysThrowPredicate($e))) throw $e;
@@ -612,7 +666,17 @@ class SermonAudio extends ContentEntityBase {
       throw new ModuleConfigurationException('The "transcription_job_submission_api_region" module setting is empty.');
     }
 
-    $transcriptionRequestData = ['sermon-language' => $sermonLanguageCode];
+    $transcriptionRequestData = [
+      'sermon-language' => $sermonLanguageCode,
+      'sermon-name' => $sermonName,
+      'sermon-name-normalized' => $sermonNameNormalized,
+      'sermon-speaker' => $sermonSpeakerFullName,
+      'sermon-speaker-normalized' => $sermonSpeakerNormalized,
+      'sermon-year' => $sermonYear,
+      'sermon-month' => $sermonMonth,
+      'sermon-day' => $sermonDay,
+      'sermon-congregation' => $sermonCongregation,
+    ];
     if ($processedAudioExternalUrl !== NULL) {
       $transcriptionRequestData['processed-audio-external-url'] = $processedAudioExternalUrl;
     }
@@ -1593,5 +1657,99 @@ class SermonAudio extends ContentEntityBase {
   private static function isResponseStatusCodeValid(int $responseStatusCode) : bool {
     return ($responseStatusCode >= 200 && $responseStatusCode < 300) ? TRUE : FALSE;
   }
+
+  /**
+   * Prepares full sermon speaker name from given sermon speaker name arguments.
+   *
+   * @param string $firstNames
+   *   Speaker first names.
+   * @param string $lastName
+   *   Speaker last name.
+   * @param string $firstNamesArgumentName
+   *   Name of first names argument to use in exception if names are invalid.
+   * @param string $lastNameArgumentName
+   *   Name of last name argument to use in exception if names are invalid.
+   * @param string $sermonLanguageCode
+   *   Sermon language code.
+   * @param string $fullName
+   *   (output) Full speaker name.
+   * @param string $normalizedFullName
+   *   (output) Full normalized speaker name.
+   *
+   * @throws \InvalidArgumentException
+   */
+  private static function prepareSermonSpeakerNamesFromArguments(string $firstNames,
+    string $lastName,
+    string $firstNamesArgumentName,
+    string $lastNameArgumentName,
+    string $sermonLanguageCode,
+    string &$fullName,
+    string &$normalizedFullName) : void {
+
+    $firstNames = trim($firstNames);
+    $lastName = trim($lastName);
+    if ($firstNames === '' && $lastName === '') {
+      throw new \InvalidArgumentException('Both ' . $firstNamesArgumentName . ' and ' . $lastNameArgumentName . ' are empty or are only whitespace.');
+    }
+    elseif ($firstNames === '') {
+      $fullName = $lastName;
+      $normalizedFullName = self::asciify($lastName, $sermonLanguageCode);
+    }
+    elseif ($lastName === '') {
+      $fullName = $firstNames;
+      $normalizedFullName = self::asciify($firstNames, $sermonLanguageCode);
+    }
+    else {
+      $fullName = $firstNames . ' ' . $lastName;
+      $normalizedFullName = self::asciify($lastName . ' ' . $firstNames, $sermonLanguageCode);
+    }
+  }
+
+  /**
+   * Throws an exception if given sermon day argument is invalid.
+   *
+   * @param int $day
+   *   Sermon day.
+   * @param string $argumentName
+   *   Name of argument to use in exception.
+   *
+   * @throws \InvalidArgumentException
+   */
+  private static function throwIfInvalidSermonDay(int $day, string $argumentName) : void {
+    if ($day < 1 || $day > 31) {
+      throw new \InvalidArgumentException($argumentName . ' must be between 1 and 31 (inclusive).');
+    }
+  }
+
+  /**
+   * Throws an exception if given sermon language code is invalid.
+   *
+   * @param string $languageCode
+   *   Sermon language code.
+   * @param string $argumentName
+   *   Name of argument to use in exception.
+   */
+  private static function throwIfInvalidSermonLanguageCode(string $languageCode, string $argumentName) : void {
+    if (strlen($languageCode) !== 2) {
+      throw new \InvalidArgumentException($argumentName . ' must be exactly two characters long.');
+    }
+  }
+
+  /**
+   * Throws an exception if given sermon month argument is invalid.
+   *
+   * @param int $month
+   *   Sermon month.
+   * @param string $argumentName
+   *   Name of argument to use in exception.
+   *
+   * @throws \InvalidArgumentException
+   */
+  private static function throwIfInvalidSermonMonth(int $month, string $argumentName) : void {
+    if ($month < 1 || $month > 12) {
+      throw new \InvalidArgumentException($argumentName . ' must be between 1 and 12 (inclusive).');
+    }
+  }
+
 
 }
