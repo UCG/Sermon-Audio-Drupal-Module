@@ -122,20 +122,6 @@ final class Settings {
   }
 
   /**
-   * Gets the transcription-only job submission AWS API region.
-   */
-  public static function getTranscriptionJobSubmissionApiRegion() : string {
-    return CastHelpers::stringyToString(static::getSettings()->get('transcription_job_submission_endpoint_aws_region'));
-  }
-
-  /**
-   * Gets the transcription-only job submission endpoint.
-   */
-  public static function getTranscriptionJobSubmissionApiEndpoint() : string {
-    return CastHelpers::stringyToString(static::getSettings()->get('transcription_job_submission_endpoint'));
-  }
-
-  /**
    * Gets the S3 key prefix for transcription XML files.
    */
   public static function getTranscriptionKeyPrefix() : string {

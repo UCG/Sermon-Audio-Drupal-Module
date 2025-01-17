@@ -162,25 +162,6 @@ function sermon_audio_update_9302() : void {
 }
 
 /**
- * Implements hook_update_10501().
- */
-function sermon_audio_update_10501() : void {
-  // Some new module settings were added.
-
-  $config = \Drupal::configFactory()->getEditable('sermon_audio.settings');
-
-  if (!_sermon_audio_is_string_setting_set($config, 'transcription_job_submission_endpoint_aws_region')) {
-    $config->set('transcription_job_submission_endpoint_aws_region', 'us-east-1');
-  }
-  if (!_sermon_audio_is_string_setting_set($config, 'transcription_job_submission_endpoint')) {
-    // @todo - IMPORTANT: Set this.
-    $config->set('transcription_job_submission_endpoint', '');
-  }
-
-  $config->save();
-}
-
-/**
  * Updates the sermon audio entity type.
  *
  * Grabs the "last installed" entity type, makes the requested change, and

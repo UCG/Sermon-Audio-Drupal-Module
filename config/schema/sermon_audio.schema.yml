@@ -35,12 +35,6 @@ sermon_audio.settings:
     transcription_job_results_endpoint:
       type: string
       label: 'Transcription job results AWS HTTP endpoint'
-    transcription_job_submission_endpoint_aws_region:
-      type: string
-      label: 'AWS region where transcription-only job submission endpoint resides'
-    transcription_job_submission_endpoint:
-      type: string
-      label: 'Transcription-only job submission AWS HTTP endpoint'
     transcription_s3_aws_region:
       type: string
       label: 'AWS region where audio transcription S3 bucket resides'

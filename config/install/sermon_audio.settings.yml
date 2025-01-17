@@ -9,9 +9,6 @@ job_submission_endpoint_aws_region: us-east-1
 job_submission_endpoint: 'https://fwh0ddufmj.execute-api.us-east-1.amazonaws.com/create-job'
 transcription_job_results_endpoint_aws_region: us-east-1
 transcription_job_results_endpoint: 'https://fwh0ddufmj.execute-api.us-east-1.amazonaws.com/transcription-job-results'
-transcription_job_submission_endpoint_aws_region: us-east-1
-# @todo -- Add this in!
-transcription_job_submission_endpoint: ''
 transcription_s3_aws_region: us-east-1
 transcription_bucket_name: ucgfiles
 transcription_key_prefix: 'text/sermons/transcription/'

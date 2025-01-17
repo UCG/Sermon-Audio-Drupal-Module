@@ -7,12 +7,12 @@ namespace Drupal\sermon_audio\Exception;
 use Ranine\Helper\StringHelpers;
 
 /**
- * Indicates that an entity is invalid in some way (usually from bad field(s)).
+ * Indicates that a sermon audio file entity is invalid in some way.
  */
-class EntityValidationException extends \RuntimeException {
+class InvalidSermonAudioFileException extends \RuntimeException {
 
   /**
-   * Creates a new EntityValidationException object.
+   * Creates a new InvalidSermonAudioFileException object.
    *
    * @param ?string $message
    *   Message pertaining to exception; can be NULL or an empty string, in which
@@ -27,7 +27,7 @@ class EntityValidationException extends \RuntimeException {
     // Call the parent constructor with the message (either $message, or, if
     // $message is unset or empty [i.e., an empty string when coerced to a
     // string], a default message) and other parameters.
-    parent::__construct(StringHelpers::getValueOrDefault($message, 'The entity is invalid.'), $code, $previous);
+    parent::__construct(StringHelpers::getValueOrDefault($message, 'The sermon audio file entity is invalid.'), $code, $previous);
   }
 
 }
