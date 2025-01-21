@@ -426,7 +426,7 @@ class SermonAudio extends ContentEntityBase {
       return;
     }
 
-    $uri = $file->getFileUri() ?? '';
+    $uri = $sourceAudio->getFileUri() ?? '';
     if ($uri === '') {
       throw new InvalidSermonAudioFileException('Input audio file URI is empty.');
     }
@@ -479,7 +479,7 @@ class SermonAudio extends ContentEntityBase {
       'sermon-language' => $sermonLanguageCode,
       // @todo Remove this after the API is updated to not require this.
       'transcribe' => $transcribe,
-      'output-type' => ($getNewProcessedAudio ? AudioJobOutputType::USER_FACING : 0) | ($transcribe ? AudioJobOutputType::TRANSCRIPTION : 0),
+      'output-type' => ($getNewProcessedAudio ? AudioJobOutputType::USER_FACING->value : 0) | ($transcribe ? AudioJobOutputType::TRANSCRIPTION->value : 0),
       'sermon-name' => $sermonName,
       'sermon-name-normalized' => $sermonNameNormalized,
       'sermon-speaker' => $sermonSpeakerFullName,
@@ -1465,6 +1465,7 @@ class SermonAudio extends ContentEntityBase {
    *   Name of last name argument to use in exception if names are invalid.
    * @param string $sermonLanguageCode
    *   Sermon language code.
+   * @phpstan-param non-empty-string&lowercase-string $sermonLanguageCode
    * @param string $fullName
    *   (output) Full speaker name.
    * @param string $normalizedFullName
