@@ -208,7 +208,16 @@ class FinalTranscriptionGenerator {
       || !isset($parseOutput[$parseOutputLastIndex]['type'])) {
       throw new \RuntimeException('Unexpected XML parser output structure.');
     }
-    if ($parseOutput[0]['tag'] !== 'TRANSCRIPTION' || $parseOutput[0]['type'] !== 'open') {
+    if ($parseOutput[0]['tag'] !== 'TRANSCRIPTION') {
+      throw new ParseException('The first tag in the transcription XML is not a <transcription> tag.');
+    }
+    if ($parseOutputLastIndex === 0) {
+      if ($parseOutput[0]['type'] !== 'complete') {
+        throw new ParseException('Transcription XML has a single element, but it is not a self-closing <transcription> tag.');
+      }
+      else return [];
+    }
+    if ($parseOutput[0]['type'] !== 'open') {
       throw new ParseException('Transcription XML does not have a valid opening <transcription> tag.');
     }
     if ($parseOutput[$parseOutputLastIndex]['tag'] !== 'TRANSCRIPTION' || $parseOutput[$parseOutputLastIndex]['type'] !== 'close') {

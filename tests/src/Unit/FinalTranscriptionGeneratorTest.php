@@ -29,6 +29,16 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
   private FinalTranscriptionGenerator $finalTranscriptionGenerator;
 
   /**
+   * Tests the generate() method for datum w/ only a <transcription /> element.
+   *
+   * @covers ::generate
+   */
+  public function testGenerateEmptyTranscriptionDatum() : void {
+    $result = $this->finalTranscriptionGenerator->generateTranscriptionHtml('empty.xml');
+    $this->assertEmpty($result);
+  }
+
+  /**
    * Tests the generate() method for the datum w/ empty or very short segments.
    *
    * @covers ::generate
