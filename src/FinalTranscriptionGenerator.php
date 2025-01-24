@@ -93,6 +93,8 @@ class FinalTranscriptionGenerator {
    *   it.
    * @throws \RuntimeException
    *   Thrown if a regex error occurs.
+   * @throws \Ranine\Exception\ParseException
+   *   Thrown if the transcription XML has an unexpected or invalid format.
    */
   public function generateTranscriptionHtml(string $inputTranscriptionXmlSubKey) : string {
     $s3Client = $this->s3ClientFactory->getClient($this->getTranscriptionS3Region());
