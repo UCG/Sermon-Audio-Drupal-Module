@@ -73,6 +73,17 @@ class SermonAudio extends ContentEntityBase {
   private static array $idsWherePostLoadIsDisabled = [];
 
   /**
+   * Removes this entity's transcription job info, results and associated flags.
+   */
+  public function clearTranscriptionInformation() : void {
+    /** @phpstan-ignore-next-line */
+    $this->transcription_job_failed = FALSE;
+    /** @phpstan-ignore-next-line */
+    $this->transcription_sub_key = NULL;
+    $this->unsetTranscriptionJob();
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function delete() : void {
@@ -168,17 +179,19 @@ class SermonAudio extends ContentEntityBase {
   }
 
   /**
-   * Gets a clone of this entity with mostly just unprocessed audio present.
+   * Gets clone of this entity with all job/transcription-related fields unset.
    *
-   * The cloned entity does not include anything related to processed audio or
-   * cleaning/transcription jobs, and this entity is a new entity, which will be
-   * inserted when saved.
+   * @return self
+   *   New entity, which will be inserted when saved.
    */
-  public function getPurifiedUnprocessedClone() : self {
-    return self::create([
-      'langcode' => $this->language()->getId(),
-      'unprocessed_audio' => $this->getUnprocessedAudioId(),
-    ])->enforceIsNew();
+  public function getPurifiedClone() : self {
+    $clone = $this->createDuplicate();
+    $clone->clearTranscriptionInformation();
+    $clone->unsetCleaningJob();
+    /** @phpstan-ignore-next-line */
+    $clone->cleaning_job_failed = FALSE;
+
+    return $clone;
   }
 
   /**
