@@ -7,6 +7,7 @@ namespace Drupal\sermon_audio\Entity;
 use Aws\DynamoDb\Exception\DynamoDbException;
 use Aws\S3\Exception\S3Exception;
 use Aws\S3\S3Client;
+use Drupal\Core\Database\DatabaseExceptionWrapper;
 use Drupal\Core\Entity\ContentEntityBase;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Entity\EntityStorageInterface;
@@ -16,6 +17,7 @@ use Drupal\Core\File\Exception\InvalidStreamWrapperException;
 use Drupal\Core\File\FileUrlGeneratorInterface;
 use Drupal\Core\Logger\RfcLogLevel;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\Core\Utility\Error;
 use Drupal\file\FileInterface;
 use Drupal\file\FileStorageInterface;
 use Drupal\file\FileUsage\FileUsageInterface;
@@ -934,7 +936,18 @@ class SermonAudio extends ContentEntityBase {
       if(!($s3fsStreamWrapper instanceof S3fsStream)) {
         throw new \RuntimeException('The "s3fs" module was enabled, but the "stream_wrapper.s3fs" is not of the expected type.');
       }
-      $s3fsStreamWrapper->writeUriToCache($processedAudioUri);
+      // It appears that a sort of "race condition" can occur that produces a DB
+      // constraint exception due to an already-existing cache item. This is
+      // likely because of the non-atomic nature of the Drupal DB backend
+      // merge() method used by s3fs (there is no MERGE command in MySQL, but
+      // Drupal could use SELECT...FOR UPDATE instead; it don't, however). For
+      // this reason, we catch and log DB exceptions.
+      try {
+        $s3fsStreamWrapper->writeUriToCache($processedAudioUri);
+      }
+      catch (DatabaseExceptionWrapper $e) {
+        Error::logException(\Drupal::logger('sermon_audio'), $e);
+      }
     }
     else {
       // Get the size of the new processed audio file. We do this by making a
