@@ -885,7 +885,7 @@ class SermonAudio extends ContentEntityBase {
     if (!ParseHelpers::tryParseInt($jobResults['status'], $jobStatus)) {
       throw new ApiCallException('The audio cleaning job results API returned a response body that contained a non-integral "status" property.');
     }
-    if ($jobStatus === -1) {
+    if ($jobStatus < 0) {
       return function() {
         $this->failCleaningJob();
         return TRUE;
@@ -1081,7 +1081,7 @@ class SermonAudio extends ContentEntityBase {
     if (!ParseHelpers::tryParseInt($jobResults['status'], $jobStatus)) {
       throw new ApiCallException('The audio transcription job results API returned a response body that contained a non-integral "status" property.');
     }
-    if ($jobStatus === -1) {
+    if ($jobStatus < 0) {
       return function() {
         $this->failTranscriptionJob();
         return TRUE;
