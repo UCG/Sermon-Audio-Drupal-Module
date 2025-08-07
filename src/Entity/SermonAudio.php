@@ -1063,7 +1063,7 @@ class SermonAudio extends ContentEntityBase {
         HttpMethod::GET);
     }
     catch (GuzzleException $e) {
-      throw new ApiCallException('An error occurred when calling the audio transcription job results API.', $e->getCode(), $e);
+      throw new ApiCallException('An error occurred when calling the audio transcription job results API. Message: ' . $e->getMessage(), $e->getCode(), $e);
     }
 
     $responseStatusCode = $response->getStatusCode();
