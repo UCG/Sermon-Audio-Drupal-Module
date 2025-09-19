@@ -4,12 +4,13 @@ declare(strict_types = 1);
 
 namespace Drupal\Tests\sermon_audio\Traits;
 
-use Drupal\sermon_audio\FinalTranscriptionGenerator;
-
 /**
  * Stores sample data for transcription tests.
  */
 trait SampleTranscriptionDataTrait {
+
+  private const int ONE_BIG_SEGMENT_SENTENCE_LENGTH = 4;
+  private const int ZERO_SEGMENT_GAPS_SENTENCE_LENGTH = 4;
 
   /** @todo Make into a constant in PHP 8.2. */
   private static string $normalTranscriptionDatum = <<<'EOS'

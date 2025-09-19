@@ -87,9 +87,12 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
     // Since there is no timestamp info to use, the result should be split into
     // paragraphs that deviate no more than a certain amount from the target
     // word count, except that the last paragraph may be shorter or longer than
-    // what would otherwise be acceptable.
+    // what would otherwise be acceptable, and a paragraph may be slightly
+    // longer than necessary if it is necessary to finish the current sentence.
     $minWords = FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT - FinalTranscriptionGenerator::SPLITTING_FLUCTUATION;
-    $maxWords = FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT + FinalTranscriptionGenerator::SPLITTING_FLUCTUATION;
+    $maxWords = FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT
+      + FinalTranscriptionGenerator::SPLITTING_FLUCTUATION
+      + self::ZERO_SEGMENT_GAPS_SENTENCE_LENGTH - 1;
     foreach ($this->getParagraphWordCounts($result, TRUE) as $wordCount) {
       $this->assertGreaterThanOrEqual($minWords, $wordCount);
       $this->assertLessThanOrEqual($maxWords, $wordCount);
@@ -108,7 +111,9 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
     $this->assertEquals(trim($result), $result);
     // See self::testGenerateZeroGapsDatum() to understand the following.
     $minWords = FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT - FinalTranscriptionGenerator::SPLITTING_FLUCTUATION;
-    $maxWords = FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT + FinalTranscriptionGenerator::SPLITTING_FLUCTUATION;
+    $maxWords = FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT
+      + FinalTranscriptionGenerator::SPLITTING_FLUCTUATION
+      + self::ONE_BIG_SEGMENT_SENTENCE_LENGTH - 1;
     foreach ($this->getParagraphWordCounts($result, TRUE) as $wordCount) {
       $this->assertGreaterThanOrEqual($minWords, $wordCount);
       $this->assertLessThanOrEqual($maxWords, $wordCount);
