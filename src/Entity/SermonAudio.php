@@ -1325,7 +1325,7 @@ class SermonAudio extends ContentEntityBase {
               // For "expected exceptions," we don't want to blow up in
               // postLoad(). Instead, we simply log the exception, and continue to
               // the next translation.
-              watchdog_exception('sermon_audio', $e, NULL, [], RfcLogLevel::WARNING);
+              Error::logException(\Drupal::logger('sermon_audio'), $e, level: RfcLogLevel::WARNING);
               continue;
             }
             else throw $e;
@@ -1339,7 +1339,7 @@ class SermonAudio extends ContentEntityBase {
           }
           catch (\Exception $e) {
             if ($e instanceof ApiCallException || $e instanceof ModuleConfigurationException) {
-              watchdog_exception('sermon_audio', $e, NULL, [], RfcLogLevel::WARNING);
+              Error::logException(\Drupal::logger('sermon_audio'), $e, level: RfcLogLevel::WARNING);
               continue;
             }
             else throw $e;

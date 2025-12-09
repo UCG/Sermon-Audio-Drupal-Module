@@ -229,10 +229,9 @@ class SermonAudioWidget extends WidgetBase {
           'bar' => $this->t('Progress bar'),
         ],
         '#default_value' => $this->getSetting('progress_indicator'),
-        // file_progress_implementation() seems to indicate whether there is
-        // functionality for measuring file upload status -- it should return
-        // FALSE if no such functionality exists.
-        '#access' => file_progress_implementation(),
+        // The uploadprogress extension will hopefully provide file upload
+        // status if enabled; see https://www.drupal.org/node/3397577.
+        '#access' => extension_loaded('uploadprogress'),
       ],
       'auto_rename' => [
         '#type' => 'checkbox',
