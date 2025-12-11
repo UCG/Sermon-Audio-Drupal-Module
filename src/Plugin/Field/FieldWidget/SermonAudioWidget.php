@@ -407,12 +407,12 @@ class SermonAudioWidget extends WidgetBase {
     // If requested, automatically rename any new file upload.
     if ($autoRenameUploads) {
       // We use a "psuedo-extension" to force a rename of the file. Basically,
-      // we add an extra extension to the "file_validate_extensions" validator
-      // settings. This is not actually a relevant extension (in fact, we should
-      // never get a file with this extension, given that it is a long random
-      // hexadecimal string), but we include it to signal that we want to rename
-      // the file. We associate this extension with the new bare
-      // (extension-less) filename we wish to use.
+      // we add an extra extension to the FileExtension validator settings. This
+      // is not actually a relevant extension (in fact, we should never get a
+      // file with this extension, given that it is a long random hexadecimal
+      // string), but we include it to signal that we want to rename the file.
+      // We associate this extension with the new bare (extension-less) filename
+      // we wish to use.
       // @see \Drupal\sermon_audio\FileRenamePseudoExtensionRepository
       // If we already determined this "pseudo-extension" earlier, go ahead and
       // use it. Otherwise, calculate and cache a new pseudo-extension.
@@ -427,8 +427,7 @@ class SermonAudioWidget extends WidgetBase {
         $pseudoExtension = $renamePseudoExtensionRepo->addBareFilename($bareFilename);
       }
 
-      $extensionValidatorSettings =& $element['#upload_validators']['file_validate_extensions'];
-      $extensionList =& $extensionValidatorSettings[array_key_first($extensionValidatorSettings)];
+      $extensionList =& $element['#upload_validators']['FileExtension']['extensions'];
       if (!is_string($extensionList) || $extensionList === '') $extensionList = $pseudoExtension;
       else $extensionList .= ' ' . $pseudoExtension;
     }

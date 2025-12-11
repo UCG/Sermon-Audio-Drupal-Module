@@ -68,7 +68,8 @@ class SermonAudioFieldItem extends EntityReferenceItem {
    * @return array[]
    *   Validator specifications, suitable for passing to file_save_upload() or
    *   a managed file element's '#upload_validators' property. Includes at least
-   *   specifications for the "file_validate_extensions" validator.
+   *   specifications for the FileExtension validator, including the extensions
+   *   for that validator.
    *
    * @throws \Drupal\sermon_audio\Exception\InvalidFieldConfigurationException
    *   Thrown if a relevant field setting does not exist or is invalid.
@@ -121,16 +122,17 @@ class SermonAudioFieldItem extends EntityReferenceItem {
    * @return array[]
    *   Validator specifications, suitable for passing to file_save_upload() or
    *   a managed file element's '#upload_validators' property. Includes at least
-   *   specifications for the "file_validate_extensions" validator.
-   *
+   *   specifications for the FileExtension validator, including the extensions
+   *   for that validator.
    * @throws \Drupal\sermon_audio\Exception\InvalidFieldConfigurationException
    *   Thrown if a relevant field setting does not exist or is invalid.
    */
   public static function getUploadValidatorsForSettings(array $settings) : array {
     $validators = [];
 
-    $validators['file_validate_size'] = [self::getMaxUploadFileUploadSize($settings)];
-    $validators['file_validate_extensions'] = [self::getAllowedUploadFileExtensions($settings)];
+    // See https://www.drupal.org/node/3363700.
+    $validators['FileSizeLimit'] = ['fileLimit' => self::getMaxUploadFileUploadSize($settings)];
+    $validators['FileExtension'] = ['extensions' => self::getAllowedUploadFileExtensions($settings)];
 
     return $validators;
   }
