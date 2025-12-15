@@ -20,7 +20,7 @@ use Ranine\Helper\ParseHelpers;
  * @FieldType(
  *   id = "sermon_audio",
  *   label = @Translation("Sermon Audio"),
- *   category = @Translation("Reference"),
+ *   category = "reference",
  *   default_formatter = "sermon_audio_player",
  *   default_widget = "sermon_unprocessed_audio",
  *   list_class = "\Drupal\Core\Field\EntityReferenceFieldItemList",
