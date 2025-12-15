@@ -31,6 +31,7 @@ use Drupal\sermon_audio\HttpMethod;
 use Drupal\sermon_audio\S3ClientFactory;
 use GuzzleHttp\Exception\GuzzleException;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Log\LogLevel;
 use Ranine\Exception\InvalidOperationException;
 use Ranine\Exception\ParseException;
 use Ranine\Helper\CastHelpers;
@@ -450,7 +451,7 @@ class SermonAudio extends ContentEntityBase {
     
     if (str_starts_with($uri, $expectedPrefix)) {
       $sourceAudioApiParameterValue = substr($uri, strlen($expectedPrefix));
-      if (!is_string($sourceAudioApiParameterValue) || $sourceAudioApiParameterValue === '') {
+      if ($sourceAudioApiParameterValue === '') {
         throw new InvalidSermonAudioFileException('Input audio file URI has an empty or invalid sub-key.');
       }
 
@@ -1325,7 +1326,7 @@ class SermonAudio extends ContentEntityBase {
               // For "expected exceptions," we don't want to blow up in
               // postLoad(). Instead, we simply log the exception, and continue to
               // the next translation.
-              Error::logException(\Drupal::logger('sermon_audio'), $e, level: RfcLogLevel::WARNING);
+              Error::logException(\Drupal::logger('sermon_audio'), $e, level: LogLevel::WARNING);
               continue;
             }
             else throw $e;
@@ -1339,7 +1340,7 @@ class SermonAudio extends ContentEntityBase {
           }
           catch (\Exception $e) {
             if ($e instanceof ApiCallException || $e instanceof ModuleConfigurationException) {
-              Error::logException(\Drupal::logger('sermon_audio'), $e, level: RfcLogLevel::WARNING);
+              Error::logException(\Drupal::logger('sermon_audio'), $e, level: LogLevel::WARNING);
               continue;
             }
             else throw $e;

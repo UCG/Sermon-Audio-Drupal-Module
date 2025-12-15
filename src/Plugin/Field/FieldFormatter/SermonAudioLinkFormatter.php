@@ -70,11 +70,13 @@ class SermonAudioLinkFormatter extends EntityReferenceFormatterBase {
         }
       }
 
+      /** @phpstan-ignore-next-line */
       if (isset($output[$delta]['#cache']['tags'])) {
         $cacheTags =& $output[$delta]['#cache']['tags'];
         $cacheTags = Cache::mergeTags($cacheTags, $sermonAudio->getCacheTags());
       }
       else {
+        /** @phpstan-ignore-next-line */
         $output[$delta]['#cache']['tags'] = $sermonAudio->getCacheTags();
       }
     }

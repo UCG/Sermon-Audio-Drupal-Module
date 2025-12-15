@@ -248,15 +248,13 @@ class SermonAudioFieldItem extends EntityReferenceItem {
   private static function getMaxUploadFileUploadSize(array $settings) : int {
     if (isset($settings['upload_max_file_size'])) {
       $maxUploadSize = $settings['upload_max_file_size'];
-      if ($maxUploadSize !== NULL) {
-        if (!is_int($maxUploadSize)) {
-          throw new InvalidFieldConfigurationException('Sermon audio field setting upload_max_file_size is not an integer.');
-        }
-        if ($maxUploadSize <= 0) {
-          throw new InvalidFieldConfigurationException('Sermon audio field setting upload_max_file_size is non-positive.');
-        }
-        return min($maxUploadSize, (int) Environment::getUploadMaxSize());
+      if (!is_int($maxUploadSize)) {
+        throw new InvalidFieldConfigurationException('Sermon audio field setting upload_max_file_size is not an integer.');
       }
+      if ($maxUploadSize <= 0) {
+        throw new InvalidFieldConfigurationException('Sermon audio field setting upload_max_file_size is non-positive.');
+      }
+      return min($maxUploadSize, (int) Environment::getUploadMaxSize());
     }
 
     return (int) Environment::getUploadMaxSize();

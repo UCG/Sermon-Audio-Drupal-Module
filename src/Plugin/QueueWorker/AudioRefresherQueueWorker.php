@@ -53,11 +53,10 @@ class AudioRefresherQueueWorker extends EntityRefresherQueueWorker {
    *   Thrown if an error occurs when trying to save the entity.
    */
   protected function processEntity(SermonAudio $entity) : ?callable {
-    /** @var ?callable (\Symfony\Component\EventDispatcher\EventDispatcherInterface $dispatcher) : void */
     $dispatching = NULL;
     if (RefreshHelpers::refreshProcessedAudioAllTranslations($entity, $dispatching)) {
       $entity->save();
-      assert($dispatching !== NULL);
+      assert(is_callable($dispatching));
       return function () use ($dispatching) : void {
         $dispatching($this->eventDispatcher);
       };

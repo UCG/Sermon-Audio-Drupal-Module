@@ -232,9 +232,9 @@ class FinalTranscriptionGenerator {
 
     /** @var \Drupal\sermon_audio\TranscriptionSegment[] */
     $segments = [];
-    /** @var float */
+    /** @var float|int */
     $segmentStart = 0;
-    /** @var float */
+    /** @var float|int */
     $segmentEnd = 0;
     /** @var string */
     $segmentText = '';
@@ -267,6 +267,7 @@ class FinalTranscriptionGenerator {
       // Here we grab the segment text, and discard empty segments.
       if (isset($tagInfo['value'])) $text = $tagInfo['value'];
       else continue;
+      /** @phpstan-ignore-next-line */
       if (!is_scalar($text) && $text !== NULL) {
         throw new \RuntimeException('Transcription XML parse error: <segment> tag at index ' . $i . ' has a non-scalar, non-NULL "value" attribute.');
       }
@@ -610,7 +611,6 @@ class FinalTranscriptionGenerator {
       if ($numMatches === FALSE) {
         throw new \RuntimeException('Sentence matching regex error.');
       }
-      assert(is_int($numMatches));
       assert($numMatches > 0);
 
       $currentMatchIndex = 0;

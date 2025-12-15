@@ -77,7 +77,6 @@ class AwsApiInvoker {
    *   Thrown if $endpoint or $apiRegion is empty.
    * @throws \InvalidArgumentException
    *   Thrown if $body is non-NULL and cannot be encoded as JSON.
-   * @phpstan-ignore-next-line
    * @throws \Guzzle\Exception\GuzzleException
    *   Thrown if an error happens while processing the request.
    * @throws \Drupal\sermon_audio\Exception\ModuleConfigurationException
@@ -87,7 +86,7 @@ class AwsApiInvoker {
    *   Thrown if the module's "connect_timeout" or "endpoint_timeout"
    *   configuration setting is neither NULL nor casts to a positive a integer.
    */
-  public function callApi(string $endpoint,
+  public function callApi(string $endpoint, // @phpstan-ignore-line
     string $apiRegion,
     ?array $body = NULL,
     array $query = [],

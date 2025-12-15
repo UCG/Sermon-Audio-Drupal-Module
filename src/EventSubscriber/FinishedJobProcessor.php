@@ -83,7 +83,6 @@ class FinishedJobProcessor implements EventSubscriberInterface {
 
       if ($isTranscriptionJob) {
         foreach ($entities as $entity) {
-          /** @var ?callable(\Symfony\Component\EventDispatcher\EventDispatcherInterface) */
           $dispatching = NULL;
           if (RefreshHelpers::refreshTranscriptionAllTranslations($entity, $dispatching)) {
             $entity->save();
@@ -94,7 +93,6 @@ class FinishedJobProcessor implements EventSubscriberInterface {
       }
       else {
         foreach ($entities as $entity) {
-          /** @var ?callable(\Symfony\Component\EventDispatcher\EventDispatcherInterface) */
           $dispatching = NULL;
           if (RefreshHelpers::refreshProcessedAudioAllTranslations($entity, $dispatching)) {
             $entity->save();

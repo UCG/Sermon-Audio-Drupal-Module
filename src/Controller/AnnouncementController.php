@@ -196,6 +196,7 @@ class AnnouncementController extends ControllerBase {
     }
 
     $contentTypeParts = explode(';', $contentType);
+    /** @phpstan-ignore-next-line */
     assert(is_array($contentTypeParts));
 
     $numContentTypeParts = count($contentTypeParts);
