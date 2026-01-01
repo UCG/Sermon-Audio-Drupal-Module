@@ -5,11 +5,9 @@ declare (strict_types = 1);
 namespace Drupal\sermon_audio\Form;
 
 use Drupal\Core\Form\ConfigFormBase;
-use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\sermon_audio\Helper\SettingsHelpers;
 use Ranine\Helper\CastHelpers;
-use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Form to configure module settings.
@@ -215,16 +213,6 @@ EOS
 
     $configuration->save();
     parent::submitForm($form, $form_state);
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public static function create(ContainerInterface $container) : static {
-    $configFactory = $container->get('config.factory');
-    assert($configFactory instanceof ConfigFactoryInterface);
-    /** @phpstan-ignore-next-line */
-    return new static($configFactory);
   }
 
 }
