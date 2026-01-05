@@ -9,12 +9,14 @@ use Aws\S3\Exception\S3Exception;
 use Drupal\sermon_audio\FinalTranscriptionGenerator;
 use Drupal\Tests\sermon_audio\Traits\SampleTranscriptionDataTrait;
 use Drupal\Tests\UnitTestCase;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversFunction;
+use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\Attributes\TestDox;
 use Ranine\Testing\Drupal\Traits\MockConfigFactoryCreationTrait;
 
-/**
- * @coversDefaultClass \Drupal\sermon_audio\FinalTranscriptionGenerator
- * @group sermon_audio
- */
+#[CoversClass(FinalTranscriptionGenerator::class)]
+#[Group('sermon_audio')]
 class FinalTranscriptionGeneratorTest extends UnitTestCase {
 
   use MockConfigFactoryCreationTrait, SampleTranscriptionDataTrait;
@@ -28,31 +30,22 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
 
   private FinalTranscriptionGenerator $finalTranscriptionGenerator;
 
-  /**
-   * Tests the generate() method for datum w/ only a <transcription /> element.
-   *
-   * @covers ::generate
-   */
+  #[CoversFunction('generate')]
+  #[TestDox('Tests the generate() method for datum w/ only a <transcription /> element.')]
   public function testGenerateEmptyTranscriptionDatum() : void {
     $result = $this->finalTranscriptionGenerator->generateTranscriptionHtml('empty.xml');
     $this->assertEmpty($result);
   }
 
-  /**
-   * Tests the generate() method for the datum w/ empty or very short segments.
-   *
-   * @covers ::generate
-   */
+  #[CoversFunction('generate')]
+  #[TestDox('Tests the generate() method for the datum w/ empty or very short segments.')]
   public function testGenerateEmptyOrVeryShortSegmentsDatum() : void {
     $result = $this->finalTranscriptionGenerator->generateTranscriptionHtml('empty-or-very-short-segments.xml');
     $this->assertEmpty($result);
   }
 
-  /**
-   * Tests the generate() method for the normal datum.
-   *
-   * @covers ::generate
-   */
+  #[CoversFunction('generate')]
+  #[TestDox('Tests the generate() method for the normal datum.')]
   public function testGenerateNormalDatum() : void {
     $result = $this->finalTranscriptionGenerator->generateTranscriptionHtml('normal.xml');
 
@@ -64,21 +57,15 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
     }
   }
 
-  /**
-   * Tests the generate() method for the very low word count datum.
-   *
-   * @covers ::generate
-   */
+  #[CoversFunction('generate')]
+  #[TestDox('Tests the generate() method for the very low word count datum.')]
   public function testGenerateVeryShortDatum() : void {
     $result = $this->finalTranscriptionGenerator->generateTranscriptionHtml('very-short-datum.xml');
     $this->assertEquals('<p>Hi guys!</p>', $result);
   }
 
-  /**
-   * Tests the generate() method for the datum w/ zero-time inter-segment gaps.
-   *
-   * @covers ::generate
-   */
+  #[CoversFunction('generate')]
+  #[TestDox('Tests the generate() method for the datum w/ zero-time inter-segment gaps.')]
   public function testGenerateZeroGapsDatum() : void {
     $result = $this->finalTranscriptionGenerator->generateTranscriptionHtml('zero-segment-gaps.xml');
 
@@ -91,19 +78,16 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
     // longer than necessary if it is necessary to finish the current sentence.
     $minWords = FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT - FinalTranscriptionGenerator::SPLITTING_FLUCTUATION;
     $maxWords = FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT
-      + FinalTranscriptionGenerator::SPLITTING_FLUCTUATION
-      + self::ZERO_SEGMENT_GAPS_SENTENCE_LENGTH - 1;
+    + FinalTranscriptionGenerator::SPLITTING_FLUCTUATION
+    + self::ZERO_SEGMENT_GAPS_SENTENCE_LENGTH - 1;
     foreach ($this->getParagraphWordCounts($result, TRUE) as $wordCount) {
       $this->assertGreaterThanOrEqual($minWords, $wordCount);
       $this->assertLessThanOrEqual($maxWords, $wordCount);
     }
   }
 
-  /**
-   * Tests the generate() method for the datum w/ one long segment.
-   *
-   * @covers ::generate
-   */
+  #[CoversFunction('generate')]
+  #[TestDox('Tests the generate() method for the datum w/ one long segment.')]
   public function testGenerateOneLongSegmentDatum() : void {
     $result = $this->finalTranscriptionGenerator->generateTranscriptionHtml('one-big-segment.xml');
 
