@@ -10,12 +10,13 @@ use Drupal\sermon_audio\FinalTranscriptionGenerator;
 use Drupal\Tests\sermon_audio\Traits\SampleTranscriptionDataTrait;
 use Drupal\Tests\UnitTestCase;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\Attributes\CoversFunction;
+use PHPUnit\Framework\Attributes\CoversMethod;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\TestDox;
 use Ranine\Testing\Drupal\Traits\MockConfigFactoryCreationTrait;
 
 #[CoversClass(FinalTranscriptionGenerator::class)]
+#[CoversMethod('FinalTranscriptionGenerator','generate')]
 #[Group('sermon_audio')]
 class FinalTranscriptionGeneratorTest extends UnitTestCase {
 
@@ -30,21 +31,18 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
 
   private FinalTranscriptionGenerator $finalTranscriptionGenerator;
 
-  #[CoversFunction('generate')]
   #[TestDox('Tests the generate() method for datum w/ only a <transcription /> element.')]
   public function testGenerateEmptyTranscriptionDatum() : void {
     $result = $this->finalTranscriptionGenerator->generateTranscriptionHtml('empty.xml');
     $this->assertEmpty($result);
   }
 
-  #[CoversFunction('generate')]
   #[TestDox('Tests the generate() method for the datum w/ empty or very short segments.')]
   public function testGenerateEmptyOrVeryShortSegmentsDatum() : void {
     $result = $this->finalTranscriptionGenerator->generateTranscriptionHtml('empty-or-very-short-segments.xml');
     $this->assertEmpty($result);
   }
 
-  #[CoversFunction('generate')]
   #[TestDox('Tests the generate() method for the normal datum.')]
   public function testGenerateNormalDatum() : void {
     $result = $this->finalTranscriptionGenerator->generateTranscriptionHtml('normal.xml');
@@ -57,14 +55,12 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
     }
   }
 
-  #[CoversFunction('generate')]
   #[TestDox('Tests the generate() method for the very low word count datum.')]
   public function testGenerateVeryShortDatum() : void {
     $result = $this->finalTranscriptionGenerator->generateTranscriptionHtml('very-short-datum.xml');
     $this->assertEquals('<p>Hi guys!</p>', $result);
   }
 
-  #[CoversFunction('generate')]
   #[TestDox('Tests the generate() method for the datum w/ zero-time inter-segment gaps.')]
   public function testGenerateZeroGapsDatum() : void {
     $result = $this->finalTranscriptionGenerator->generateTranscriptionHtml('zero-segment-gaps.xml');
@@ -86,7 +82,6 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
     }
   }
 
-  #[CoversFunction('generate')]
   #[TestDox('Tests the generate() method for the datum w/ one long segment.')]
   public function testGenerateOneLongSegmentDatum() : void {
     $result = $this->finalTranscriptionGenerator->generateTranscriptionHtml('one-big-segment.xml');
