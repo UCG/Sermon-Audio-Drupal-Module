@@ -72,8 +72,8 @@ class FinalTranscriptionGeneratorTest extends UnitTestCase {
     // longer than necessary if it is necessary to finish the current sentence.
     $minWords = FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT - FinalTranscriptionGenerator::SPLITTING_FLUCTUATION;
     $maxWords = FinalTranscriptionGenerator::TARGET_AVERAGE_PARAGRAPH_WORD_COUNT
-    + FinalTranscriptionGenerator::SPLITTING_FLUCTUATION
-    + self::ZERO_SEGMENT_GAPS_SENTENCE_LENGTH - 1;
+      + FinalTranscriptionGenerator::SPLITTING_FLUCTUATION
+      + self::ZERO_SEGMENT_GAPS_SENTENCE_LENGTH - 1;
     foreach ($this->getParagraphWordCounts($result, TRUE) as $wordCount) {
       $this->assertGreaterThanOrEqual($minWords, $wordCount);
       $this->assertLessThanOrEqual($maxWords, $wordCount);
