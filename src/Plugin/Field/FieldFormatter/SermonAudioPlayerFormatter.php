@@ -13,13 +13,11 @@ use Drupal\sermon_audio\Entity\SermonAudio;
 
 /**
  * Formatter for sermon audio fields that displays proc. audio with a player.
- *
- * @FieldFormatter(
- *   id = "sermon_audio_player",
- *   label = @Translation("Audio Player"),
- *   field_types = { "sermon_audio" },
- * )
  */
+#[FieldFormatter(id: 'sermon_audio_player',
+  label: new TranslatableMarkup('Audio Player'),
+  field_types: ['sermon_audio'],
+)]
 class SermonAudioPlayerFormatter extends EntityReferenceFormatterBase {
 
   /**

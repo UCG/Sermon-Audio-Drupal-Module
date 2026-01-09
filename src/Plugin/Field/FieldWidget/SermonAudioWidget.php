@@ -9,11 +9,13 @@ use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\Entity\ContentEntityStorageInterface;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Field\Attribute\FieldWidget;
 use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\Core\Field\WidgetBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Render\ElementInfoManagerInterface;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\Core\StringTranslation\TranslationInterface;
 use Drupal\file\Element\ManagedFile;
 use Drupal\file\FileInterface;
@@ -31,13 +33,12 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Edit widget for sermon audio fields.
- *
- * @FieldWidget(
- *   id = "sermon_unprocessed_audio",
- *   label = @Translation("Unprocessed Audio Uploader"),
- *   field_types = { "sermon_audio" },
- * )
  */
+#[FieldWidget(
+  id: 'sermon_unprocessed_audio',
+  label: new TranslatableMarkup('Unprocessed Audio Uploader'),
+  field_types: ['sermon_audio'],
+)]
 class SermonAudioWidget extends WidgetBase {
 
   /* As I understand it, the operation of this widget in the context of the

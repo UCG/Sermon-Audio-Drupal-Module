@@ -4,22 +4,22 @@ declare (strict_types = 1);
 
 namespace Drupal\sermon_audio\Plugin\Field\FieldFormatter;
 
+use Drupal\Core\Field\Attribute\FieldFormatter;
 use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Field\FieldItemListInterface;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\file\Plugin\Field\FieldFormatter\FileMediaFormatterBase;
 use Ranine\Helper\CastHelpers;
 use Ranine\Iteration\ExtendableIterable;
 
 /**
  * File field audio formatter that allows MP4 files.
- *
- * @FieldFormatter(
- *   id = "mp4_enabled_audio_file",
- *   label = @Translation("MP4-Enabled Audio"),
- *   description = @Translation("Displays the file using an HTML5 audio tag. Supports MP4 audio files."),
- *   field_types = { "file" },
- * )
  */
+#[FieldFormatter(id: 'mp4_enabled_audio_file',
+  label: new TranslatableMarkup('MP4-Enabled Audio'),
+  description: new TranslatableMarkup('Displays the file using an HTML5 audio tag. Supports MP4 audio files.'),
+  field_types: ['file'],
+)]
 class Mp4EnabledAudioFileFieldFormatter extends FileMediaFormatterBase {
 
   /**

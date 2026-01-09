@@ -13,13 +13,11 @@ use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 /**
  * Refreshes transcription sub-key for certain sermon audio entities.
- *
- * @QueueWorker(
- *   id = "sermon_audio_transcription_refresher",
- *   title = @Translation("Sermon Audio Transcription Refresher"),
- *   cron = {"time" = 60}
- * )
  */
+#[QueueWorker(id: 'sermon_audio_transcription_refresher',
+  title: new TranslatableMarkup('Sermon Audio Transcription Refresher'),
+  cron: ['time' => 60],
+)]
 class TranscriptionRefresherQueueWorker extends EntityRefresherQueueWorker {
 
   private readonly EventDispatcherInterface $eventDispatcher;

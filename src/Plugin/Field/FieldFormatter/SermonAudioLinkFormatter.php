@@ -5,22 +5,22 @@ declare (strict_types = 1);
 namespace Drupal\sermon_audio\Plugin\Field\FieldFormatter;
 
 use Drupal\Core\Cache\Cache;
+use Drupal\Core\Field\Attribute\FieldFormatter;
 use Drupal\Core\Field\EntityReferenceFieldItemListInterface;
 use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\Core\Field\Plugin\Field\FieldFormatter\EntityReferenceFormatterBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\sermon_audio\Entity\SermonAudio;
 use Ranine\Helper\CastHelpers;
 
 /**
  * Formatter for sermon audio fields that displays a link to proc. audio file.
- *
- * @FieldFormatter(
- *   id = "sermon_audio_link",
- *   label = @Translation("Audio File Link"),
- *   field_types = { "sermon_audio" },
- * )
  */
+#[FieldFormatter(id: 'sermon_audio_link',
+  label: new TranslatableMarkup('Audio File Link'),
+  field_types: ['sermon_audio'],
+)]
 class SermonAudioLinkFormatter extends EntityReferenceFormatterBase {
 
   /**

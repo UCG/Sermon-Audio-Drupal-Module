@@ -5,8 +5,11 @@ declare (strict_types = 1);
 namespace Drupal\sermon_audio\Plugin\Field\FieldType;
 
 use Drupal\Component\Utility\Environment;
+use Drupal\Core\Field\Attribute\FieldType;
+use Drupal\Core\Field\EntityReferenceFieldItemList;
 use Drupal\Core\Field\Plugin\Field\FieldType\EntityReferenceItem;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\sermon_audio\Exception\InvalidFieldConfigurationException;
 use Ranine\Helper\ParseHelpers;
 
@@ -16,16 +19,14 @@ use Ranine\Helper\ParseHelpers;
  * Note that the list class for this field type is set to the entity reference
  * list class: this is done so that \Drupal\Core\Field\Plugin\Field\FieldFormatter\EntityReferenceFormatterBase::getEntitiesToView()
  * can be called in the default field formatter.
- *
- * @FieldType(
- *   id = "sermon_audio",
- *   label = @Translation("Sermon Audio"),
- *   category = "reference",
- *   default_formatter = "sermon_audio_player",
- *   default_widget = "sermon_unprocessed_audio",
- *   list_class = "\Drupal\Core\Field\EntityReferenceFieldItemList",
- * )
  */
+#[FieldType(id: 'sermon_audio',
+  label: new TranslatableMarkup('Sermon Audio'),
+  category: 'reference',
+  default_formatter: 'sermon_audio_player',
+  default_widget: 'sermon_unprocessed_audio',
+  list_class: EntityReferenceFieldItemList::class,
+)]
 class SermonAudioFieldItem extends EntityReferenceItem {
 
   /**

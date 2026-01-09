@@ -6,6 +6,8 @@ namespace Drupal\sermon_audio\Plugin\QueueWorker;
 
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Queue\Attribute\QueueWorker;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\sermon_audio\Entity\SermonAudio;
 use Drupal\sermon_audio\Helper\RefreshHelpers;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -13,13 +15,11 @@ use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 /**
  * Refreshes processed audio for certain sermon audio entities.
- *
- * @QueueWorker(
- *   id = "sermon_audio_processed_audio_refresher",
- *   title = @Translation("Sermon Audio Processed Audio Refresher"),
- *   cron = {"time" = 60}
- * )
  */
+#[QueueWorker(id: 'sermon_audio_processed_audio_refresher',
+  title: new TranslatableMarkup('Sermon Audio Processed Audio Refresher'),
+  cron: ['time' => 60],
+)]
 class AudioRefresherQueueWorker extends EntityRefresherQueueWorker {
 
   private readonly EventDispatcherInterface $eventDispatcher;
