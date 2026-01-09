@@ -8,6 +8,7 @@ use Aws\DynamoDb\Exception\DynamoDbException;
 use Aws\S3\Exception\S3Exception;
 use Aws\S3\S3Client;
 use Drupal\Core\Database\DatabaseExceptionWrapper;
+use Drupal\Core\Entity\Attribute\ContentEntityType;
 use Drupal\Core\Entity\ContentEntityBase;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Entity\EntityStorageInterface;
@@ -29,6 +30,9 @@ use Drupal\sermon_audio\Exception\ModuleConfigurationException;
 use Drupal\sermon_audio\AwsApiInvoker;
 use Drupal\sermon_audio\HttpMethod;
 use Drupal\sermon_audio\S3ClientFactory;
+use Drupal\sermon_audio\SermonAudioAccessControlHandler;
+use Drupal\sermon_audio\SermonAudioStorageSchema;
+use Drupal\sermon_audio\SermonAudioViewsData;
 use GuzzleHttp\Exception\GuzzleException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LogLevel;
@@ -41,31 +45,28 @@ use Ranine\Iteration\ExtendableIterable;
 
 /**
  * An entity representing audio for a sermon.
- *
- * @ContentEntityType(
- *   id = "sermon_audio",
- *   label = @Translation("Sermon Audio"),
- *   base_table = "sermon_audio",
- *   data_table = "sermon_audio_field_data",
- *   entity_keys = {
- *     "id" = "id",
- *     "uuid" = "uuid",
- *     "langcode" = "langcode",
- *   },
- *   admin_permission = "administer sermon audio",
- *   handlers = {
- *     "access" = "Drupal\sermon_audio\SermonAudioAccessControlHandler",
- *     "storage_schema" = "Drupal\sermon_audio\SermonAudioStorageSchema",
- *     "views_data" = "Drupal\sermon_audio\SermonAudioViewsData",
- *   },
- *   constraints = {
- *     "SermonProcessedAudioAndDurationMatchingNullity" = {},
- *     "SermonAudioRequired" = {},
- *   },
- *   translatable = TRUE,
- *   links = {},
- * )
  */
+#[ContentEntityType(id: 'sermon_audio',
+  label: new TranslatableMarkup('Sermon Audio'),
+  base_table: 'sermon_audio',
+  data_table: 'sermon_audio_field_data',
+  entity_keys: [
+    'id' => 'id',
+    'uuid' => 'uuid',
+    'langcode' => 'langcode',
+  ],
+  admin_permission: 'administer sermon audio',
+  handlers: [
+    'access' => SermonAudioAccessControlHandler::class,
+    'storage_schema' => SermonAudioStorageSchema::class,
+    'views_data' => SermonAudioViewsData::class,
+  ],
+  constraints: [
+    'SermonProcessedAudioAndDurationMatchingNullity' => [],
+    'SermonAudioRequired' => [],
+  ],
+  translatable: TRUE,
+)]
 class SermonAudio extends ContentEntityBase {
 
   /**
