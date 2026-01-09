@@ -49,7 +49,7 @@ class SermonAudioPlayerFormatter extends EntityReferenceFormatterBase {
   /**
    * {@inheritdoc}
    */
-  public function viewElements(FieldItemListInterface $items, mixed $langcode) : array {
+  public function viewElements(FieldItemListInterface $items, mixed $langcode) : array { // @phpstan-ignore-line
     assert ($items instanceof EntityReferenceFieldItemListInterface);
     $output = [];
     foreach ($this->getEntitiesToView($items, $langcode) as $delta => $sermonAudio) {

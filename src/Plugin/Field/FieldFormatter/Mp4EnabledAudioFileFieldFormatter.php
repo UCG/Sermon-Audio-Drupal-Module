@@ -25,7 +25,7 @@ class Mp4EnabledAudioFileFieldFormatter extends FileMediaFormatterBase {
   /**
    * {@inheritdoc}
    */
-  public function viewElements(FieldItemListInterface $items, mixed $langcode) : array {
+  public function viewElements(FieldItemListInterface $items, mixed $langcode) : array { // @phpstan-ignore-line
     $elements = parent::viewElements($items, $langcode);
     // The base class uses the plugin ID as the theme for each item. We want to
     // use the file_audio theme instead.

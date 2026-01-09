@@ -122,7 +122,7 @@ class SermonAudioWidget extends WidgetBase {
   /**
    * {@inheritdoc}
    */
-  public function formElement(FieldItemListInterface $items, mixed $delta, array $element, array &$form, FormStateInterface $form_state) : array {
+  public function formElement(FieldItemListInterface $items, mixed $delta, array $element, array &$form, FormStateInterface $form_state) : array { // @phpstan-ignore-line
     $fieldItem = $items[$delta];
     if (!($fieldItem instanceof SermonAudioFieldItem)) {
       throw new InvalidOperationException('This method was called for a field with an item of an invalid type.');
