@@ -393,7 +393,7 @@ class SermonAudio extends ContentEntityBase {
     bool $getNewProcessedAudio = TRUE,
     AudioProcessingSource $source = AudioProcessingSource::UNPROCESSED,
     bool $throwOnFailure = TRUE,
-    \Exception &$failureException = NULL) : void {
+    ?\Exception &$failureException = NULL) : void {
 
     ThrowHelpers::throwIfEmptyString($sermonName, 'sermonName');
     ThrowHelpers::throwIfEmptyString($sermonCongregation, 'sermonCongregation');
